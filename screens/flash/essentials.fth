@@ -2,8 +2,21 @@
 \ Loaded by name from the boot loader after start.
 
 \ ---- SPI master: SD card CS0, config flash CS1 ----------------------------
-\ The 0xF0080 registers are owned by BDOS functions 12/13 (which use the
-\ non-blocking BIOS f20..f22 primitives). The Forth side only sees cs!/spi>.
+\ New kernels expose the BDOS-backed spi-ctrl!/spi-xfer (functions 12/13,
+\ BIOS f20..f22) and set the capability cell at 0x4D20. An older boot image may
+\ still be at 0x100000 while a newer slice image is written to 0x200000
+\ (flash:slices), so define the same two words here when the kernel does not.
+\ This keeps a slice-only update bootable instead of dying on the first line
+\ with "undefined word: spi-ctrl!".
+\ A top-level `if` does not skip interpreted source here, so install the
+\ fallback from a colon word: it exits at run time on a kernel that has the
+\ BDOS words, and otherwise defines them from strings.
+: spi-install ( -- )
+  0x4D20 @ 0xD16C = if exit then
+  s" 0x80 constant spi-ctrl  0x82 constant spi-stat  0x84 constant spi-data  0x86 constant spi-div" evaluate
+  s" : spi-ctrl! ( control div -- ) spi-div es! spi-ctrl es! ;" evaluate
+  s" : spi-xfer ( c -- c ) spi-data es! begin spi-stat es@ 1 and 0= until spi-data es@ 0xff and ;" evaluate ;
+spi-install
 variable spi-ctrl-val drop
 variable spi-div-val drop
 : spi-program ( -- ) spi-ctrl-val @ spi-div-val @ spi-ctrl! ;

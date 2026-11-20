@@ -2272,6 +2272,16 @@ spi_r5:
 spi_r6:
     .word 0
 
+; Capability cell for the loaded modules. essentials reads this before it
+; defines its SPI fallbacks: a kernel from before BDOS 12/13 (or an old
+; config-flash boot image) leaves the flash fill (0xFFFF), so a newer slice can
+; still boot after `flash:slices` wrote only the upper half. The archived
+; D16MINI kernel sets the same magic beside its direct-register primitives.
+; Keep the magic in step with essentials.fth.
+.org 0x4D20
+spi_caps:
+    .word 0xD16C
+
 .org 0x3000
 sp0_base:
     .word 0

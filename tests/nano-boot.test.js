@@ -75,3 +75,51 @@ test('the nano boot script is current and fits the baked block', () => {
     .reduce((n, l) => n + l.length + 1, 0);
   assert.ok(code <= 2040, `forth/boot.fth code is ${code} chars, past one screen`);
 });
+
+test('the kernel advertises its SPI words to the loaded modules', () => {
+  // essentials installs a direct-register fallback unless this cell holds the
+  // magic. A slice-only update (flash:slices) can therefore land on the older
+  // boot image without dying on "undefined word: spi-ctrl!".
+  assert.equal(sym.spi_caps, 0x4d20, 'capability cell address');
+  const words = buildMemory(kernel);
+  assert.equal(words[sym.spi_caps], 0xD16C, 'kernel writes the magic');
+  const essentials = fs.readFileSync(path.join(ROOT, 'screens', 'flash', 'essentials.fth'), 'utf8');
+  assert.match(essentials, /0x4D20 @ 0xD16C =/,
+               'the module reads the same cell and magic');
+});
+
+test('a newer slice boots on a kernel without the BDOS SPI words', () => {
+  // Simulate the mismatch flash:slices can leave: the boot image at 0x100000
+  // predates BDOS 12/13, while the slice image at 0x200000 is current. The
+  // capability cell keeps the flash fill, so essentials must install the
+  // direct-register fallback and the boot must stay clean.
+  const older = new globalThis.Deep16Simulator();
+  older.loadProgram(buildMemory(kernel));
+  older.spiFlash.mem.set(slices.bytes, SCREEN_BASE);
+  older.memory[sym.spi_caps] = 0xFFFF;
+  older.segmentRegisters.CS = 0xFFFF;
+  older.segmentRegisters.DS = 0x0000;
+  older.segmentRegisters.SS = 0x0000;
+  older.segmentRegisters.ES = 0x0000;
+  older.running = true;
+
+  let out = '';
+  const pump = (n) => {
+    for (let i = 0; i < n && older.running; i++) {
+      older.step();
+      if (older.uartTx.length) out += String.fromCharCode(...older.uartTxTake());
+    }
+  };
+  for (let i = 0; i < 60_000_000; i++) {
+    pump(1);
+    if (older.memory[sym.boot_done] && out.includes('> ')) break;
+  }
+  assert.match(out, /Loading essentials/);
+  assert.match(out, /Loading edit/);
+  assert.doesNotMatch(out, /undefined word/, 'the fallback covers the missing words');
+
+  for (const ch of 'cf-id\r') older.kbdBuffer.push(ch === '\r' ? 13 : ch.charCodeAt(0));
+  const from = out.length;
+  for (let i = 0; i < 20_000_000 && !out.slice(from).includes('85 60 16'); i++) pump(1);
+  assert.match(out.slice(from), /85 60 16/, 'the fallback reads the flash ID');
+});

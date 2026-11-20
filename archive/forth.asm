@@ -13147,6 +13147,10 @@ h_sread:
 ; essentials SPI API by touching the 0xF0080 registers directly, as the module
 ; itself used to. The D16NANO kernel implements the same two words through
 ; BDOS functions 12/13.
+.org 0x4D20
+spi_caps:
+    .word 0xD16C
+
 .org 0x4E80
 h_spi_ctrl:
     .word h_spi_xfer
