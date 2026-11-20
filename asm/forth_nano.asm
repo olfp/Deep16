@@ -1546,7 +1546,7 @@ interpret_next:
 ; unknown. The table is absolute addresses: BDOS runs with CS=0, so a handler
 ; anywhere in the kernel image (including the 0x4400 free block) is one JMP
 ; away.
-.equ BDOS_FN_COUNT, 24          ; 0..23; 8 is unused, 14..23 are palette/sound
+.equ BDOS_FN_COUNT, 27          ; 0..26; 24..26 are the graphics register helpers
 bdos_entry:
     MOV R2, R0                 ; park the function: LDI writes R0
     LDI BDOS_FN_COUNT
@@ -1594,6 +1594,9 @@ BDOS_JTABLE:
     .word bdos_sample_write
     .word bdos_sample_read
     .word bdos_sample_copy
+    .word bdos_gfx_read
+    .word bdos_gfx_write
+    .word bdos_gfx_copy
 
 bdos_unknown:
     LSI R0, -1
@@ -16556,10 +16559,10 @@ waqr_done:
 .ifdef CONSOLE_UART
 .ifdef D16D
 .equ BIOS_UART_READY, 13
-.equ BIOS_FN_COUNT, 23             ; 0..5 console + 6 gfx + 7/8 PS/2 + 9/10 SFX + 11 pump + 12 kbd + 13 UART ready
+.equ BIOS_FN_COUNT, 24             ; ..22 plus f23 SIC write
 .else
 .equ BIOS_UART_READY, 6
-.equ BIOS_FN_COUNT, 23              ; 0..5 console + 6 UART ready + fillers + 17..22
+.equ BIOS_FN_COUNT, 24              ; ..22 plus f23 SIC write
 .endif
 .else
 .equ BIOS_FN_COUNT, 6
@@ -16664,6 +16667,7 @@ BIOS_JTABLE:
     .word bios_f20 - BIOS_BASE
     .word bios_f21 - BIOS_BASE
     .word bios_f22 - BIOS_BASE
+    .word bios_f23 - BIOS_BASE
 .endif
 bios_f0:
     ; 0: bver -> the handler's R0 = 0x0100 (BIOS 1.0, major << 8 | minor),
@@ -19378,7 +19382,7 @@ sread_r11:
 ; at the head of the chain would move text_attr off the catalog's 0x3C1F.
 .org 0x4440
 h_sread:
-    .word h_pal_bank
+    .word h_gfx_copy
     .word 11
     .text "serial-read"
     .word word_serialread
@@ -19780,9 +19784,11 @@ word_sfx_ctrl:              ; sfx-ctl! ( c -- )
 word_sic_enable_write:      ; sic-enable! ( mask -- )
     LD R1, SP, 0
     ADD SP, 1
-    LDI 18
-    MOV R7, R0
-    LDI bdos_word_call
+    LDI 0x00B2
+    MOV R2, R0
+    LDI 23
+    SWI
+    LDI next
     MOV PC, R0
     NOP
 word_sic_enable_read:       ; sic-enable@ ( -- mask )
@@ -19794,9 +19800,11 @@ word_sic_enable_read:       ; sic-enable@ ( -- mask )
 word_sic_pending:           ; sic-pending! ( mask -- )
     LD R1, SP, 0
     ADD SP, 1
-    LDI 20
-    MOV R7, R0
-    LDI bdos_word_call
+    LDI 0x00B0
+    MOV R2, R0
+    LDI 23
+    SWI
+    LDI next
     MOV PC, R0
     NOP
 word_sample_store:          ; snd! ( x off -- )
@@ -19851,6 +19859,25 @@ post_r1:
     LDI next
     MOV PC, R0
     NOP
+
+.org 0x5480
+h_gfx_read:
+    .word h_gfx_write
+    .word 4
+    .text "gfx@"
+    .word word_gfx_read
+h_gfx_write:
+    .word h_pal_bank
+    .word 4
+    .text "gfx!"
+    .word word_gfx_write
+
+.org 0x4D2A
+h_gfx_copy:
+    .word h_gfx_read
+    .word 6
+    .text "gfx-cp"
+    .word word_gfx_copy
 
 .org 0x4579
 h_pal_bank:
@@ -19908,6 +19935,45 @@ h_sample_copy:
     .word 7
     .text "snd-cpy"
     .word word_sample_copy
+
+; ============================================================
+; Forth wrappers for BDOS 24..26
+; ============================================================
+.org 0x461F
+.code
+word_gfx_read:              ; gfx@ ( off -- n )
+    LD R1, SP, 0
+    ADD SP, 1
+    LDI 24
+    MOV R7, R0
+    LDI bdos_word_call_r0
+    MOV PC, R0
+    NOP
+word_gfx_write:             ; gfx! ( n off -- )
+    LD R1, SP, 0
+    ADD SP, 1
+    LD R4, SP, 0
+    ADD SP, 1
+    LDI 25
+    MOV R7, R0
+    LDI bdos_word_call
+    MOV PC, R0
+    NOP
+word_gfx_copy:              ; gfx-cp ( src off u -- )
+    LD R3, SP, 0
+    ADD SP, 1
+    LD R4, SP, 0
+    ADD SP, 1
+    LD R1, SP, 0
+    ADD SP, 1
+    LDI bd_count
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI 26
+    MOV R7, R0
+    LDI bdos_word_call
+    MOV PC, R0
+    NOP
 
 .org 0x4640
 h_bslice:
@@ -20279,6 +20345,55 @@ bdos_sample_copy_done:
     LDI 0x0FFF
     INV R0
     MVS ES, R0
+    LSI R0, 0
+    LSI R1, 0
+    JML R10
+    NOP
+
+; ============================================================
+; BDOS 24..26: the remaining graphics registers
+; ============================================================
+.org 0x49A0
+.code
+bdos_gfx_read:
+    ; 24: R1 = offset inside 0xF000 -> R0 = value.
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDS R0, ES, R1
+    JML R10
+    NOP
+bdos_gfx_write:
+    ; 25: R1 = offset, R4 = value.
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    STS R4, ES, R1
+    LSI R0, 0
+    LSI R1, 0
+    JML R10
+    NOP
+bdos_gfx_copy:
+    ; 26: R1 = source in DS, R4 = offset, bd_count cells.
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDI bd_count
+    MOV R2, R0
+    LD R3, R2, 0
+    LDI 0
+    CMP R3, R0
+    JZ bdos_gfx_copy_done
+    NOP
+bdos_gfx_copy_loop:
+    LDS R5, DS, R1
+    STS R5, ES, R4
+    ADD R1, 1
+    ADD R4, 1
+    SUB R3, 1
+    JNZ bdos_gfx_copy_loop
+    NOP
+bdos_gfx_copy_done:
     LSI R0, 0
     LSI R1, 0
     JML R10
@@ -21413,4 +21528,21 @@ sfx_env:
 sfx_phase:
     .word 0
 .endif
+
+; f23 is the one atomic SIC write. R1 = value, R2 = register offset
+; (0xB0 pending, 0xB2 enable). It runs as an SWI with I=0, so enabling a
+; source cannot let its pending IRQ fire halfway through the call.
+.org 0x57E4
+.code
+bios_f23:
+    SMV R1, AR1
+    SMV R2, AR2
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    STS R1, ES, R2
+    LSI R0, 0
+    RETI
+    NOP
+
 .endif

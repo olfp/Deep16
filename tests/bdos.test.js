@@ -20,6 +20,9 @@
 //  20  sic-pending -> R1 = mask
 //  21  snd-write   -> R1 = offset, R4 = value; 22 reads it back into R0
 //  23  snd-copy    -> R1 = source in DS, R4 = destination; bd_count cells
+//  24  gfx-read    -> R1 = offset inside 0xF000; R0 = value
+//  25  gfx-write   -> R1 = offset, R4 = value
+//  26  gfx-copy    -> R1 = source in DS, R4 = offset, bd_count cells
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -48,15 +51,26 @@ test('the BDOS entry is the first word of the free kernel block', () => {
   assert.ok(last < BDOS_ENTRY, `kernel code reaches 0x${last.toString(16)}`);
 });
 
+// LDI carries a 15-bit field sign-extended from bit 14, so it cannot spell
+// 0x4000-0xBFFF. Build any 16-bit pattern with the documented recipe (load the
+// low 14 bits, then set bits 14/15 with OR Rd, imm).
+function loadImm(value) {
+  const pattern = value & 0xFFFF;
+  const lines = [`LDI 0x${(pattern & 0x3FFF).toString(16)}`];
+  if (pattern & 0x4000) lines.push('OR R0, 14');
+  if (pattern & 0x8000) lines.push('OR R0, 15');
+  return lines.map((l) => `        ${l}`).join('\n');
+}
+
 // Call function `fn` with R1 = arg, then halt at 0x0200.
 function callBdos(fn, arg = 0, { mem, flash, arg4 = 0 } = {}) {
   const stub = assemble(`
         .org 0x0100
-        LDI ${arg4}
+${loadImm(arg4)}
         MOV R4, R0            ; fourth argument (read-slice destination)
         LDI ${fn}
         MOV R8, R0            ; park the function: LDI always writes R0
-        LDI ${arg}
+${loadImm(arg)}
         MOV R9, R0            ; park the argument
         LSI R2, 0
         MOV R10, R2           ; return CS = 0
@@ -404,4 +418,20 @@ test('functions 21-23 access the sound window', () => {
   const copy = callBdos(23, 0x0400, { mem, arg4: 0x0100 });
   for (let i = 0; i < 4; i++)
     assert.equal(copy.sim.memory[0xE0100 + i] & 0xFFFF, 0x1000 + i, `cell ${i}`);
+});
+
+test('functions 24-26 read, write and copy graphics registers', () => {
+  const mem = buildMemory(kernel);
+  mem[0xF00C6] = 0x1234;
+  assert.equal(callBdos(24, 0xC6, { mem }).r0, 0x1234, 'gfx read');
+
+  const write = callBdos(25, 0xC6, { arg4: 0x5678 });
+  assert.equal(write.sim.memory[0xF00C6] & 0xFFFF, 0x5678, 'gfx write');
+
+  const copyMem = buildMemory(kernel);
+  for (let i = 0; i < 3; i++) copyMem[0x0400 + i] = 0x2000 + i;
+  copyMem[kernel.symbols.bd_count] = 3;
+  const copy = callBdos(26, 0x0400, { mem: copyMem, arg4: 0x4200 });
+  for (let i = 0; i < 3; i++)
+    assert.equal(copy.sim.memory[0xF4200 + i] & 0xFFFF, 0x2000 + i, `gfx copy ${i}`);
 });

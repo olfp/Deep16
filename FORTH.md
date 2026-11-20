@@ -317,7 +317,13 @@ modules do not use them for SPI: `spi-ctrl!` and `spi-xfer` go through BDOS
 functions 12/13, so `essentials` and `sd` contain no register addresses.
 `graphics` and `audio` likewise use `pal-bank!`, `sfx!`/`sfx-ctl!`/`sfx-level`/
 `sfx-status`, `sic-enable!`/`sic-enable@` and `snd!`/`snd@`/`snd-cpy`
-(BDOS 14–23) instead of palette, I2S and sound-window registers.
+(BDOS 14–23), and `graphics` reaches the rest of its registers through
+`gfx@`, `gfx!` and `gfx-cp` (BDOS 24–26: read, write and a cell copy into the
+`0xF000` window). `sic-enable!` and `sic-pending!` perform one atomic SIC write
+through BIOS f23. The only direct MMIO left in `graphics` is the
+`irq-on`/`irq-off`/`irq-clear` and `raster-on`/`raster-off` pair: the raster
+test pins their cycle behaviour, so those four words keep `es!` on the
+`0xB0`/`0xB2` SIC registers.
 
 ## Characters and strings
 

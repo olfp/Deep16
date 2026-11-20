@@ -978,7 +978,7 @@ test('the PS/2 sender stays in the BIOS and BDOS runs the init', () => {
   // bounded by the keyboard clock, so it stays in the BIOS (function 7); the
   // multi-second reset/enable waits moved to BDOS function 9, which runs with
   // I=1. binit no longer waits for the keyboard.
-  assert.equal(sym.BIOS_FN_COUNT, 23, '0..5 console + 6 gfx + 7 sender + 8 status + 9/10 SFX + 11 pump + 12 kbd + 13 UART ready + 14..15 division + 16 constat + 17..19 state + 20..22 SPI');
+  assert.equal(sym.BIOS_FN_COUNT, 24, '0..5 console + 6 gfx + 7 sender + 8 status + 9/10 SFX + 11 pump + 12 kbd + 13 UART ready + 14..15 division + 16 constat + 17..19 state + 20..22 SPI + 23 SIC write');
   assert.ok(sym.bios_f7 >= sym.bios_entry && sym.bios_f7 < 0x5800, 'f7 inside the BIOS');
   assert.ok(sym.bios_f8 >= sym.bios_entry && sym.bios_f8 < 0x5800, 'f8 inside the BIOS');
   assert.ok(sym.ps2_r5 >= 0x5490 && sym.ps2_r5 < 0x5800, 'saved cells inside the BIOS gap');

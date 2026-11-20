@@ -113,7 +113,9 @@ loader. The dictionary then continues at `0x6000`.
 | `0x03F9D`–`0x043FF` | free dictionary gap (`dict_free` at `0x3F9C`) |
 | `0x04400`–`0x0444E` | `serial-read` Forth wrapper (`0x4400`) and its built-in header (`0x4440`) |
 | `0x04460`–`0x045FF` | `fitdemo` header, code and text |
-| `0x04600`–`0x0463F` | `bdos-slice` Forth wrapper (`0x4600`) and its header (`0x4640`) |
+| `0x04600`–`0x0461E` | `bdos-slice` Forth wrapper (`0x4600`) |
+| `0x0461F`–`0x0463F` | `gfx@`/`gfx!`/`gfx-cp` wrappers (BDOS 24–26) |
+| `0x04640` | `bdos-slice` built-in header |
 | `0x04680`–`0x046BF` | BDOS function 11 (`read-slice`) |
 | `0x046C0`–`0x046DF` | `spi-ctrl!` / `spi-xfer` built-in headers |
 | `0x04700`–`0x0477F` | `spi-ctrl!` (`0x4700`) and `spi-xfer` (`0x4740`) Forth wrappers |
@@ -122,7 +124,8 @@ loader. The dictionary then continues at `0x6000`.
 | `0x04800`–`0x048E2` | BDOS function 10 (`serial_read`) |
 | `0x048E3`–`0x048FF` | free |
 | `0x04900`–`0x0499A` | BDOS 14–23: palette, I2S, SIC and sound-window helpers |
-| `0x0499B`–`0x049FF` | free (the old Pac-Man/Frogger gap) |
+| `0x049A0`–`0x049C3` | BDOS 24–26: `gfx-read`, `gfx-write`, `gfx-copy` |
+| `0x049C4`–`0x049FF` | free (the old Pac-Man/Frogger gap) |
 | `0x04A00`–`0x04D33` | BIOS code (dispatch, console functions 0–6, D16D `gfx_back` menu return) |
 | `0x04D34`–`0x04FE0` | D16D showcase menu block (sparse; magic at `0x04DE4`, entry `0x04D34`) |
 | `0x04FE1`–`0x0519B` | free, then the ILL trap handler (DIV/DIV32) at `0x05000` |
@@ -139,7 +142,7 @@ loader. The dictionary then continues at `0x6000`.
 | `0x056C7`–`0x05766` | free |
 | `0x05767`–`0x057EF` | SFX table and state cells |
 | `0x057E0`–`0x057E3` | PS/2 saved R5/R6/LR/count cells |
-| `0x057E4`–`0x057EF` | free |
+| `0x057E4`–`0x057EF` | BIOS f23: one atomic SIC write (`sic-enable!`/`sic-pending!`) |
 | `0x057F0`–`0x057F9` | SFX saved R4-R12 cells + frame counter |
 | `0x057FA`–`0x057FF` | free |
 | `0x05800`–`0x05FEF` | Forth stacks: return stack from `0x5800` down, data stack from `0x5FF0` down |
@@ -177,7 +180,8 @@ loader. The dictionary then continues at `0x6000`.
 | `word_serialread` | `0x4400` | machine-speed UART block read for XMODEM (delegates to BDOS 10 at `0x4800`) |
 | `word_spi_ctrl` | `0x4700` | `spi-ctrl!`: BDOS function 12 (BIOS f20) |
 | `word_spi_xfer` | `0x4740` | `spi-xfer`: BDOS function 13 (BIOS f21/f22) |
-| `bd_count` | `0x2FB8` | cell count for BDOS function 23 (`snd-cpy`) |
+| `bd_count` | `0x2FB8` | cell count for BDOS 23 (`snd-cpy`) and 26 (`gfx-cp`) |
+| `bios_f23` | `0x57E4` | atomic SIC write: `R1` = mask, `R2` = `0xB0`/`0xB2` |
 
 The D16D showcase is now only the menu: a four-word header at `0x3E4`
 (`0x0D16`, format 1, entry `0x334`), a trampoline at `0x334`, the menu code at
