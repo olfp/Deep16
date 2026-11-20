@@ -382,6 +382,12 @@ menu_wait:
     CMP R1, R3
     JZ menu_frogger
     NOP
+    ; R / r, after the A-Z fold above
+    LDI 0x72
+    MOV R3, R0
+    CMP R1, R3
+    JZ menu_pole
+    NOP
     LDI 0x51
     MOV R3, R0
     CMP R1, R3
@@ -456,6 +462,14 @@ menu_frogger:
     MOV PC, R0
     NOP
 
+menu_pole:
+    LDI str_name_pole
+    MOV R1, R0
+    LSI R9, 0
+    LDI menu_launch
+    MOV PC, R0
+    NOP
+
 menu_after:
     LDI SEG_DEMO
     MVS DS, R0
@@ -512,6 +526,11 @@ frogger_draw:
     LDI menu_after_g
     MOV PC, R0
     NOP
+
+; The pole name lives in the gap before the app-name block.
+.org 0x4C0
+str_name_pole:
+    .text "pole"
 
 ; App names BDOS looks up, and the start mode the launcher passes on.
 .org 0x4E0

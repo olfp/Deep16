@@ -1,11 +1,12 @@
 # POLEPLAN — Pole Position-style racer for Deep16 FiT
 
-Status: **milestone 1 complete; milestone 2 complete, on the core3 model and
-on the board (17 November 2026).** The on-board harness ran on the real FPGA:
-99,127 cycles per frame, 88.1% of the 60 Hz budget. Milestone 3 (the art
-pipeline) is built and tested on the host: the core3 baseline is now 56,697
-cycles per frame (50.4% of the budget) after the scrolling grass and the
-alternating mountain row; its board run is open.
+Status: **milestones 1–2 complete; milestone 3 art built; milestones 4–5
+implemented 2026-11-20.** The on-board harness ran on the real FPGA: 99,127
+cycles per frame, 88.1% of the 60 Hz budget. The art pipeline's core3
+baseline is 56,697 cycles per frame (50.4% of the budget) after the scrolling
+grass and the alternating mountain row. The playable game is now the `pole`
+slice and the showcase menu launches it with **R**. Still open: the dirty
+redraw and the board run with the art (milestones 3/6).
 
 ## Objective
 
@@ -400,19 +401,41 @@ back to 228 words and left room to grow again.
 - The dirty redraw, which milestone 2 pulled forward: the margin on the
   board is 13,373 cycles per frame.
 
-### Milestone 4 — gameplay slice
+### Milestone 4 — gameplay slice (v1 implemented 2026-11-20)
 
-Implement fixed-step input, steering, acceleration, opponents, world-space
-collision, lap/timer/speed HUD, and start/finish flow. Collision must use
-world-space X/Z coordinates rather than rendered pixel positions.
+`asm/pole/pole_game.asm` is now the slice driver in place of the timing
+harness. It keeps the same renderer and state helpers and adds:
 
-### Milestone 5 — config-flash and menu integration
+- direct PS/2 polling (the slice has no SWI vector of its own): arrows or
+  A/D steer, Up/W accelerates, Down/S brakes, Esc/Q quits;
+- steering through `ST_PLAYER_X` (clamped to ±128), speed through the phase
+  advance (`phase += speed >> 5`) and the coast;
+- seven opponents in `ST_OPP`, recycled to bands 18–21 with a frame-derived
+  lateral position and model;
+- world-space collision on `|lateral - playerX| < 28` for bands 0–2, with a
+  45-frame crash timer and a stopped car;
+- lap/time/speed HUD on row 0 (`LAP n/3  TIME sss  SPEED sss`), messages on
+  row 1, drawn after the renderer selects the visible bank so it lands on the
+  frame being shown;
+- a 3-lap finish that stops the car and prints `FINISH  Q=QUIT`.
 
-Package the game as a type-4 binary slice, add it to the config-flash
-directory, copy its tile pack on launch, and expose it from the showcase
-menu. Existing loader segments include Pac-Man at `0x2000`, Flappy at
-`0x5000`, and Frogger at `0x0600`; the racer uses segment `0x7000`, which is
-free in the D16D map and is already checked by the milestone-2 harness.
+The HUD text uses the console font cells in the pole palette's text bank.
+`tests/pole-game.test.js` boots the slice in segment `0x7000`, accelerates,
+checks the HUD glyphs in the tilemap and returns through Esc.
+
+Still open from milestone 3: the dirty redraw (the full back-bank paint is
+still ~56.7k core3 cycles per frame) and the board run with the art.
+
+### Milestone 5 — config-flash and menu integration (done 2026-11-20)
+
+The game is a type-4 binary slice at segment `0x7000`, five slices in the
+current image (the art blocks at `0x1000`/`0x1400`/`0x2500` force the span).
+The directory lists it as `pole`, and the showcase menu launches it with
+**R** (the `str_name_pole` name lives in the free `0x4C0` gap, because the
+app-name block at `0x4E0` is full). The launch copies the slice and the game
+installs its own tile/sprite/palette banks; the menu's standard tile-pack copy
+skips the pole art because the block at `0x1000` is raw words, not a
+`0x0A57` pack.
 
 ### Milestone 6 — board validation
 

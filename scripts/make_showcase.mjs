@@ -24,7 +24,7 @@ import { birdSpriteWords } from './make_bird_sprite.mjs';
 import {
   ART_OFFSETS, poleTileWords, poleSpriteWords, polePaletteWords,
 } from './make_pole_art.mjs';
-import { assemblePoleBoard } from './pole_program.mjs';
+import { assemblePoleBoard, assemblePoleGame } from './pole_program.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const SHOWCASE_MAGIC = 0x0D16;
@@ -258,7 +258,7 @@ export function buildEditor() {
 }
 
 export function buildPole() {
-  const res = assemblePoleBoard();
+  const res = assemblePoleGame();
   const words = [];
   let max = 0;
   for (const c of res.memoryChanges) {
@@ -289,7 +289,7 @@ export function buildPole() {
     .update(fs.readFileSync(path.join(ROOT, 'asm/pole/pole_tables.asm'), 'utf8') +
             fs.readFileSync(path.join(ROOT, 'asm/pole/pole_render.asm'), 'utf8') +
             fs.readFileSync(path.join(ROOT, 'asm/pole/pole_state.asm'), 'utf8') +
-            fs.readFileSync(path.join(ROOT, 'asm/pole/pole_board.asm'), 'utf8') +
+            fs.readFileSync(path.join(ROOT, 'asm/pole/pole_game.asm'), 'utf8') +
             fs.readFileSync(path.join(ROOT, 'asm/pole/pole_art.asm'), 'utf8'))
     .digest('hex').slice(0, 16);
   return {

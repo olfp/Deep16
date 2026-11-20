@@ -223,15 +223,17 @@ hedge and bay art at tiles 26–38. Code and state stay below `0x1000`
 (`FROGGER_LIMIT`); the state block starts at `0xA00`, with the frog's x, lane,
 hop counter, death countdown, filled bays, level, pause, game state, lives,
 score, hi-score, extra-life flag, HUD flags and facing at `0xA30`–`0xA3F`.
-| Pole (road renderer benchmark) | 39–43 | `0x7000` |
+| Pole (racer) | 39–43 | `0x7000` |
 
 Each of those blocks carries its tile art at segment offset `0x1000` (magic
 `0x0A57`, tile count, then index + 32 words); the menu copies it into the tile
 bank before entering the game, because the three art sets overlap (14 + 24 +
 79 tiles in 79 usable slots). The bitstream bakes only the console font.
 
-The Pole slice is different: it is not launched from the menu but by
-`s" pole" game-run`, so it carries its own art and copies it in itself. Its
+The Pole slice is the racer: the menu launches it with **R** (or
+`s" pole" game-run` from the prompt). It carries its own raw art blocks at
+`0x1000`/`0x1400`/`0x2500` and copies them in itself, because its tile block
+is not a `0x0A57` art pack and the menu's standard tile copy skips it. Its
 segment layout is:
 
 | Offset | Contents |
@@ -265,7 +267,7 @@ coarse start and fine phase.
 BIOS function 6 (`gfx`) checks the header,
 parks the Forth R5/R6, jumps to the entry, and on return clears the
 tilemap/scroll/OAM/cursor. The board's kernel calls it during boot, so the
-menu is the power-on screen (Flappy, Pac-Man, Frogger, Forth, or Flappy
+menu is the power-on screen (Flappy, Pac-Man, Frogger, Pole, Forth, or Flappy
 automatically after ten seconds).
 
 ### 4.2 D16nano stack cells
@@ -657,12 +659,13 @@ The upper, writable 2 MB of the config flash (`0x200000`–`0x3FFFFF`, sectors
 | `0x20D000`–`0x20EFFF` | slices 13–14: `audio.fth` (μ-law player) |
 | `0x20F000`–`0x210FFF` | slices 15–16: `games.fth` (the flash game loader) |
 | `0x211000`–`0x213FFF` | slices 17–19: `sd.fth` (loaded with `s" sd-card" need`) |
-| `0x214000`–`0x217FFF` | slices 20–23: Pac-Man (8064 words incl. its tile pack, segment `0x2000`) |
-| `0x218000`–`0x21AFFF` | slices 24–26: Flappy (4560 words incl. pack, segment `0x5000`) |
-| `0x21B000`–`0x21FFFF` | slices 27–31: Frogger (9993 words incl. its tile and sprite packs, segment `0x0600`) |
-| `0x220000`–`0x224FFF` | slices 32–36: Pole road renderer, its on-board timing harness and its art (9520 words, segment `0x7000`) |
-| `0x225000` | slice 37: `hello.fth` |
-| `0x226000` | slice 38: `ping` μ-law sample |
+| `0x215000` | slice 21: the native editor (1928 words, segment `0x0800`) |
+| `0x216000`–`0x219FFF` | slices 22–25: Pac-Man (8064 words incl. its tile pack, segment `0x2000`) |
+| `0x21A000`–`0x221FFF` | slices 26–33: Flappy (4560 words incl. pack, segment `0x5000`) |
+| `0x222000`–`0x226FFF` | slices 34–38: Frogger (9993 words incl. its tile and sprite packs, segment `0x0600`) |
+| `0x227000`–`0x22BFFF` | slices 39–43: Pole racer and its art (9520-word span, segment `0x7000`) |
+| `0x22C000` | slice 44: `hello.fth` |
+| `0x22D000` | slice 45: `ping` μ-law sample |
 | `0x227000`–`0x22CFFF` | slices 39–44: `swoosh` 2-second μ-law sample (linked) |
 | `0x22D000`–`0x234FFF` | slices 45–52: `lila` (the on-device LILA compiler) |
 

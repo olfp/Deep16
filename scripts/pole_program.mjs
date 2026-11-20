@@ -37,6 +37,16 @@ export const POLE_BOARD_SOURCES = [
   'asm/pole/pole_art.asm',
 ];
 
+// The playable game: the same renderer and state, with pole_game.asm as the
+// driver. This is the slice the config flash carries and the menu launches.
+export const POLE_GAME_SOURCES = [
+  'asm/pole/pole_tables.asm',
+  'asm/pole/pole_render.asm',
+  'asm/pole/pole_state.asm',
+  'asm/pole/pole_game.asm',
+  'asm/pole/pole_art.asm',
+];
+
 let assembler = null;
 
 export function loadAssembler() {
@@ -67,6 +77,10 @@ export function poleBoardSource() {
   return poleSource(POLE_BOARD_SOURCES);
 }
 
+export function poleGameSource() {
+  return poleSource(POLE_GAME_SOURCES);
+}
+
 // Assemble the program. defines: { FRAMES: 60, BENCH_RENDER: 1 }
 export function assemblePole(defines = {}) {
   return assemble(poleSource(), defines);
@@ -75,6 +89,10 @@ export function assemblePole(defines = {}) {
 // Assemble the on-board harness. defines: { POLE_FAST: 1 }
 export function assemblePoleBoard(defines = {}) {
   return assemble(poleBoardSource(), defines);
+}
+
+export function assemblePoleGame(defines = {}) {
+  return assemble(poleGameSource(), defines);
 }
 
 function assemble(source, defines) {
