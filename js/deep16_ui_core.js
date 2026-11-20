@@ -69,6 +69,14 @@ class DeepWebUI {
         this.examples = [];
         this.loadExamplesList();
         this.loadSliceAssets();
+        // Keep the build stamp visible even if the top-of-file IIFE ran before
+        // the header was available or was later overwritten by the mobile layout.
+        try {
+            document.title = DEEP16_BUILD + ' - DeepCode - Deep16 (深十六) IDE';
+            const buildHeading = (typeof document.querySelector === 'function')
+                ? document.querySelector('.header-text h1') : null;
+            if (buildHeading) buildHeading.textContent = DEEP16_BUILD + ' - DeepCode IDE';
+        } catch (e) { /* ignore */ }
 
         // No file is being typed in yet (see queueFileUpload).
         this.fileUpload = null;
