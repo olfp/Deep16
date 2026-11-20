@@ -257,8 +257,7 @@ export function buildEditor() {
   return { words, max, size: max + 1, build, entry: 0, seg: 0x0800, symbols: res.symbols };
 }
 
-export function buildPole() {
-  const res = assemblePoleGame();
+function buildPoleFrom(res, driver) {
   const words = [];
   let max = 0;
   for (const c of res.memoryChanges) {
@@ -289,13 +288,24 @@ export function buildPole() {
     .update(fs.readFileSync(path.join(ROOT, 'asm/pole/pole_tables.asm'), 'utf8') +
             fs.readFileSync(path.join(ROOT, 'asm/pole/pole_render.asm'), 'utf8') +
             fs.readFileSync(path.join(ROOT, 'asm/pole/pole_state.asm'), 'utf8') +
-            fs.readFileSync(path.join(ROOT, 'asm/pole/pole_game.asm'), 'utf8') +
+            fs.readFileSync(path.join(ROOT, driver), 'utf8') +
             fs.readFileSync(path.join(ROOT, 'asm/pole/pole_art.asm'), 'utf8'))
     .digest('hex').slice(0, 16);
   return {
     words, min: words[0]?.[0] ?? 0, max, size: max + 1, build,
     entry: 0, seg: POLE_SEG, symbols: res.symbols,
   };
+}
+
+export function buildPole() {
+  return buildPoleFrom(assemblePoleGame(), 'asm/pole/pole_game.asm');
+}
+
+// The on-board timing harness, published as its own slice so the board
+// benchmark in scripts/bench_pole_board.mjs can run it without replacing
+// the game slice.
+export function buildPoleBench() {
+  return buildPoleFrom(assemblePoleBoard(), 'asm/pole/pole_board.asm');
 }
 
 export function checkPole(pole) {

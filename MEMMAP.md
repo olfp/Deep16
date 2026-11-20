@@ -212,6 +212,8 @@ far-jumps to the segment the slice names with `R10`/`R11` as the return pair.
 | Pac-Man | 22–25 | `0x2000` |
 | Flappy | 26–33 | `0x5000` |
 | Frogger | 34–38 | `0x0600` |
+| Pole (racer) | 39–43 | `0x7000` |
+| Pole benchmark (polebench) | 62–66 | `0x7000` |
 
 The Frogger slice carries its own art: a tile pack at `0x1000` (magic
 `0x0A57`, count, then index + 32 words per tile) and a sprite pack at
@@ -223,8 +225,6 @@ hedge and bay art at tiles 26–38. Code and state stay below `0x1000`
 (`FROGGER_LIMIT`); the state block starts at `0xA00`, with the frog's x, lane,
 hop counter, death countdown, filled bays, level, pause, game state, lives,
 score, hi-score, extra-life flag, HUD flags and facing at `0xA30`–`0xA3F`.
-| Pole (racer) | 39–43 | `0x7000` |
-
 Each of those blocks carries its tile art at segment offset `0x1000` (magic
 `0x0A57`, tile count, then index + 32 words); the menu copies it into the tile
 bank before entering the game, because the three art sets overlap (14 + 24 +
@@ -658,12 +658,12 @@ The upper, writable 2 MB of the config flash (`0x200000`–`0x3FFFFF`, sectors
 | `0x200000` + `n × 0x1000` | slice `n`, 4 KB = 2048 cells |
 | `0x200000` | slice 0: the master directory |
 | `0x201000` | slice 1: `start.fth` (banner, `free`, `mem`) |
-| `0x202000`–`0x203FFF` | slices 2–3: `essentials.fth` (SPI/config flash, `dir`/`find`, slice editor) |
-| `0x204000`–`0x20AFFF` | slices 4–10: `edit.fth` (block and text editors) |
-| `0x20B000`–`0x20CFFF` | slices 11–12: `graphics.fth` (SIC/raster, scene, palettes, I2S, sprites) |
-| `0x20D000`–`0x20EFFF` | slices 13–14: `audio.fth` (μ-law player) |
-| `0x20F000`–`0x210FFF` | slices 15–16: `games.fth` (the flash game loader) |
-| `0x211000`–`0x213FFF` | slices 17–19: `sd.fth` (loaded with `s" sd-card" need`) |
+| `0x202000`–`0x204FFF` | slices 2–4: `essentials.fth` (SPI/config flash, `dir`/`find`, slice editor) |
+| `0x205000`–`0x20BFFF` | slices 5–11: `edit.fth` (block and text editors) |
+| `0x20C000`–`0x20DFFF` | slices 12–13: `graphics.fth` (SIC/raster, scene, palettes, I2S, sprites) |
+| `0x20E000`–`0x20FFFF` | slices 14–15: `audio.fth` (μ-law player) |
+| `0x210000`–`0x211FFF` | slices 16–17: `games.fth` (the flash game loader) |
+| `0x212000`–`0x214FFF` | slices 18–20: `sd.fth` (loaded with `s" sd-card" need`) |
 | `0x215000` | slice 21: the native editor (1928 words, segment `0x0800`) |
 | `0x216000`–`0x219FFF` | slices 22–25: Pac-Man (8064 words incl. its tile pack, segment `0x2000`) |
 | `0x21A000`–`0x221FFF` | slices 26–33: Flappy (4560 words incl. pack, segment `0x5000`) |
@@ -671,8 +671,9 @@ The upper, writable 2 MB of the config flash (`0x200000`–`0x3FFFFF`, sectors
 | `0x227000`–`0x22BFFF` | slices 39–43: Pole racer and its art (9520-word span, segment `0x7000`) |
 | `0x22C000` | slice 44: `hello.fth` |
 | `0x22D000` | slice 45: `ping` μ-law sample |
-| `0x227000`–`0x22CFFF` | slices 39–44: `swoosh` 2-second μ-law sample (linked) |
-| `0x22D000`–`0x234FFF` | slices 45–52: `lila` (the on-device LILA compiler) |
+| `0x22E000`–`0x233FFF` | slices 46–51: `swoosh` 2-second μ-law sample (linked) |
+| `0x234000`–`0x23DFFF` | slices 52–61: `lila` (the on-device LILA compiler) |
+| `0x23E000`–`0x242FFF` | slices 62–66: `polebench`, the on-board Pole timing harness |
 
 `scripts/make_slices.mjs` builds `artifacts/image/slices.bin`;
 `npm run flash:slices` writes it at `0x200000`. The lower 2 MB (bitstream and

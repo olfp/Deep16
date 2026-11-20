@@ -124,6 +124,13 @@ game_main:
     NOP
 
 game_loop:
+    ; one iteration is one display frame: the renderer and the logic fit in
+    ; the 60 Hz budget, so wait for the frame toggle before the next update
+    LDI game_wait_frame
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
     LDI game_poll
     MOV R4, R0
     LINK
@@ -443,6 +450,29 @@ game_no_lap:
     MOV PC, R0
     NOP
 
+
+; ---------------------------------------------------------------------------
+; game_wait_frame: spin until the 0xF0066 frame toggle changes. This paces
+; the game at the display's 60 Hz instead of letting the loop free-run at
+; whatever the renderer costs.
+; ---------------------------------------------------------------------------
+game_wait_frame:
+    LDI SEG_IO
+    MVS ES, R0
+    LDI 0x0066
+    MOV R2, R0
+    LDS R1, ES, R2
+    LSI R3, 2                 ; bit 1: the frame toggle
+    AND R1, R3
+    MOV R5, R1
+gw_loop:
+    LDS R1, ES, R2
+    AND R1, R3
+    CMP R1, R5
+    JZ gw_loop
+    NOP
+    JMP LR
+    NOP
 
 ; ---------------------------------------------------------------------------
 ; game_poll: R0 = a key, or -1 when the FIFO is empty. Direct PS/2 poll.

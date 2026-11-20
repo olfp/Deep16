@@ -20,6 +20,7 @@ function boot() {
   mem[0x0200] = 0xFFFF;                 // HALT: the far-call return
   const sim = new globalThis.Deep16Simulator();
   sim.loadProgram(mem);
+  sim.d16nano = true;                  // the frame status and cycle counters
   Object.assign(sim.segmentRegisters, { CS: SEG, DS: SEG, SS: SEG, ES: 0 });
   sim.registers[10] = 0;
   sim.registers[11] = 0x0200;
@@ -33,10 +34,15 @@ test('pole renders the HUD and quits on Esc', () => {
   sim.kbdBuffer.push(0x10);             // Up
   sim.kbdBuffer.push(0x06);             // Right
   sim.kbdBuffer.push(0x1B);             // Esc
+  // The game waits for the 0xF0066 frame toggle; drive it like the display
+  // does. The board toggles every 112,500 cycles; the JS core counts
+  // instructions, so any period longer than one simulated frame works.
+  sim.tileStatus = 0;
   let steps = 0;
   while (sim.running && steps < 20_000_000) {
     sim.step();
     steps++;
+    if (steps % 50000 === 0) sim.tileStatus ^= 2;
   }
   assert.equal(sim.running, false, 'the game returned to the caller');
   assert.ok(sim.memory[(SEG << 4) + G_SPEED] > 0, 'Up accelerated the car');

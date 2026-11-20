@@ -23,7 +23,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { buildPole, checkPole } from './make_showcase.mjs';
+import { buildPoleBench, checkPole } from './make_showcase.mjs';
 import { buildSlices } from './make_slices.mjs';
 import { assemblePoleBoard } from './pole_program.mjs';
 
@@ -59,10 +59,10 @@ export function parseReport(line) {
 
 // The slice the harness is published as, and the segment it loads into.
 export function poleSliceInfo() {
-  const pole = buildPole();
+  const pole = buildPoleBench();
   checkPole(pole);
   const { manifest } = buildSlices();
-  return { pole, manifest, entry: manifest.objects.pole };
+  return { pole, manifest, entry: manifest.objects.polebench };
 }
 
 // The instructions the user has to follow on the board.
@@ -77,10 +77,11 @@ function printInstructions(entry, pole) {
   console.log('   or a full board update:');
   console.log('     npm run synth:tile && npm run flash:tile');
   console.log('2. power-cycle the board.');
-  console.log('3. in the Forth console:');
+  console.log('3. in the Forth console (PS/2 keyboard):');
   console.log('     s" games" need');
-  console.log('     s" pole" game-run');
+  console.log('     s" polebench" game-run');
   console.log('');
+  console.log('polebench is the harness slice; pole is the playable game.');
   console.log('The harness renders the frames, prints the report line on the UART');
   console.log('and draws it into the top row of the screen. The console comes back');
   console.log('after the run.');

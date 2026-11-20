@@ -7,8 +7,9 @@ core3 baseline is 52,211 cycles per frame (46.4% of the budget) with the
 dirty skip; it was 56,697 (50.4%) after the scrolling grass and the
 alternating mountain row. The dirty redraw saves 8.33% of the board harness's
 simulated steps on the JS core (848,191 against 925,284, identical picture). The playable game is now the `pole` slice and the
-showcase menu launches it with **R**. Still open: the board run with the art
-and the dirty redraw (milestone 3/6).
+showcase menu launches it with **R**. The board run with the art and the dirty
+redraw is done (92,891 cycles/frame, 82.6% of the budget), and the functional
+milestone-6 checks pass; the visual pass is still open.
 
 ## Objective
 
@@ -266,15 +267,16 @@ the core3 benchmark, wrapped in a timing loop that uses the board's own clocks.
   front of the line means the run was longer than 65.5 seconds, so the
   millisecond delta needed both halves of the timer.
 
-The harness is published as a type-4 binary slice at segment `0x7000`, which
-is free in the D16D segment map (`MEMMAP.md`), so the board loads it with the
-same loader as the other games:
+The harness is published as a type-4 binary slice named `polebench` at segment
+`0x7000`, which is free in the D16D segment map (`MEMMAP.md`), so the board
+loads it with the same loader as the games. It is a separate object from the
+playable `pole` slice and sits at the end of the slice image:
 
 ```sh
 npm run flash:slices          # or npm run flash:tile for a full update
-# power-cycle, then in the Forth console:
+# power-cycle, then in the Forth console (PS/2 keyboard):
 s" games" need
-s" pole" game-run
+s" polebench" game-run
 ```
 
 `npm run bench:pole:board` prints those instructions and, with
@@ -311,12 +313,31 @@ The art pipeline of milestone 3 changed the renderer slightly: the grass now
 scrolls with the road and the mountain row alternates two profiles, which
 costs 873 core3 cycles per frame and takes the core3 baseline from 55,824 to
 56,697 (50.4% of the budget). The dirty redraw then took the core3 figure to
-52,211 (46.4%), which is the number the harness now prints. The board number
-has to be re-measured after the art run; on the board the same change should
-cost roughly 1,500 cycles per frame, so the margin should still be around
-11,000 cycles. The report
-quotes the current baseline, so the new run is directly comparable with the
-old one.
+52,211 (46.4%), which is the number the harness now prints.
+
+**The 2026-11-20 run** (art pipeline and dirty redraw, 1,024 frames):
+
+```
+POLE frames=01024 ms=14092 cyc16=27782 cyc_per_frame=92891 core3=052211
+```
+
+| | cycles per frame | share of the 60 Hz budget |
+|---|---:|---:|
+| core3, combinational memory | 52,211 | 46.4% |
+| **board, real PSRAM** | **92,891** | **82.6%** |
+| 60 Hz budget at 6.75 MHz | 112,500 | 100% |
+
+- the board is still 1.78x the core3 figure: the PSRAM misses cost about
+  40,700 cycles per frame;
+- 14,092 ms for 1,024 frames is 13.76 ms per frame, so the renderer alone
+  reaches 72.7 fps and leaves 2.9 ms per frame for input, physics and the HUD;
+- the cycle counter agrees with the timer: 95,120,384 cycles is 27,648
+  modulo 65,536, and the counter read 27,782 - 134 cycles apart, well inside
+  the one-millisecond truncation of the timer;
+- the margin is 19,609 cycles per frame (17.4%), up from 13,373 before the
+  dirty work. Against the milestone-2 run the net is -6,236 cycles: the art
+  costs about 1,700 on the board and the dirty skip saves about 8,000, which
+  matches the core3 drop scaled by the board's 1.78x memory factor.
 
 The screen during the milestone-2 run showed the report line, the console's
 own text and the road, but the road was drawn with the wrong tiles: the slice
@@ -399,13 +420,10 @@ nine bits, and the row body was already 243 words against a 255-word limit.
 The sky path moved out of the row body into a helper, which brought the body
 back to 228 words and left room to grow again.
 
-**Still open**
+**Both board runs closed (2026-11-20)**
 
-- The board run with the art. The copy costs about 38,000 instructions once,
-  before the measured loop, so the cycles per frame should only move by the
-  grass change.
-- The on-board run with the dirty redraw: the simulator saving is measured,
-  the FPGA figure is not.
+- The board run with the art and the dirty redraw measured 92,891 cycles per
+  frame (82.6% of the budget); the report is in the board-measurement section.
 
 #### Dirty redraw (implemented and measured on the simulator, 2026-11-20)
 
@@ -463,9 +481,9 @@ The HUD text uses the console font cells in the pole palette's text bank.
 `tests/pole-game.test.js` boots the slice in segment `0x7000`, accelerates,
 checks the HUD glyphs in the tilemap and returns through Esc.
 
-Still open from milestone 3: the board run with the art and with the dirty
-redraw. The dirty redraw itself is done: it saves 8.33% of the board harness's
-simulated steps with an identical picture.
+Milestone 3's board run is closed: the art and dirty redraw measured 92,891
+cycles per frame on the board (82.6% of the budget), and the game now paces
+itself to the frame toggle. The visual pass is the remaining milestone-6 item.
 
 ### Milestone 5 — config-flash and menu integration (done 2026-11-20)
 
@@ -478,10 +496,31 @@ installs its own tile/sprite/palette banks; the menu's standard tile-pack copy
 skips the pole art because the block at `0x1000` is raw words, not a
 `0x0A57` pack.
 
-### Milestone 6 — board validation
+### Milestone 6 — board validation (functional checks pass 2026-11-20)
 
 Validate sustained 60 Hz operation, curve stability, map-bank swapping,
 sprite priority, input latency, and behavior with several opponents visible.
+
+**Result.** The board run above covers the timing: 92,891 cycles per frame,
+82.6% of the 60 Hz budget, with the cycle counter agreeing with the
+millisecond timer. Playing the `pole` slice on the board confirmed smooth
+motion, working curves, clean bank swapping (no tearing), the player and
+opponents in the right order, immediate steering and acceleration, several
+opponents visible at once, and a clean return to the console with Q/Esc.
+
+The game needed one fix for this: `pole_game.asm` did not wait for the frame
+toggle, so it free-ran at about 67 Hz and the HUD clock and lap physics were
+12% fast. `game_loop` now calls `game_wait_frame`, which spins on bit 1 of
+`0xF0066`; the work fits the 16.7 ms period, so every iteration is one display
+frame and `TIME` advances one second per 60 frames. `tests/pole-game.test.js`
+drives that toggle in the simulator.
+
+**Visual pass still open.** The functional checks pass but the picture is not
+convincing yet: the road border reads as an 8-pixel staircase with blocky
+red/white kerbs, the road's two texture bands are too different and read as
+horizontal stripes, and the player car (28x22 in a 32x32 sprite) is too small
+against a road about 356 pixels wide at the bottom. These are art/presentation
+changes, not timing ones.
 
 ## Decision gates
 

@@ -16,7 +16,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildPacman, buildFlappy, buildFrogger, buildPole, buildEditor } from './make_showcase.mjs';
+import { buildPacman, buildFlappy, buildFrogger, buildPole, buildPoleBench, buildEditor } from './make_showcase.mjs';
 import { buildSamples } from './make_samples.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -207,6 +207,12 @@ export function buildSlices() {
   // The new object goes last so the slice numbers of everything else stay.
   const lilaFirst = swooshFirst + swooshSlices.length;
   const lilaSlices = sourceSlices(lila, lilaFirst, 'lila');
+  // The on-board Pole timing harness. It goes last so the app slices keep
+  // their numbers; it is a developer object, not a menu entry.
+  const poleBench = buildPoleBench();
+  const poleBenchFirst = lilaFirst + lilaSlices.length;
+  const poleBenchSlices = binarySlices(poleBench.words, poleBenchFirst, 'polebench', 0,
+                                       poleBench.seg, 1);
 
   const slices = [directory([
     entry({ type: TYPES.TEXT, first: startFirst, name: 'start' }),
@@ -225,9 +231,10 @@ export function buildSlices() {
     entry({ type: TYPES.ULAW, flags: ping.rate, first: pingFirst, name: ping.name }),
     entry({ type: TYPES.ULAW, flags: swoosh.rate, first: swooshFirst, name: swoosh.name }),
     entry({ type: TYPES.TEXT, first: lilaFirst, name: 'lila' }),
+    entry({ type: TYPES.BINARY, flags: 1, first: poleBenchFirst, name: 'polebench' }),
   ]), ...startSlices, ...essSlices, ...editSlices, ...gfxSlices, ...audioSlices, ...gameSlices,
      ...sdSlices, ...editorSlices, ...pacSlices, ...flappySlices, ...froggerSlices, ...poleSlices,
-     ...helloSlices, ...pingSlices, ...swooshSlices, ...lilaSlices];
+     ...helloSlices, ...pingSlices, ...swooshSlices, ...lilaSlices, ...poleBenchSlices];
   const words = new Uint16Array(slices.length * SLICE_WORDS);
   slices.forEach((w, i) => words.set(w, i * SLICE_WORDS));
   const bytes = Buffer.alloc(slices.length * SLICE_BYTES, 0xff);
@@ -253,6 +260,8 @@ export function buildSlices() {
       frogger: { first: froggerFirst, count: froggerSlices.length, words: frogger.max + 1 },
       pole: { first: poleFirst, count: poleSlices.length, words: pole.max + 1,
               segment: `0x${pole.seg.toString(16)}` },
+      polebench: { first: poleBenchFirst, count: poleBenchSlices.length,
+                   words: poleBench.max + 1, segment: `0x${poleBench.seg.toString(16)}` },
       hello: { first: helloFirst, count: helloSlices.length, chars: hello.length },
       ping: { first: pingFirst, count: pingSlices.length, samples: ping.bytes.length,
               rate: ping.rate },
