@@ -56,6 +56,7 @@ variable gentry drop
   io-seg seg-base!
   gseg @ ;
 : game-run ( a n -- ) game-load call-far ;
+: nedit ( -- ) s" editor" game-run ;
 
 \ ---- PS/2 keyboard -------------------------------------------------------
 \ The host sender and the reset/enable sequence live in the BIOS now (ASM

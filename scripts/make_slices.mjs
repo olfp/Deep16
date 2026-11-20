@@ -16,7 +16,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildPacman, buildFlappy, buildFrogger, buildPole } from './make_showcase.mjs';
+import { buildPacman, buildFlappy, buildFrogger, buildPole, buildEditor } from './make_showcase.mjs';
 import { buildSamples } from './make_samples.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -178,8 +178,11 @@ export function buildSlices() {
   const gameSlices = sourceSlices(games, gamesFirst, 'games');
   const sdFirst = gamesFirst + gameSlices.length;
   const sdSlices = sourceSlices(sd, sdFirst, 'sd-card');
+  const editor = buildEditor();
+  const editorFirst = sdFirst + sdSlices.length;
+  const editorSlices = binarySlices(editor.words, editorFirst, 'editor', 0, editor.seg, 1);
   const pac = buildPacman();
-  const pacFirst = sdFirst + sdSlices.length;
+  const pacFirst = editorFirst + editorSlices.length;
   const pacSlices = binarySlices(pac.words, pacFirst, 'pacman');
   const flappy = buildFlappy();
   const flappyFirst = pacFirst + pacSlices.length;
@@ -213,6 +216,7 @@ export function buildSlices() {
     entry({ type: TYPES.TEXT, first: audioFirst, name: 'audio' }),
     entry({ type: TYPES.TEXT, first: gamesFirst, name: 'games' }),
     entry({ type: TYPES.TEXT, first: sdFirst, name: 'sd-card' }),
+    entry({ type: TYPES.BINARY, flags: 1, first: editorFirst, name: 'editor' }),
     entry({ type: TYPES.BINARY, flags: 1, first: pacFirst, name: 'pacman' }),
     entry({ type: TYPES.BINARY, flags: 1, first: flappyFirst, name: 'flappy' }),
     entry({ type: TYPES.BINARY, flags: 1, first: froggerFirst, name: 'frogger' }),
@@ -222,7 +226,7 @@ export function buildSlices() {
     entry({ type: TYPES.ULAW, flags: swoosh.rate, first: swooshFirst, name: swoosh.name }),
     entry({ type: TYPES.TEXT, first: lilaFirst, name: 'lila' }),
   ]), ...startSlices, ...essSlices, ...editSlices, ...gfxSlices, ...audioSlices, ...gameSlices,
-     ...sdSlices, ...pacSlices, ...flappySlices, ...froggerSlices, ...poleSlices,
+     ...sdSlices, ...editorSlices, ...pacSlices, ...flappySlices, ...froggerSlices, ...poleSlices,
      ...helloSlices, ...pingSlices, ...swooshSlices, ...lilaSlices];
   const words = new Uint16Array(slices.length * SLICE_WORDS);
   slices.forEach((w, i) => words.set(w, i * SLICE_WORDS));
@@ -242,6 +246,8 @@ export function buildSlices() {
       audio: { first: audioFirst, count: audioSlices.length, chars: audio.length },
       games: { first: gamesFirst, count: gameSlices.length, chars: games.length },
       sd: { first: sdFirst, count: sdSlices.length, chars: sd.length },
+      editor: { first: editorFirst, count: editorSlices.length, words: editor.max + 1,
+                segment: `0x${editor.seg.toString(16)}` },
       pacman: { first: pacFirst, count: pacSlices.length, words: pac.max + 1 },
       flappy: { first: flappyFirst, count: flappySlices.length, words: flappy.max + 1 },
       frogger: { first: froggerFirst, count: froggerSlices.length, words: frogger.max + 1 },

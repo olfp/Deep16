@@ -73,7 +73,7 @@ test('the directory lists the apps and their flags', () => {
     entries.push({ type, flags: (dir[8 + i * 8] >> 8) & 0xf, name: name.join('') });
   }
   const apps = entries.filter((e) => e.flags === 1).map((e) => e.name);
-  assert.deepEqual(apps.sort(), ['flappy', 'frogger', 'pacman', 'pole']);
+  assert.deepEqual(apps.sort(), ['editor', 'flappy', 'frogger', 'pacman', 'pole']);
   assert.ok(entries.some((e) => e.name === 'games' && e.type === TYPES.TEXT));
   assert.equal(entries.some((e) => e.name === 'ps2host'), false, 'the sender lives in the BIOS');
 });

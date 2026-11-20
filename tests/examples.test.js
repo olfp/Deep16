@@ -20,6 +20,9 @@ const LEGACY = new Set([
   'deep16_rom.asm',
   'deep16bios.asm',
   'test_suite.asm',
+  // A slice program: it expects CS=0x0800/DS=0x0900 and polls the keyboard,
+  // so tests/editor.test.js boots it with its own segments instead.
+  'editor.asm',
 ]);
 
 const EXAMPLES = fs.readdirSync(ASM_DIR)

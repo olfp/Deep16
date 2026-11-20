@@ -208,9 +208,10 @@ far-jumps to the segment the slice names with `R10`/`R11` as the return pair.
 
 | App | Slice | Segment |
 |---|---|---|
-| Pac-Man | 20–23 | `0x2000` |
-| Flappy | 24–26 | `0x5000` |
-| Frogger | 27–31 | `0x0600` |
+| Editor (native, EDITPLAN) | 21 | `0x0800` (code; data `0x0900`) |
+| Pac-Man | 22–25 | `0x2000` |
+| Flappy | 26–33 | `0x5000` |
+| Frogger | 34–38 | `0x0600` |
 
 The Frogger slice carries its own art: a tile pack at `0x1000` (magic
 `0x0A57`, count, then index + 32 words per tile) and a sprite pack at
@@ -222,7 +223,7 @@ hedge and bay art at tiles 26–38. Code and state stay below `0x1000`
 (`FROGGER_LIMIT`); the state block starts at `0xA00`, with the frog's x, lane,
 hop counter, death countdown, filled bays, level, pause, game state, lives,
 score, hi-score, extra-life flag, HUD flags and facing at `0xA30`–`0xA3F`.
-| Pole (road renderer benchmark) | 32–36 | `0x7000` |
+| Pole (road renderer benchmark) | 39–43 | `0x7000` |
 
 Each of those blocks carries its tile art at segment offset `0x1000` (magic
 `0x0A57`, tile count, then index + 32 words); the menu copies it into the tile

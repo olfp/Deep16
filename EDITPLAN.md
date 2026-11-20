@@ -6,8 +6,35 @@ single task (all memory available to it) and a BIOS/BDOS layer that can
 perform file-like operations.
 
 This document lists the primitives the editor needs from BIOS/BDOS and the
-memory/layout contract the editor will use. It is a planning document, not
-an implementation.
+memory/layout contract the editor will use. It started as a planning document;
+the v1 implementation now lives in `asm/editor.asm`.
+
+**Status 2026-11-20: implemented (v1).** The editor is a type-4 slice built by
+`buildEditor` in `scripts/make_showcase.mjs`, one slice at 21 in the current
+image. Launch it after `s" games" need` with:
+
+```text
+nedit
+```
+
+The slice is loaded at CS 0x0800 and entered at offset 0. The implementation
+keeps code and data apart: CS = 0x0800 holds the 1,928-word code block, while
+DS = SS = 0x0900 holds the name (0x3000), message (0x3100), raw slice buffer
+(0x3300), state cells (0x3C00) and the 0x4000-0xBFFF gap buffer. The split
+keeps BDOS 7's `bd_count` cell at DS:0x2FB8 out of the code, and the data
+segment is initialised at entry because the type-4 loader only carries the
+code. The editor polls KBD_STATUS/KBD_DATA directly rather than using a BIOS
+SWI: a far-called block has no SWI vector of its own.
+
+Implemented: name prompt, BDOS 2 lookup / 11 read / 29 size, gap-buffer
+editing (insert, backspace, delete, left/right/up/down/Home/End), a 23-row
+text area with a status row, dirty flag, ^S save (BDOS 7, with BDOS 27 when the
+file is new), ^O open, ^Q quit with an unsaved warning, and line/column
+display. A save rewrites one type-3 slice and sets its link to 0xFFFF.
+
+Limits: files are one 4 KB slice (2040 characters), so a multi-slice source is
+loaded and saved as its first slice only; there is no page up/down, search,
+undo or save-as prompt. `fseek` is still unnecessary: the slice is the unit.
 
 ---
 

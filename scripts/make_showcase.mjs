@@ -237,6 +237,26 @@ export function checkFrogger(frogger) {
 // harness and the art: the tile bank, the sprite bank and the palettes, so
 // the board draws a real road instead of whatever the last game left in the
 // banks.
+// The native editor (EDITPLAN): a type-4 slice at segment 0x0800. Its data
+// segment is 0x0900 and is initialised at entry, so only code is in the slice.
+export function buildEditor() {
+  const Deep16Assembler = loadAssembler();
+  const source = fs.readFileSync(path.join(ROOT, 'asm/editor.asm'), 'utf8');
+  const res = new Deep16Assembler().assemble(source);
+  if (!res.success) throw new Error('editor does not assemble: ' + res.errors.join('; '));
+  const words = [];
+  let max = 0;
+  for (const c of res.memoryChanges) {
+    if (c.address < 0 || c.address >= 0x10000)
+      throw new Error(`editor address out of range: 0x${c.address.toString(16)}`);
+    words.push([c.address, c.value & 0xFFFF]);
+    max = Math.max(max, c.address);
+  }
+  words.sort((a, b) => a[0] - b[0]);
+  const build = crypto.createHash('sha256').update(source).digest('hex').slice(0, 16);
+  return { words, max, size: max + 1, build, entry: 0, seg: 0x0800, symbols: res.symbols };
+}
+
 export function buildPole() {
   const res = assemblePoleBoard();
   const words = [];

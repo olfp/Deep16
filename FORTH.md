@@ -812,7 +812,7 @@ remains the raw streaming primitive for the slice editor and tests:
 
 ```text
 s" graphics" need     \ SIC/raster, scene, palettes, I2S, sprites
-s" games" need        \ game-run
+s" games" need        \ game-run, nedit (the native editor)
 s" sd-card" need      \ sd, block, include
 30 screen             \ hello.fth
 hello                 \ hello from the user flash
