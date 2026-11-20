@@ -1,4 +1,13 @@
 /* deep16_ui_core.js - Main UI class and core functionality */
+var DEEP16_BUILD = '20261119-4';
+(function () {
+    try {
+        document.title = DEEP16_BUILD + ' - DeepCode - Deep16 (深十六) IDE';
+        var heading = (typeof document.querySelector === 'function')
+            ? document.querySelector('.header-text h1') : null;
+        if (heading) heading.textContent = DEEP16_BUILD + ' - DeepCode IDE';
+    } catch (e) { /* leave the static title in place */ }
+})();
 class DeepWebUI {
     constructor() {
         this.assembler = new Deep16Assembler();
@@ -12,6 +21,7 @@ class DeepWebUI {
         // without another round trip.
         this.tileBuild = null;
         this.d16dSources = null;
+        this.sliceAssetsLoaded = false;
         // 60 Hz display clock and the status word it drives at 0xF0066.
         this.tileClock = null;
         this.tileFrame = 0;
@@ -58,6 +68,7 @@ class DeepWebUI {
 
         this.examples = [];
         this.loadExamplesList();
+        this.loadSliceAssets();
 
         // No file is being typed in yet (see queueFileUpload).
         this.fileUpload = null;
@@ -486,7 +497,34 @@ class DeepWebUI {
         if (typeof Deep16GfxLoader !== 'undefined' && typeof Deep16FlashAssets !== 'undefined') {
             Deep16GfxLoader.load(engine, this.simulator, Deep16FlashAssets);
         }
+        // The D16D showcase and its games live in the config-flash slice image.
+        // The graphics loader above only installs the tile/sprite banks; this
+        // makes the game slices reachable through BDOS so Flappy, Pac-Man and
+        // Frogger can actually be launched from the menu in the simulator.
+        this.loadSliceAssets();
         return true;
+    }
+
+    async loadSliceAssets() {
+        if (this.sliceAssetsLoaded) return true;
+        if (typeof fetch !== 'function') { this.sliceAssetsLoaded = true; return false; }
+        const sim = this.simulator;
+        if (!sim || !sim.spiFlash || !sim.spiFlash.mem) { this.sliceAssetsLoaded = true; return false; }
+        try {
+            const response = await fetch('artifacts/image/slices.bin', { cache: 'no-store' });
+            if (!response.ok) { this.sliceAssetsLoaded = true; return false; }
+            const buffer = new Uint8Array(await response.arrayBuffer());
+            const base = 0x200000;
+            if (base + buffer.length > sim.spiFlash.mem.length) return false;
+            sim.spiFlash.mem.set(buffer, base);
+            this.sliceAssetsLoaded = true;
+            this.addTranscriptEntry('Game slices loaded from config flash', 'success');
+            return true;
+        } catch (error) {
+            this.sliceAssetsLoaded = true;
+            this.addTranscriptEntry(`Game slices not loaded: ${error.message || error}; games may be unavailable`, 'warning');
+            return false;
+        }
     }
 
     // Tile mode currently runs on the JS core: the RTL harness has no
@@ -2475,6 +2513,17 @@ class DeepWebUI {
         // kernel's serial build wants a core that speaks UART.
         this.ensureTerminalCore();
         this.ensureTileCore();
+        // The D16D showcase needs its config-flash slices before the machine
+        // starts: without them the menu's BDOS lookups fail and a game key
+        // just redraws the menu instead of launching the game.
+        if (this.consoleMode() === 'tiles' && this.tileBuild === 'd16d' &&
+            !this.sliceAssetsLoaded) {
+            this.status('Loading game slices...');
+            this.loadSliceAssets().then(() => {
+                if (!this.simulator.running) this.run();
+            });
+            return;
+        }
         // Run what the editor says: loading the kernel and pressing Run
         // without Assemble used to run the previous program and show an empty
         // view.
