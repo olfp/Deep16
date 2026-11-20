@@ -48,24 +48,17 @@
 : split-off ( -- )
    0 split-val es! raster-off 0 raster-line! 0 0x200A es! 0 0x2006 es! ;
 
-\ ---- text/art/sprite palette banks, 0xF6080/90/A0 -----------------------
-: pal! ( bg ink pair -- )        dup 2* 0x6080 + >r drop r@ 1+ es! r> es! ;
-: art-pal! ( bg ink pair -- )    dup 2* 0x6090 + >r drop r@ 1+ es! r> es! ;
-: sprite-pal! ( bg ink pair -- ) dup 2* 0x60A0 + >r drop r@ 1+ es! r> es! ;
+\ ---- text/art/sprite palette banks (BDOS 14 via pal-bank!) ---------------
+: pal! ( bg ink pair -- )        0 pal-bank! ;
+: art-pal! ( bg ink pair -- )    1 pal-bank! ;
+: sprite-pal! ( bg ink pair -- ) 2 pal-bank! ;
 : attr ( pair -- )      7 and 12 lshift 0x8000 or  text-attr @ 0x1F and or  text-attr ! ;
 : style ( flags -- )    0x1F and  text-attr @ 0xF000 and or  text-attr ! ;
 : attr! ( pair flags -- ) swap 7 and 12 lshift or 0x8000 or text-attr ! ;
 : attr@ ( -- pair )     text-attr @ 12 rshift 7 and ;
 : style@ ( -- flags )   text-attr @ 0x1F and ;
 
-\ ---- I2S sound, 0xF00A0 ------------------------------------------------
-0xA0 constant i2s-data
-0xA2 constant i2s-ctrl
-0xA4 constant i2s-status
-: sfx! ( s -- )       i2s-data es! ;
-: sfx-level ( -- n )  i2s-data es@ ;
-: sfx-status ( -- n ) i2s-status es@ ;
-: sfx-ctl! ( c -- )   i2s-ctrl es! ;
+\ ---- I2S sound (BDOS 15-17 via sfx!/sfx-ctl!) ---------------------------
 : sfx-reset ( -- )    2 sfx-ctl! ;
 : sfx-off ( -- )      0 sfx-ctl! ;
 : sfx-on ( -- )       1 sfx-ctl! ;

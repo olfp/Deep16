@@ -315,6 +315,9 @@ DS points at the kernel's own data (segment 0 in the flat builds, `0x1000` on
 the board); `0x80 es@` reads the SPI control register, for example. The loaded
 modules do not use them for SPI: `spi-ctrl!` and `spi-xfer` go through BDOS
 functions 12/13, so `essentials` and `sd` contain no register addresses.
+`graphics` and `audio` likewise use `pal-bank!`, `sfx!`/`sfx-ctl!`/`sfx-level`/
+`sfx-status`, `sic-enable!`/`sic-enable@` and `snd!`/`snd@`/`snd-cpy`
+(BDOS 14–23) instead of palette, I2S and sound-window registers.
 
 ## Characters and strings
 

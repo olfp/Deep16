@@ -4,12 +4,7 @@
 \ μ-law bytes each. `sample` is the blocking demo; `sample-start` /
 \ `sample-stop` play in the background from the sound window, paced by the
 \ I2S FIFO-low IRQ.
-0xA0 constant i2s-data
-0xA2 constant i2s-ctrl
-0xA4 constant i2s-status
-: sfx! ( s -- )       i2s-data es! ;
-: sfx-status ( -- n ) i2s-status es@ ;
-: sfx-ctl! ( c -- )   i2s-ctrl es! ;
+\ The I2S and SIC words come from the kernel (BDOS 15-20).
 : sfx-off ( -- )      0 sfx-ctl! ;
 create ulaw-table
   0x8284, 0x8684, 0x8A84, 0x8E84, 0x9284, 0x9684, 0x9A84, 0x9E84,
@@ -41,20 +36,12 @@ create ulaw-table
 0x08 constant sw-table
 0x100 constant sw-data
 
-: sample-win! ( x off -- )
-  0xE000 seg-base! es! 0xF000 seg-base! ;
-: sample-win@ ( off -- x )
-  0xE000 seg-base! es@ 0xF000 seg-base! ;
-: sample-run? ( -- f ) sw-run sample-win@ ;
-: sample-irq-on ( -- )  0xB2 es@ 4 or 0xB2 es! ;
-: sample-irq-off ( -- ) 0xB2 es@ 0xFFFB and 0xB2 es! ;
+: sample-run? ( -- f ) sw-run snd@ ;
+: sample-irq-on ( -- )  sic-enable@ 4 or sic-enable! ;
+: sample-irq-off ( -- ) sic-enable@ 0xFFFB and sic-enable! ;
 
 : sample-table! ( -- )
-  0xE000 seg-base!
-  128 0 do
-    ulaw-table i cells + @  sw-table i + es!
-  loop
-  0xF000 seg-base! ;
+  ulaw-table sw-table 128 snd-cpy ;
 variable sample-cells drop
 variable sample-a drop
 variable sample-first drop
@@ -63,14 +50,8 @@ variable sample-first drop
   sample-a @ slice-valid? 0= if drop 0xFFFF exit then
   sample-a @ slice-link >r
   drop
-  0xE000 seg-base!
-  sw-data sample-cells @ +
-  2040 0 do
-    sample-a @ 8 cells + i cells + @
-    over i + es!
-  loop drop
+  sample-a @ 8 cells +  sw-data sample-cells @ +  2040 snd-cpy
   2040 sample-cells +!
-  0xF000 seg-base!
   r> ;
 : sample-chain ( n -- cells )
   0 sample-cells !
@@ -78,10 +59,10 @@ variable sample-first drop
   sample-cells @ ;
 
 : sample-stop ( -- )
-  0 sw-run sample-win!
-  2 i2s-ctrl es!
+  0 sw-run snd!
+  2 sfx-ctl!
   sample-irq-off
-  4 0xB0 es! ;
+  4 sic-pending! ;
 : sample-start ( n -- )
   sample-stop
   dup sample-first !
@@ -94,18 +75,18 @@ variable sample-first drop
   then drop
   sample-table!
   sample-first @ sample-chain
-  0 sw-pos sample-win!
-  2* sw-end sample-win!
-  0 sw-loop sample-win!
-  0 sw-count sample-win!
-  2 i2s-ctrl es!
-  1 sw-run sample-win!
-  9 i2s-ctrl es!
+  0 sw-pos snd!
+  2* sw-end snd!
+  0 sw-loop snd!
+  0 sw-count snd!
+  2 sfx-ctl!
+  1 sw-run snd!
+  9 sfx-ctl!
   sample-irq-on ;
 : sample-play ( n -- )
   sample-start
   begin sample-run? while repeat
-  2 i2s-ctrl es! ;
+  2 sfx-ctl! ;
 : sample ( n -- ) sample-play ;
 
 \ Foreground μ-law decode, used by `see`/tests and by callers that want to

@@ -12,6 +12,14 @@
 //  11  read-slice  -> R1 = slice, R4 = dest in the caller's DS; R0 = 0
 //  12  spi-ctrl    -> R1 = control, R4 = divider (BIOS f20)
 //  13  spi-xfer    -> R1 = byte; R0 = received byte (BIOS f21/f22)
+//  14  palette     -> R1 = bank*8+pair, R4 = background | ink<<8
+//  15  i2s-write   -> R1 = sample
+//  16  i2s-ctrl    -> R1 = control
+//  17  i2s-read    -> R0 = status, R1 = level
+//  18  sic-enable  -> R1 = mask; 19 reads it back into R0
+//  20  sic-pending -> R1 = mask
+//  21  snd-write   -> R1 = offset, R4 = value; 22 reads it back into R0
+//  23  snd-copy    -> R1 = source in DS, R4 = destination; bd_count cells
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -352,4 +360,48 @@ test('functions 12/13 set the SPI bus and transfer a byte', () => {
   assert.equal(sim.spi.div, 0, 'function 12 set the divider');
   assert.equal(sim.memory[0x0400] & 0xFFFF, 0xFF, 'the 0x9F command exchange');
   assert.equal(sim.memory[0x0402] & 0xFFFF, 0x85, 'the first manufacturer ID byte');
+});
+
+test('function 14 writes a palette entry', () => {
+  // R1 = bank*8 + pair; R4 = background | ink<<8. Bank 0, pair 3 -> 0x6086.
+  const { r0, sim } = callBdos(14, 3, { arg4: 0x1C1C });
+  assert.equal(r0, 0);
+  assert.equal(sim.memory[0xF6086] & 0xFFFF, 0x1C, 'text pair 3 paper');
+  assert.equal(sim.memory[0xF6087] & 0xFFFF, 0x1C, 'text pair 3 ink');
+});
+
+test('functions 15-17 drive and read I2S', () => {
+  const mem = buildMemory(kernel);
+  mem[0xF00A4] = 0x1234;                 // status
+  mem[0xF00A0] = 0x5678;                 // level
+  const read = callBdos(17, 0, { mem });
+  assert.equal(read.r0, 0x1234, 'status');
+  assert.equal(read.r1, 0x5678, 'level');
+
+  const write = callBdos(15, 0x1357);
+  assert.equal(write.sim.memory[0xF00A0] & 0xFFFF, 0x1357, 'sample word');
+  const ctrl = callBdos(16, 9);
+  assert.equal(ctrl.sim.memory[0xF00A2] & 0xFFFF, 9, 'control word');
+});
+
+test('function 18 sets the SIC enable mask', () => {
+  // The pending register is W1C, so a write of 4 clears rather than sets; the
+  // μ-law test drives that path through sample-stop. The read (19) is what
+  // sample-irq-off uses to preserve the other sources.
+  const set = callBdos(18, 0x0A);
+  assert.equal(set.sim.sicEnable & 0xF, 0x0A, 'enable mask');
+});
+
+test('functions 21-23 access the sound window', () => {
+  const write = callBdos(21, 0x20, { arg4: 7 });
+  assert.equal(write.sim.memory[0xE0020] & 0xFFFF, 7, 'window write');
+  const read = callBdos(22, 0x20, { mem: write.sim.memory });
+  assert.equal(read.r0, 7, 'window read');
+
+  const mem = buildMemory(kernel);
+  for (let i = 0; i < 4; i++) mem[0x0400 + i] = 0x1000 + i;
+  mem[kernel.symbols.bd_count] = 4;
+  const copy = callBdos(23, 0x0400, { mem, arg4: 0x0100 });
+  for (let i = 0; i < 4; i++)
+    assert.equal(copy.sim.memory[0xE0100 + i] & 0xFFFF, 0x1000 + i, `cell ${i}`);
 });

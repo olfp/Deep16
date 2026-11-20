@@ -1546,7 +1546,7 @@ interpret_next:
 ; unknown. The table is absolute addresses: BDOS runs with CS=0, so a handler
 ; anywhere in the kernel image (including the 0x4400 free block) is one JMP
 ; away.
-.equ BDOS_FN_COUNT, 14          ; 0..13; 8 is unused and answers an error
+.equ BDOS_FN_COUNT, 24          ; 0..23; 8 is unused, 14..23 are palette/sound
 bdos_entry:
     MOV R2, R0                 ; park the function: LDI writes R0
     LDI BDOS_FN_COUNT
@@ -1584,6 +1584,16 @@ BDOS_JTABLE:
     .word bdos_read_slice
     .word bdos_spi_ctrl
     .word bdos_spi_xfer
+    .word bdos_palette
+    .word bdos_i2s_write
+    .word bdos_i2s_ctrl
+    .word bdos_i2s_read
+    .word bdos_sic_enable_write
+    .word bdos_sic_enable_read
+    .word bdos_sic_pending
+    .word bdos_sample_write
+    .word bdos_sample_read
+    .word bdos_sample_copy
 
 bdos_unknown:
     LSI R0, -1
@@ -2281,6 +2291,10 @@ spi_r6:
 .org 0x4D20
 spi_caps:
     .word 0xD16C
+
+.org 0x2FB8
+bd_count:
+    .word 0
 
 .org 0x3000
 sp0_base:
@@ -19364,7 +19378,7 @@ sread_r11:
 ; at the head of the chain would move text_attr off the catalog's 0x3C1F.
 .org 0x4440
 h_sread:
-    .word h_fitdemo
+    .word h_pal_bank
     .word 11
     .text "serial-read"
     .word word_serialread
@@ -19659,6 +19673,242 @@ bslice_r6:
 bslice_psw:
     .word 0
 
+; ============================================================
+; Forth wrappers for BDOS 14..23 (palette, I2S, SIC, sound window)
+; ============================================================
+.org 0x18C3
+.code
+bdos_word_call:              ; write call: post = next
+    LDI post_next
+    MOV R12, R0
+    LDI bdos_word_common
+    MOV PC, R0
+    NOP
+bdos_word_call_r0:           ; read call: push the handler's R0
+    LDI post_r0
+    MOV R12, R0
+    LDI bdos_word_common
+    MOV PC, R0
+    NOP
+bdos_word_call_r1:           ; read call: push the handler's R1
+    LDI post_r1
+    MOV R12, R0
+    LDI bdos_word_common
+    MOV PC, R0
+    NOP
+bdos_word_common:
+    LDI spi_r5
+    MOV R2, R0
+    ST R5, R2, 0
+    ST R6, R2, 1
+    LSI R10, 0
+    LDI bdos_word_ret
+    MOV R11, R0
+    LSI R2, 0
+    LDI bdos_entry
+    MOV R3, R0
+    MOV R0, R7
+    JML R2
+    NOP
+bdos_word_ret:
+    ; R8 is the extra-segment base while the interpreter runs with ER=8, so
+    ; park the result in R4 (the handlers are done with it), not R8/R9.
+    MOV R4, R0
+    LDI spi_r5
+    MOV R2, R0
+    LD R5, R2, 0
+    LD R6, R2, 1
+    MOV R0, R4
+    MOV PC, R12
+    NOP
+
+.org 0x4413
+.code
+word_pal_bank:              ; pal-bank! ( bg ink pair bank -- )
+    LD R4, SP, 0             ; bank
+    ADD SP, 1
+    LD R3, SP, 0             ; pair
+    ADD SP, 1
+    LD R2, SP, 0             ; ink
+    ADD SP, 1
+    LD R1, SP, 0             ; background
+    ADD SP, 1
+    SL R4, 3                 ; bank * 8
+    OR R4, R3                ; | pair
+    LDI 0x00FF
+    AND R1, R0               ; background in the low byte
+    SL R2, 8                 ; ink in the high byte
+    OR R2, R1
+    MOV R1, R4               ; R1 = bank * 8 + pair
+    MOV R4, R2               ; R4 = packed background/ink
+    LDI 14
+    MOV R7, R0
+    LDI bdos_word_call
+    MOV PC, R0
+    NOP
+word_sfx_store:             ; sfx! ( s -- )
+    LD R1, SP, 0
+    ADD SP, 1
+    LDI 15
+    MOV R7, R0
+    LDI bdos_word_call
+    MOV PC, R0
+    NOP
+word_sfx_level:             ; sfx-level ( -- n )
+    LDI 17
+    MOV R7, R0
+    LDI bdos_word_call_r1
+    MOV PC, R0
+    NOP
+word_sfx_status:            ; sfx-status ( -- n )
+    LDI 17
+    MOV R7, R0
+    LDI bdos_word_call_r0
+    MOV PC, R0
+    NOP
+
+.org 0x19BE
+.code
+word_sfx_ctrl:              ; sfx-ctl! ( c -- )
+    LD R1, SP, 0
+    ADD SP, 1
+    LDI 16
+    MOV R7, R0
+    LDI bdos_word_call
+    MOV PC, R0
+    NOP
+word_sic_enable_write:      ; sic-enable! ( mask -- )
+    LD R1, SP, 0
+    ADD SP, 1
+    LDI 18
+    MOV R7, R0
+    LDI bdos_word_call
+    MOV PC, R0
+    NOP
+word_sic_enable_read:       ; sic-enable@ ( -- mask )
+    LDI 19
+    MOV R7, R0
+    LDI bdos_word_call_r0
+    MOV PC, R0
+    NOP
+word_sic_pending:           ; sic-pending! ( mask -- )
+    LD R1, SP, 0
+    ADD SP, 1
+    LDI 20
+    MOV R7, R0
+    LDI bdos_word_call
+    MOV PC, R0
+    NOP
+word_sample_store:          ; snd! ( x off -- )
+    LD R1, SP, 0
+    ADD SP, 1
+    LD R4, SP, 0
+    ADD SP, 1
+    LDI 21
+    MOV R7, R0
+    LDI bdos_word_call
+    MOV PC, R0
+    NOP
+word_sample_fetch:          ; snd@ ( off -- x )
+    LD R1, SP, 0
+    ADD SP, 1
+    LDI 22
+    MOV R7, R0
+    LDI bdos_word_call_r0
+    MOV PC, R0
+    NOP
+word_sample_copy:           ; snd-cpy ( src dst u -- )
+    LD R3, SP, 0
+    ADD SP, 1
+    LD R4, SP, 0
+    ADD SP, 1
+    LD R1, SP, 0
+    ADD SP, 1
+    LDI bd_count
+    MOV R2, R0
+    ST R3, R2, 0
+    LDI 23
+    MOV R7, R0
+    LDI bdos_word_call
+    MOV PC, R0
+    NOP
+
+.org 0x1FEC
+.code
+post_next:
+    LDI next
+    MOV PC, R0
+    NOP
+post_r0:
+    SUB SP, 1
+    ST R0, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+post_r1:
+    SUB SP, 1
+    ST R1, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
+.org 0x4579
+h_pal_bank:
+    .word h_sfx_store
+    .word 9
+    .text "pal-bank!"
+    .word word_pal_bank
+h_sfx_store:
+    .word h_sfx_level
+    .word 4
+    .text "sfx!"
+    .word word_sfx_store
+h_sfx_level:
+    .word h_sfx_status
+    .word 9
+    .text "sfx-level"
+    .word word_sfx_level
+h_sfx_status:
+    .word h_sfx_ctrl
+    .word 10
+    .text "sfx-status"
+    .word word_sfx_status
+h_sfx_ctrl:
+    .word h_sic_enable_write
+    .word 8
+    .text "sfx-ctl!"
+    .word word_sfx_ctrl
+h_sic_enable_write:
+    .word h_sic_enable_read
+    .word 11
+    .text "sic-enable!"
+    .word word_sic_enable_write
+h_sic_enable_read:
+    .word h_sic_pending
+    .word 11
+    .text "sic-enable@"
+    .word word_sic_enable_read
+h_sic_pending:
+    .word h_sample_store
+    .word 12
+    .text "sic-pending!"
+    .word word_sic_pending
+h_sample_store:
+    .word h_sample_fetch
+    .word 4
+    .text "snd!"
+    .word word_sample_store
+h_sample_fetch:
+    .word h_sample_copy
+    .word 4
+    .text "snd@"
+    .word word_sample_fetch
+h_sample_copy:
+    .word h_fitdemo
+    .word 7
+    .text "snd-cpy"
+    .word word_sample_copy
+
 .org 0x4640
 h_bslice:
     .word h_spi_ctrl
@@ -19866,6 +20116,170 @@ sxi_done:
     ; The ready poll already read SPI_DATA into the handler's R1; reading it
     ; again would advance the flash's response stream.
     SMV R0, AR1
+    LSI R1, 0
+    JML R10
+    NOP
+
+; ============================================================
+; BDOS 14..23: palette, I2S, SIC and the sound window
+; ============================================================
+.org 0x4900
+.code
+bdos_palette:
+    ; 14: R1 = bank * 8 + pair, R4 = background | ink << 8.
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    MOV R2, R1
+    SR R1, 3                 ; bank
+    LDI 7
+    MOV R3, R0
+    AND R2, R3               ; pair
+    SL R1, 4                 ; bank * 16
+    SL R2, 1                 ; pair * 2
+    ADD R1, R2
+    LDI 0x2080               ; 0x6080 cannot be an LDI immediate: it sign-extends
+    MOV R2, R0
+    LDI 1
+    SL R0, 14
+    OR R2, R0
+    ADD R1, R2
+    MOV R3, R4
+    LDI 0x00FF
+    MOV R5, R0
+    AND R3, R5               ; background
+    STS R3, ES, R1
+    SR R4, 8                 ; ink
+    ADD R1, 1
+    STS R4, ES, R1
+    LSI R0, 0
+    LSI R1, 0
+    JML R10
+    NOP
+bdos_i2s_write:
+    ; 15: R1 = sample.
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDI 0x00A0
+    MOV R2, R0
+    STS R1, ES, R2
+    LSI R0, 0
+    LSI R1, 0
+    JML R10
+    NOP
+bdos_i2s_ctrl:
+    ; 16: R1 = control.
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDI 0x00A2
+    MOV R2, R0
+    STS R1, ES, R2
+    LSI R0, 0
+    LSI R1, 0
+    JML R10
+    NOP
+bdos_i2s_read:
+    ; 17: R0 = status, R1 = level.
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDI 0x00A4
+    MOV R2, R0
+    LDS R1, ES, R2
+    MOV R3, R1
+    LDI 0x00A0
+    MOV R2, R0
+    LDS R1, ES, R2
+    MOV R0, R3
+    JML R10
+    NOP
+bdos_sic_enable_write:
+    ; 18: R1 = mask.
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDI 0x00B2
+    MOV R2, R0
+    STS R1, ES, R2
+    LSI R0, 0
+    LSI R1, 0
+    JML R10
+    NOP
+bdos_sic_enable_read:
+    ; 19: R0 = mask.
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDI 0x00B2
+    MOV R2, R0
+    LDS R0, ES, R2
+    JML R10
+    NOP
+bdos_sic_pending:
+    ; 20: R1 = mask.
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDI 0x00B0
+    MOV R2, R0
+    STS R1, ES, R2
+    LSI R0, 0
+    LSI R1, 0
+    JML R10
+    NOP
+bdos_sample_write:
+    ; 21: R1 = offset, R4 = value.
+    LDI 0x1FFF
+    INV R0
+    MVS ES, R0
+    STS R4, ES, R1
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LSI R0, 0
+    LSI R1, 0
+    JML R10
+    NOP
+bdos_sample_read:
+    ; 22: R1 = offset -> R0 = value.
+    LDI 0x1FFF
+    INV R0
+    MVS ES, R0
+    LDS R0, ES, R1
+    MOV R3, R0
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    MOV R0, R3
+    JML R10
+    NOP
+bdos_sample_copy:
+    ; 23: R1 = source in DS, R4 = destination offset; bd_count cells.
+    LDI 0x1FFF
+    INV R0
+    MVS ES, R0
+    LDI bd_count
+    MOV R2, R0
+    LD R3, R2, 0
+    LDI 0
+    CMP R3, R0
+    JZ bdos_sample_copy_done
+    NOP
+bdos_sample_copy_loop:
+    LDS R5, DS, R1
+    STS R5, ES, R4
+    ADD R1, 1
+    ADD R4, 1
+    SUB R3, 1
+    JNZ bdos_sample_copy_loop
+    NOP
+bdos_sample_copy_done:
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LSI R0, 0
     LSI R1, 0
     JML R10
     NOP

@@ -39,12 +39,13 @@ Schritt 2: Atomare, nicht-blockierende SPI- & UART-Primitiven im BIOS
 
 Schritt 3: BDOS als Interrupt-freundliche (I=1) Polling- & Treiberschicht
 
-**Stand 2026-11-19: abgeschlossen.** `spi_put`/`spi_get` pollen die SPI-Register direkt aus dem BDOS. Das ist für den Menu-Pfad nötig, denn das Menu läuft im BIOS-Shadow-Bank; ein verschachtelter SWI könnte die Funktionsnummer nicht über die normale Bank übergeben. Im normalen Kontext bleibt I=1, sodass Timer/Raster/Audio weiterlaufen. `dir_read`, `bdos_lookup`, `bdos_load` und `bdos_read_slice` nutzen diesen Pfad; **3.3 (serial-read)** ist BDOS-Funktion 10, **3.4 (PS/2-Init)** BDOS-Funktion 9. Die essenziellen SPI-Wörter sind ebenfalls umgestellt: **Funktion 12** (`spi-ctrl!`, CS/SPDIV über BIOS f20) und **Funktion 13** (`spi-xfer`, ein Byte über f21/f22).
+**Stand 2026-11-19: abgeschlossen.** `spi_put`/`spi_get` pollen die SPI-Register direkt aus dem BDOS. Das ist für den Menu-Pfad nötig, denn das Menu läuft im BIOS-Shadow-Bank; ein verschachtelter SWI könnte die Funktionsnummer nicht über die normale Bank übergeben. Im normalen Kontext bleibt I=1, sodass Timer/Raster/Audio weiterlaufen. `dir_read`, `bdos_lookup`, `bdos_load` und `bdos_read_slice` nutzen diesen Pfad; **3.3 (serial-read)** ist BDOS-Funktion 10, **3.4 (PS/2-Init)** BDOS-Funktion 9. Die essenziellen SPI-Wörter sind ebenfalls umgestellt: **Funktion 12** (`spi-ctrl!`, CS/SPDIV über BIOS f20) und **Funktion 13** (`spi-xfer`, ein Byte über f21/f22). **Funktion 14–23** bedienen Palette, I2S, SIC und das Sound-Fenster für `graphics`/`audio`.
 
 Das BDOS läuft per Far-Call (JML) im normalen Kontext (I=1). Hier finden ab sofort alle Schleifen statt, die auf Hardware warten müssen:
 • 3.1 BDOS-SPI-Transfer:
 	• Setzt CS/SPDIV einmal und pollt dann SPI_STAT direkt; die Schleife läuft im BDOS (normal I=1, Menu I=0).
 	• Funktion 12 (`bdos_spi_ctrl`) und Funktion 13 (`bdos_spi_xfer`) geben den geladenen Forth-Modulen eine SPI-API ohne MMIO; `essentials` und `sd` benutzen sie.
+	• Funktion 14–23 (`bdos_palette`, `bdos_i2s_*`, `bdos_sic_*`, `bdos_sample_*`) nehmen Palette, I2S, SIC und das Sound-Fenster aus `graphics`/`audio`; die Module rufen nur noch `pal-bank!`, `sfx!`/`sfx-ctl!`, `sic-enable!` und `snd!`/`snd@`/`snd-cpy`.
 • 3.2 BDOS-Slice-Reader (bdos_read_slice, Funktion 11):
 	• bdos_dir (1), bdos_lookup (2), bdos_load (3) und bdos_read_slice (11) nutzen denselben SPI-Pfad.
 	• bdos_read_slice kopiert eine 4-KiB-Quellenscheibe in den Puffer des Aufrufers und stellt DS/ES wieder her; `bdos-slice` ist der Forth-Einstieg.
@@ -62,9 +63,9 @@ Schritt 4: Forth-Kernel auf BDOS & Non-Blocking BIOS umstellen
 Übersicht der neuen Aufruf- und Interrupt-Garantien
 
 1. Keine I=0-Warteschleifen mehr: Jede SWI-Routine hat eine feste, kurze Obergrenze an Taktzyklen (kein Warten auf langsame Peripherie).
-2. Kein Hardware-Durchgriff aus Kernel/BDOS: Der Kernel und BDOS sprechen Hardware nur über BIOS/BDOS an. `essentials` und `sd` enthalten ebenfalls keine SPI-Registeradressen mehr: `spi-ctrl!`/`spi-xfer` gehen über BDOS 12/13. Verbleibend sind die Paletten-/Sound-MMIO-Wörter in `graphics` und `audio`.
+2. Kein Hardware-Durchgriff aus Kernel/BDOS: Der Kernel und BDOS sprechen Hardware nur über BIOS/BDOS an. `essentials`/`sd` (SPI, BDOS 12/13) und `graphics`/`audio` (Palette, I2S, Sound-Fenster, BDOS 14–23) enthalten keine entsprechenden Registeradressen mehr. Verbleibend sind die Grafik-MMIO-Wörter in `graphics` (SIC-Status, Raster, OAM/Scene, Sprite-Kopie), die nicht zu Palette oder Sound gehören.
 3. Strikte Einbahnstraße:
 	• Forth ruft BDOS (für Files, Burst-I/O, PS/2-Init) und BIOS (für schnelle non-blocking Status-/I/O-Calls).
 	• BDOS ruft ausschließlich BIOS (SWI).
 	• BIOS ruft niemanden oberhalb auf und kennt keine Forth-Variablen.
-Schritt 1.1, 1.2a/b/c, 1.3, 1.4, 2, 3 und 4 sind umgesetzt (2026-11-19). Der D16MINI-Build ist seit 2026-11-19 archiviert. `serial-read`, `key?`, `emit` und der Bootloader nutzen BDOS/BIOS wie geplant; der Gfx-Rückweg und `put_char` (R1–R3) sind repariert. Die SPI-/Config-Flash-Helfer in `essentials` (und damit auch `sd`) sind hinter BDOS 12/13 gezogen; verbleibende optionale Arbeit sind die direkten Paletten-/Sound-MMIO-Wörter in `graphics` und `audio`.
+Schritt 1.1, 1.2a/b/c, 1.3, 1.4, 2, 3 und 4 sind umgesetzt (2026-11-19). Der D16MINI-Build ist seit 2026-11-19 archiviert. `serial-read`, `key?`, `emit` und der Bootloader nutzen BDOS/BIOS wie geplant; der Gfx-Rückweg und `put_char` (R1–R3) sind repariert. Die SPI-/Config-Flash-Helfer in `essentials` (und damit auch `sd`) sind hinter BDOS 12/13 gezogen, die Palette-/I2S-/Sound-Helfer in `graphics`/`audio` hinter BDOS 14–23. Verbleibende optionale Arbeit sind die Grafik-MMIO-Wörter in `graphics` (SIC-Status, Raster, OAM/Scene, Sprite-Kopie).

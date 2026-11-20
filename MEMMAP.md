@@ -120,7 +120,9 @@ loader. The dictionary then continues at `0x6000`.
 | `0x04780`–`0x047BF` | BDOS function 12 (`spi_ctrl`) |
 | `0x047C0`–`0x047FF` | BDOS function 13 (`spi_xfer`) |
 | `0x04800`–`0x048E2` | BDOS function 10 (`serial_read`) |
-| `0x048E3`–`0x049FF` | free (the old Pac-Man/Frogger gap) |
+| `0x048E3`–`0x048FF` | free |
+| `0x04900`–`0x0499A` | BDOS 14–23: palette, I2S, SIC and sound-window helpers |
+| `0x0499B`–`0x049FF` | free (the old Pac-Man/Frogger gap) |
 | `0x04A00`–`0x04D33` | BIOS code (dispatch, console functions 0–6, D16D `gfx_back` menu return) |
 | `0x04D34`–`0x04FE0` | D16D showcase menu block (sparse; magic at `0x04DE4`, entry `0x04D34`) |
 | `0x04FE1`–`0x0519B` | free, then the ILL trap handler (DIV/DIV32) at `0x05000` |
@@ -175,6 +177,7 @@ loader. The dictionary then continues at `0x6000`.
 | `word_serialread` | `0x4400` | machine-speed UART block read for XMODEM (delegates to BDOS 10 at `0x4800`) |
 | `word_spi_ctrl` | `0x4700` | `spi-ctrl!`: BDOS function 12 (BIOS f20) |
 | `word_spi_xfer` | `0x4740` | `spi-xfer`: BDOS function 13 (BIOS f21/f22) |
+| `bd_count` | `0x2FB8` | cell count for BDOS function 23 (`snd-cpy`) |
 
 The D16D showcase is now only the menu: a four-word header at `0x3E4`
 (`0x0D16`, format 1, entry `0x334`), a trampoline at `0x334`, the menu code at
