@@ -91,10 +91,6 @@
 .equ ST_SV7 0x1936
 .equ ST_SVLR 0x1937
 .equ ST_LR_COL 0x1938 ; collision routine return address
-.equ ST_PAL0 0x1915 ; saved sprite-palette entries 6..9
-.equ ST_PAL1 0x1916
-.equ ST_PAL2 0x1917
-.equ ST_PAL3 0x193D
 .equ ST_EAT_C 0x193E ; cell whose pickup is processed on arrival
 .equ ST_EAT_R 0x193F
 .equ ST_EAT_V 0x1919 ; map value + 1, 0 = no pending pickup
@@ -140,43 +136,15 @@ pac_entry:
     LINK
     JMP R4
     NOP
-    ; keep the sprite-palette entries Flappy's bird art uses
-    LDI SEG_OAM
-    MVS ES, R0
-    LDI 0x00E6
-    MOV R2, R0
-    LDS R3, ES, R2
-    LDI ST_PAL0
-    MOV R4, R0
-    ST R3, R4, 0
-    ADD R2, 1
-    LDS R3, ES, R2
-    LDI ST_PAL1
-    MOV R4, R0
-    ST R3, R4, 0
-    ADD R2, 1
-    LDS R3, ES, R2
-    LDI ST_PAL2
-    MOV R4, R0
-    ST R3, R4, 0
-    ADD R2, 1
-    LDS R3, ES, R2
-    LDI ST_PAL3
-    MOV R4, R0
-    ST R3, R4, 0
     LDI pac_setpal
     MOV R4, R0
     LINK
     JMP R4
     NOP
 
-    ; keep Flappy's dizzy groups, then install the Pac-Man and ghost frames
-    ; into the writable sprite bank.  The baked bank is untouched.
-    LDI pac_save_groups
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
+    ; Install the Pac-Man and ghost frames into the writable sprite bank.
+    ; Flappy reinstalls its own bird/cloud pack when it starts, so no group
+    ; save/restore is needed here.
     LDI pac_copy_frames
     MOV R4, R0
     LDI pac_sprite_data
@@ -3021,82 +2989,6 @@ pac_cf_word:
     JMP LR
     NOP
 
-; Save the three Flappy dizzy groups Pac-Man reuses, so Flappy still works
-; after a game.  768 words live at DS 0x2000, above the slice image.
-pac_save_groups:
-    LDI ST_SVLR
-    MOV R2, R0
-    ST LR, R2, 0
-    LDI SEG_SPR
-    MVS ES, R0
-    LDI 0x2000
-    MOV R1, R0
-    LDI pac_saved_groups
-    MOV R5, R0
-    LSI R6, 3
-pac_sg_group:
-    LDS R2, DS, R5
-    SL R2, 8
-    LSI R8, 0
-    LDI 256
-    MOV R3, R0
-pac_sg_word:
-    MOV R7, R2
-    ADD R7, R8
-    LDS R4, ES, R7
-    ST R4, R1, 0
-    ADD R1, 1
-    ADD R8, 1
-    SUB R3, 1
-    JNZ pac_sg_word
-    NOP
-    ADD R5, 1
-    SUB R6, 1
-    JNZ pac_sg_group
-    NOP
-    LDI ST_SVLR
-    MOV R2, R0
-    LD LR, R2, 0
-    JMP LR
-    NOP
-
-pac_restore_groups:
-    LDI ST_SVLR
-    MOV R2, R0
-    ST LR, R2, 0
-    LDI SEG_SPR
-    MVS ES, R0
-    LDI 0x2000
-    MOV R1, R0
-    LDI pac_saved_groups
-    MOV R5, R0
-    LSI R6, 3
-pac_rg_group:
-    LDS R2, DS, R5
-    SL R2, 8
-    LSI R8, 0
-    LDI 256
-    MOV R3, R0
-pac_rg_word:
-    MOV R7, R2
-    ADD R7, R8
-    LD R4, R1, 0
-    STS R4, ES, R7
-    ADD R1, 1
-    ADD R8, 1
-    SUB R3, 1
-    JNZ pac_rg_word
-    NOP
-    ADD R5, 1
-    SUB R6, 1
-    JNZ pac_rg_group
-    NOP
-    LDI ST_SVLR
-    MOV R2, R0
-    LD LR, R2, 0
-    JMP LR
-    NOP
-
 wait_frame:
     LDI SEG_UART
     MVS ES, R0
@@ -3117,34 +3009,6 @@ pac_wf_loop:
     NOP
 
 pac_exit:
-    LDI pac_restore_groups
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    LDI SEG_OAM
-    MVS ES, R0
-    LDI 0x00E6
-    MOV R2, R0
-    LDI ST_PAL0
-    MOV R4, R0
-    LD R3, R4, 0
-    STS R3, ES, R2
-    ADD R2, 1
-    LDI ST_PAL1
-    MOV R4, R0
-    LD R3, R4, 0
-    STS R3, ES, R2
-    ADD R2, 1
-    LDI ST_PAL2
-    MOV R4, R0
-    LD R3, R4, 0
-    STS R3, ES, R2
-    ADD R2, 1
-    LDI ST_PAL3
-    MOV R4, R0
-    LD R3, R4, 0
-    STS R3, ES, R2
     LDI SEG_CTRL
     MVS ES, R0
     LSI R2, 0x0A

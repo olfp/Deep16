@@ -468,30 +468,6 @@ test('a ghost bonus appears in the maze and restores the tilemap', () => {
   assert.ok((sim.memory[0xF6000] | 0) & 0x0800, 'Pac-Man sprite is back');
 });
 
-test('leaving the game restores Flappy sprite groups and palette entries', () => {
-  const sim = start();
-  const groups = [5, 13, 21];
-  const pattern = new Map();
-  for (const g of groups) {
-    for (let i = 0; i < 256; i++) {
-      const v = (g * 257 + i * 13) & 0xFFFF;
-      sim.memory[0xF4000 + g * 256 + i] = v;
-      pattern.set(`${g},${i}`, v);
-    }
-  }
-  for (let i = 0; i < 4; i++) sim.memory[0xF6000 + 0xE6 + i] = 0x1200 + i;
-  run(sim, 320);
-  assert.equal(runToExit(sim, 30, 0x71), true, 'Q returns to the menu');
-  for (const g of groups) {
-    for (let i = 0; i < 256; i++) {
-      assert.equal(sim.memory[0xF4000 + g * 256 + i], pattern.get(`${g},${i}`),
-                   `group ${g} word ${i} restored`);
-    }
-  }
-  assert.deepEqual([0, 1, 2, 3].map((i) => sim.memory[0xF6000 + 0xE6 + i] | 0),
-                   [0x1200, 0x1201, 0x1202, 0x1203], 'sprite palette restored');
-});
-
 test('the last dot wins and the banner returns to the menu after ten seconds', () => {
   const sim = start();
   run(sim, 320, {
