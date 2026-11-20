@@ -17,7 +17,9 @@ import { loadBrowserScripts, ROOT } from './helpers.js';
 import { assemblePoleBoard } from '../scripts/pole_program.mjs';
 import { buildPole, checkPole } from '../scripts/make_showcase.mjs';
 import {
-  TILE, SCALES, PLAYER_GROUP, MODEL_GROUPS, ART_OFFSETS, ART_DESTINATIONS,
+  TILE, SCALES, PLAYER_GROUP, PLAYER_GROUP_RIGHT, MODEL_GROUPS,
+  widePlayerGrid, WIDE_CAR_H,
+  ART_OFFSETS, ART_DESTINATIONS,
   TILE_COLORS, SPRITE_COLORS, TILE_PALETTE, SPRITE_PALETTE,
   poleTileGrids, poleSpriteGrids, poleTileWords, poleSpriteWords, polePaletteWords,
   tileWords, spriteWords, carGrid, scaleGrid,
@@ -88,13 +90,14 @@ test('the tile art fills the 32 art slots in bank order', () => {
 
 test('the sprite art covers the player and the four models', () => {
   const groups = poleSpriteGrids();
-  assert.equal(groups.length, 17, 'the player plus four models of four bins');
-  assert.equal(groups[0].group, PLAYER_GROUP, 'the player is group 0');
+  assert.equal(groups.length, 18, 'two player halves plus four models of four bins');
+  assert.equal(groups[0].group, PLAYER_GROUP, 'the player left half is group 0');
+  assert.equal(groups[17].group, PLAYER_GROUP_RIGHT, 'the player right half is group 17');
   groups.forEach((entry, i) => {
     assert.equal(entry.group, i, 'the groups have to be contiguous from 0');
   });
   const words = poleSpriteWords();
-  assert.equal(words.length, 17 * 256, '17 groups of 256 words');
+  assert.equal(words.length, 18 * 256, '18 groups of 256 words');
   groups.forEach((entry, i) => {
     assert.deepEqual(words.slice(i * 256, i * 256 + 256), spriteWords(entry.grid),
       `group ${entry.group} does not round-trip`);
@@ -118,6 +121,33 @@ test('the model and the art agree on the sprite groups', () => {
     }
   });
   assert.equal(used.size, 16, 'the models own 16 groups');
+});
+
+test('the player car is two halves of one 64x32 grid', () => {
+  const wide = widePlayerGrid();
+  assert.equal(wide.length, WIDE_CAR_H, '32 rows');
+  assert.equal(wide[0].length, 64, '64 columns');
+  const groups = poleSpriteGrids();
+  const left = groups.find((g) => g.group === PLAYER_GROUP).grid;
+  const right = groups.find((g) => g.group === PLAYER_GROUP_RIGHT).grid;
+  for (let y = 0; y < 32; y++) {
+    for (let x = 0; x < 32; x++) {
+      assert.equal(left[y][x], wide[y][x], `left half ${x},${y}`);
+      assert.equal(right[y][x], wide[y][32 + x], `right half ${x},${y}`);
+    }
+  }
+  // The painted car fills most of the 56-pixel content box, so the two
+  // sprites read as one wide car rather than two floating halves.
+  let min = 64;
+  let max = -1;
+  for (let y = 0; y < 32; y++) {
+    for (let x = 0; x < 64; x++) {
+      if (wide[y][x] === SPRITE_COLORS.TRANSPARENT) continue;
+      min = Math.min(min, x);
+      max = Math.max(max, x);
+    }
+  }
+  assert.ok(min <= 4 && max >= 59, `the car spans x ${min}..${max}`);
 });
 
 test('the scale bins are the sizes the renderer places the cars at', () => {

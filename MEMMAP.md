@@ -232,7 +232,7 @@ bank before entering the game, because the three art sets overlap (14 + 24 +
 
 The Pole slice is the racer: the menu launches it with **R** (or
 `s" pole" game-run` from the prompt). It carries its own raw art blocks at
-`0x1000`/`0x1400`/`0x2500` and copies them in itself, because its tile block
+`0x1000`/`0x1400`/`0x2600` and copies them in itself, because its tile block
 is not a `0x0A57` art pack and the menu's standard tile copy skips it. Its
 segment layout is:
 
@@ -248,8 +248,8 @@ segment layout is:
 | `0x0B00`–`0x0B31` | `pole_dirty_prepare`, the dirty-redraw helper |
 | `0x0C00`–`0x0C2F` | `pole_art_copy`, the bank copy |
 | `0x1000`–`0x13FF` | the tile art: 32 tiles of 32 words (slots 96–127) |
-| `0x1400`–`0x24FF` | the sprite art: 17 groups of 256 words (group 0 = the player) |
-| `0x2500`–`0x252F` | the palettes: the text, art and sprite banks of set 0 |
+| `0x1400`–`0x25FF` | the sprite art: 18 groups of 256 words (groups 0 and 17 = the player halves) |
+| `0x2600`–`0x262F` | the palettes: the text, art and sprite banks of set 0 |
 
 The tables moved out of `0x0400` because the renderer and the state helpers
 grew past it; `pole_state.asm` holds `pole_dirty_prepare` at `0x0B00`, and the
@@ -668,7 +668,7 @@ The upper, writable 2 MB of the config flash (`0x200000`–`0x3FFFFF`, sectors
 | `0x216000`–`0x219FFF` | slices 22–25: Pac-Man (8064 words incl. its tile pack, segment `0x2000`) |
 | `0x21A000`–`0x221FFF` | slices 26–33: Flappy (4560 words incl. pack, segment `0x5000`) |
 | `0x222000`–`0x226FFF` | slices 34–38: Frogger (9993 words incl. its tile and sprite packs, segment `0x0600`) |
-| `0x227000`–`0x22BFFF` | slices 39–43: Pole racer and its art (9520-word span, segment `0x7000`) |
+| `0x227000`–`0x22BFFF` | slices 39–43: Pole racer and its art (9776-word span, segment `0x7000`) |
 | `0x22C000` | slice 44: `hello.fth` |
 | `0x22D000` | slice 45: `ping` μ-law sample |
 | `0x22E000`–`0x233FFF` | slices 46–51: `swoosh` 2-second μ-law sample (linked) |

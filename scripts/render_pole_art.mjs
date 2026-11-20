@@ -17,7 +17,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { writePng } from './lib_png.mjs';
 import {
-  TILE, SCALES, PLAYER_GROUP, MODEL_GROUPS,
+  TILE, SCALES, PLAYER_GROUP, PLAYER_GROUP_RIGHT, MODEL_GROUPS,
   poleTileGrids, poleSpriteGrids, tileWords, spriteWords,
   TILE_PALETTE, SPRITE_PALETTE, TEXT_PALETTE,
 } from './make_pole_art.mjs';
@@ -158,7 +158,7 @@ if (isMain) {
     writePng(file, result.width, result.height, result.images[frame]);
     console.log(`wrote ${path.relative(ROOT, file)}`);
   }
-  console.log(`tiles ${TILE.SKY}..${TILE.CENTER + 7}, player group ${PLAYER_GROUP}, ` +
+  console.log(`tiles ${TILE.SKY}..${TILE.CENTER + 7}, player groups ${PLAYER_GROUP}+${PLAYER_GROUP_RIGHT}, ` +
               `model groups ${MODEL_GROUPS.join(',')}, scales ` +
               `${SCALES.map((s) => `${s.width}x${s.height}`).join(' ')}`);
 }

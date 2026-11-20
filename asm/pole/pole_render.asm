@@ -10,7 +10,7 @@
 ; tests/pole-asm.test.js compares the map this code writes with the model's,
 ; cell for cell.
 ;
-; Measured cost on the core3 RTL model: 12,510 instructions and 52,211 cycles
+; Measured cost on the core3 RTL model: 12,501 instructions and 52,173 cycles
 ; per frame with the dirty skip, out of the 112,500 cycles a 60 Hz frame has at
 ; 6.75 MHz. About 55% of the instructions are the per-cell fill loop below,
 ; which writes up to 1,867 cells at four instructions each; the skip removes
@@ -553,19 +553,30 @@ row_next:
     ; ---- the sprites ----------------------------------------------------
     LDI SEG_OAM
     MVS ES, R0
-    ; slot 0: the player, 28x22, bottom centre
+    ; slots 0 and 1: the player, two 32x32 halves, 64x32, bottom centre
     LDI 0
     MOV R2, R0
-    LDI 0x0932                ; enabled, x = 306
+    LDI 0x0920                ; enabled, x = 288
     MOV R3, R0
     STS R3, ES, R2
-    LDI 0x0148                ; group 0, y = 328
+    LDI 0x0140                ; group 0, y = 320
     MOV R3, R0
     LSI R2, 1
     STS R3, ES, R2
+    LDI 0x0940                ; enabled, x = 320
+    MOV R3, R0
+    LSI R2, 2
+    STS R3, ES, R2
+    LDI 17                    ; group 17, y = 320
+    MOV R3, R0
+    SL R3, 11
+    LDI 0x0140
+    OR R3, R0
+    LSI R2, 3
+    STS R3, ES, R2
 
-    ; slots 1..7: the opponents
-    LDI 1
+    ; slots 2..7: the opponents
+    LDI 2
     MOV R1, R0                 ; the slot
     LDI ST_OPP
     MOV R10, R0                ; the record pointer

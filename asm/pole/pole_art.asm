@@ -9,13 +9,13 @@
 ;
 ;   0x0C00  this copy
 ;   0x1000  the 32 tile words (tiles 96..127), 1024 words
-;   0x1400  the 17 sprite groups, 4352 words
-;   0x2500  the three palettes, 48 words
+;   0x1400  the 18 sprite groups, 4608 words
+;   0x2600  the three palettes, 48 words
 ;
 ; All three copies are block moves:
 ;   - the art tiles are the last 32 tiles of the tile bank, so they start at
 ;     tile 96 * 32 words;
-;   - the sprite groups are the first 17 of the sprite bank, so they start at
+;   - the sprite groups are the first 18 of the sprite bank, so they start at
 ;     group 0 * 256 words;
 ;   - the palettes are three consecutive 16-word banks of the palette window,
 ;     so they start at set 0, bank 0.
@@ -34,8 +34,8 @@
 .equ ART_TILE_LEN  1024
 .equ ART_SPR_SRC   0x1400
 .equ ART_SPR_DST   0x0000       ; group 0 * 256 words
-.equ ART_SPR_LEN   4352
-.equ ART_PAL_SRC   0x2500
+.equ ART_SPR_LEN   4608
+.equ ART_PAL_SRC   0x2600
 .equ ART_PAL_DST   0x0080       ; palette set 0, bank 0
 .equ ART_PAL_LEN   48
 

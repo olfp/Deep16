@@ -45,7 +45,7 @@ export const GAME_LIMIT = 0x0E00;             // game may use 0xA00..0xDFF
 export const POLE_SEG = 0x7000;                // physical 0x70000 (free segment)
 export const FLAPPY_SPR_PACK = 0x2000;          // after the Flappy tile pack
 
-export const POLE_LIMIT = 0x2600;              // the code, then the art blocks
+export const POLE_LIMIT = 0x2800;              // the code, then the art blocks
 
 export const STATE_BASE = 0x4D5;              // game state cells
 export const RESTORE_BASE = 0x500;            // menu code starts here
@@ -331,7 +331,7 @@ export function checkPole(pole) {
     fail.push(`the pole code reaches 0x${Math.max(...code).toString(16)}`);
   }
   for (const [base, length] of [[ART_OFFSETS.TILE, 1024],
-                                [ART_OFFSETS.SPRITE, 4352],
+                                [ART_OFFSETS.SPRITE, 4608],
                                 [ART_OFFSETS.PALETTE, 48]]) {
     const at = pole.words.find(([a]) => a === base)?.[1];
     if (at === undefined) fail.push(`the pole art block at 0x${base.toString(16)} is missing`);

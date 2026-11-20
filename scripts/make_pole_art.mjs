@@ -46,9 +46,11 @@ export const SCALES = Object.freeze([
 
 // The sprite groups. Group 0 is the player's car; the opponents follow, four
 // scale bins per model.
+// The player is two 32x32 sprites side by side: group 0 is the left half and
+// group 17 the right half, which makes the car 64 pixels wide on screen. The
+// four opponent models own groups 1..16, so the copy covers 18 groups.
 export const PLAYER_GROUP = 0;
-// The player is group 0 and the four models own groups 1..16, so the copy
-// covers the first 4352 words of the sprite bank.
+export const PLAYER_GROUP_RIGHT = 17;
 export const MODEL_GROUPS = Object.freeze([1, 5, 9, 13]);
 
 // Where the art sits in the Pole slice's own segment, and where it goes in
@@ -56,8 +58,8 @@ export const MODEL_GROUPS = Object.freeze([1, 5, 9, 13]);
 // with these numbers.
 export const ART_OFFSETS = Object.freeze({
   TILE: 0x1000,       // 1024 words: the 32 art tiles
-  SPRITE: 0x1400,     // 4352 words: the 17 sprite groups
-  PALETTE: 0x2500,    // 48 words: the three palette banks
+  SPRITE: 0x1400,     // 4608 words: the 18 sprite groups
+  PALETTE: 0x2600,    // 48 words: the three palette banks
 });
 
 export const ART_DESTINATIONS = Object.freeze({
@@ -288,14 +290,20 @@ function grassPixel(x, y) {
 // are the eight positions the boundary can take.
 export function leftEdgeGrid(boundary) {
   const grid = grid15x8(TILE_COLORS.ASPHALT);
+  // The edge walks left by eight pixels from the top of the tile to the
+  // bottom, so the border is a diagonal inside the tile instead of a vertical
+  // bar that steps a whole tile at every band. A two-pixel red/white line
+  // marks the edge; a thick rumble strip made the steps read as a fence.
+  const slope = 8;
   for (let y = 0; y < CELL_H; y++) {
-    const rumble = (Math.floor(y / 3) & 1) ? TILE_COLORS.RUMBLE_WHITE
-                                              : TILE_COLORS.RUMBLE_RED;
+    const edge = boundary - Math.floor((y * slope) / (CELL_H - 1));
     for (let x = 0; x < CELL_W; x++) {
-      if (x < boundary) {
+      if (x < edge - 1) {
         grid[y][x] = grassPixel(x, y);
-      } else if (x < boundary + 3) {
-        grid[y][x] = rumble;
+      } else if (x === edge - 1) {
+        grid[y][x] = TILE_COLORS.RUMBLE_RED;
+      } else if (x === edge) {
+        grid[y][x] = TILE_COLORS.RUMBLE_WHITE;
       } else {
         grid[y][x] = ((x * 5 + y) % 13 === 0) ? TILE_COLORS.ASPHALT_MID
                                               : TILE_COLORS.ASPHALT;
@@ -304,19 +312,21 @@ export function leftEdgeGrid(boundary) {
   }
   return grid;
 }
-
 // The right edge: the mirror image, with the rumble strip on the other side.
 export function rightEdgeGrid(boundary) {
   const grid = grid15x8(TILE_COLORS.ASPHALT);
+  // Mirror of the left edge: the line walks right by eight pixels.
+  const slope = 8;
   for (let y = 0; y < CELL_H; y++) {
-    const rumble = (Math.floor(y / 3) & 1) ? TILE_COLORS.RUMBLE_WHITE
-                                              : TILE_COLORS.RUMBLE_RED;
+    const edge = boundary + Math.floor((y * slope) / (CELL_H - 1));
     for (let x = 0; x < CELL_W; x++) {
-      if (x <= boundary) {
+      if (x <= edge) {
         grid[y][x] = ((x * 5 + y) % 13 === 0) ? TILE_COLORS.ASPHALT_MID
                                               : TILE_COLORS.ASPHALT;
-      } else if (x <= boundary + 2) {
-        grid[y][x] = rumble;
+      } else if (x === edge + 1) {
+        grid[y][x] = TILE_COLORS.RUMBLE_WHITE;
+      } else if (x === edge + 2) {
+        grid[y][x] = TILE_COLORS.RUMBLE_RED;
       } else {
         grid[y][x] = grassPixel(x, y);
       }
@@ -324,7 +334,6 @@ export function rightEdgeGrid(boundary) {
   }
   return grid;
 }
-
 // The centre stripe. The stripe is two pixels wide and starts at `offset`
 // inside the cell; the cell edge cuts it, which is the usual seam of a
 // sub-cell accurate line on an eight pixel grid. The stripe is dashed: the
@@ -410,6 +419,37 @@ export function scaleGrid(source, width, height) {
   return out;
 }
 
+// The player's car is 56x32, split into two 32x32 sprite groups so it reads
+// as a full-width car against the road instead of a speck. The opponents use
+// the 28x22 art above, scaled per depth bin.
+export const WIDE_CAR_W = 64;
+export const WIDE_CAR_H = 32;
+const WIDE_CONTENT_W = 56;
+
+export function widePlayerGrid() {
+  const source = carGrid(CAR_MODELS[0], true);
+  const grid = Array.from({ length: WIDE_CAR_H },
+                          () => Array(WIDE_CAR_W).fill(SPRITE_COLORS.TRANSPARENT));
+  const ox = (WIDE_CAR_W - WIDE_CONTENT_W) >> 1;
+  for (let y = 0; y < WIDE_CAR_H; y++) {
+    const sy = Math.min(CAR_H - 1, Math.floor(y * CAR_H / WIDE_CAR_H));
+    for (let x = 0; x < WIDE_CONTENT_W; x++) {
+      const sx = Math.min(CAR_W - 1, Math.floor(x * CAR_W / WIDE_CONTENT_W));
+      grid[y][ox + x] = source[sy][sx];
+    }
+  }
+  return grid;
+}
+
+// One 32x32 half of a wide grid: the left half starts at x=0, the right at 32.
+export function spriteHalfGrid(grid, offsetX) {
+  const out = grid32x32(SPRITE_COLORS.TRANSPARENT);
+  for (let y = 0; y < SPRITE_SIZE; y++) {
+    for (let x = 0; x < SPRITE_SIZE; x++) out[y][x] = grid[y][offsetX + x];
+  }
+  return out;
+}
+
 // ---- the banks ------------------------------------------------------------
 
 // One tile: 15 rows of 8 pixels, two words per row, the low nibble leftmost.
@@ -463,10 +503,11 @@ export function poleTileGrids() {
 
 // Every sprite group: the player first, then four scale bins per model.
 export function poleSpriteGrids() {
-  const groups = [{
-    group: PLAYER_GROUP,
-    grid: scaleGrid(carGrid(CAR_MODELS[0], true), SCALES[0].width, SCALES[0].height),
-  }];
+  const wide = widePlayerGrid();
+  const groups = [
+    { group: PLAYER_GROUP, grid: spriteHalfGrid(wide, 0) },
+    { group: PLAYER_GROUP_RIGHT, grid: spriteHalfGrid(wide, SPRITE_SIZE) },
+  ];
   CAR_MODELS.forEach((model, index) => {
     const source = carGrid(model, false);
     SCALES.forEach((scale, bin) => {
@@ -490,8 +531,9 @@ export function poleTileWords() {
   return words;
 }
 
-// The sprite art as one block: the player is group 0 and the four models own
-// groups 1..16, so the copy covers the first 4352 words of the sprite bank.
+// The sprite art as one block: the player is groups 0 and 17 and the four
+// models own groups 1..16, so the copy covers the first 4608 words of the
+// sprite bank.
 export function poleSpriteWords() {
   const words = [];
   for (const entry of poleSpriteGrids()) {

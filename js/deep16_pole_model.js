@@ -54,6 +54,9 @@
   // Sprite scale bins: width, height and the group base per car model.
   const SPRITE_W = Object.freeze([28, 21, 14, 8]);
   const SPRITE_H = Object.freeze([22, 16, 11, 6]);
+  // The player is two 32x32 groups side by side (left 0, right 17); the
+  // opponents start at group 1.
+  const PLAYER_GROUP_RIGHT = 17;
   // The group base per car model. Group 0 is the player's car, so the first
   // model starts at group 1 and every model owns four scale bins.
   const SPRITE_GROUPS = Object.freeze([1, 5, 9, 13]);
@@ -227,11 +230,16 @@
   // Project the opponents onto the OAM slots.
   function composeOam(state, bands) {
     const oam = new Array(16).fill(0);
-    // Slot 0 is the player: 28x22, bottom centre.
-    oam[0] = 0x0800 | 306;
-    oam[1] = 328;
-    for (let slot = 1; slot < 8; slot++) {
-      const opponent = state.opponents[slot - 1];
+    // Slots 0 and 1 are the player: two 32x32 halves, 64x32 in total, bottom
+    // centre. Both halves sit at y=320 and touch at x=320.
+    oam[0] = 0x0800 | 288;
+    oam[1] = 320;
+    oam[2] = 0x0800 | 320;
+    oam[3] = (PLAYER_GROUP_RIGHT << 11) | 320;
+    // Slots 2..7 are the opponents; the player uses two of the eight OAM
+    // slots, so at most six opponents are visible.
+    for (let slot = 2; slot < 8; slot++) {
+      const opponent = state.opponents[slot - 2];
       if (!opponent) continue;
       const info = bands[opponent.band];
       if (!info) continue;
@@ -280,6 +288,7 @@
     SPRITE_W,
     SPRITE_H,
     SPRITE_GROUPS,
+    PLAYER_GROUP_RIGHT,
     SCALE_BIN,
     CURVE_TRACK,
     WIDTH_TRACK,

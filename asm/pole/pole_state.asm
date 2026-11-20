@@ -96,10 +96,8 @@ pole_state_init:
     LDI 2
     ST R0, R2, 2
     ADD R2, 4
-    ; the remaining four slots stay outside the road
-    LDI -1
-    ST R0, R2, 0
-    ADD R2, 4
+    ; the remaining slots stay outside the road; the renderer shows six
+    ; opponents because the player's wide car uses two OAM slots
     LDI -1
     ST R0, R2, 0
     ADD R2, 4

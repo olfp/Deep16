@@ -5,7 +5,8 @@
 ;
 ;   - direct PS/2 polling (the slice has no SWI vector of its own);
 ;   - steering through ST_PLAYER_X, speed through the phase advance;
-;   - seven opponents in the state block, recycled to the horizon;
+;   - six opponents in the state block, recycled to the horizon (the
+;     player's 64x32 car uses two of the eight OAM slots);
 ;   - world-space collision on (lateral - playerX);
 ;   - lap, time and speed on row 0, messages on row 1.
 ;
@@ -13,7 +14,7 @@
 ; the visible map and is redrawn every frame.
 ;
 ; Segment layout stays as the renderer documents it: code below 0x0C00, art
-; at 0x1000/0x1400/0x2500, state and scratch where the renderer expects them.
+; at 0x1000/0x1400/0x2600, state and scratch where the renderer expects them.
 
 .equ SEG_IO    -0x1000          ; 0xF000
 .equ SEG_TILE  -0x0F00          ; 0xF100
@@ -513,7 +514,7 @@ game_opponents:
     ST LR, R2, 0
     LDI ST_OPP
     MOV R7, R0
-    LSI R6, 7
+    LSI R6, 6
 game_opp_loop:
     LD R2, R7, 0               ; band
     AND R2, R2
@@ -594,7 +595,7 @@ game_collide:
     NOP
     LDI ST_OPP
     MOV R7, R0
-    LSI R6, 7
+    LSI R6, 6
 game_coll_loop:
     LD R2, R7, 0
     AND R2, R2
