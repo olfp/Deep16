@@ -23,6 +23,11 @@ create cf-burst-prim 0x2F49 ,
 : cf-burst ( sector buf -- ) cf-burst-prim execute ;
 : cf-read-burst ( sector -- ) slice-buf cf-burst ;
 
+\ BDOS 7 writes one 4 KiB slice back to the config flash. The primitive at
+\ 0x4988 erases the slice's sector and page-programs it from the buffer.
+create slice-write-prim 0x4988 ,
+: slice-write ( src slice u -- r ) slice-write-prim execute ;
+
 : slice ( n -- a )
   dup 0 511 within 0= if ." slice: 0..511" cr drop slice-buf exit then
   dup slice-sec !  slice-buf bdos-slice

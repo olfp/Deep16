@@ -325,6 +325,15 @@ through BIOS f23. The only direct MMIO left in `graphics` is the
 test pins their cycle behaviour, so those four words keep `es!` on the
 `0xB0`/`0xB2` SIC registers.
 
+Saving goes the other way through BDOS function 7 (`fwrite`).
+`slice-write ( src slice u -- r )` erases the slice's 4 KiB config-flash sector
+and page-programs `u` cells from `src`, an address in the caller's DS. It
+returns the cell count, or `-1` when the source header carries bit 15 (the
+write-protect bit). `slice-flush` in `essentials` is now the write-protect
+check, `slice-buf slice-sec @ 2048 slice-write`, and the status line; the old
+`cf-page`/`cf-erase` SPI loop is gone. The directory editor clears the bit in
+the in-memory header with `slice-force` before it rewrites slice 0.
+
 ## Characters and strings
 
 | word | stack effect | meaning |
@@ -788,8 +797,9 @@ master directory; `scripts/make_slices.mjs` packs `screens/flash/*.fth` into
 
 The boot loader loads `start` (slice 1), then `essentials` and `edit` by name;
 `s" graphics" need`, `s" games" need` and `s" sd-card" need` bring in the
-rest on demand. It reads each slice through BDOS function 11 (`bdos-slice`);
-`cf-burst` remains the raw streaming primitive for the slice editor and tests:
+rest on demand. It reads each slice through BDOS function 11 (`bdos-slice`) and
+writes one back through function 7 (`slice-write`/`slice-flush`); `cf-burst`
+remains the raw streaming primitive for the slice editor and tests:
 
 ```text
 s" graphics" need     \ SIC/raster, scene, palettes, I2S, sprites

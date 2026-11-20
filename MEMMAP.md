@@ -106,26 +106,35 @@ loader. The dictionary then continues at `0x6000`.
 | Range | Contents |
 |---|---|
 | `0x00000`–`0x000FF` | zero page / SWI vector staging |
-| `0x00100`–`0x004FF` | kernel block 1 (`forth_start`, built-ins, boot entry) |
+| `0x00100`–`0x00474` | kernel block 1 (`forth_start`, built-ins, boot entry) |
+| `0x00475`–`0x004F4` | BDOS 7: flash erase/page-program driver (`fd_wren`, `fd_wait`, `fd_cmd`, part of `fd_program`) |
+| `0x004F5`–`0x004FF` | free |
 | `0x00500`–`0x01FFF` | kernel block 2 (primitives, interpreter, compiler) |
 | `0x02000`–`0x02FFF` | threading engine `next` and built-in word code |
-| `0x03000`–`0x0434E` | kernel data, boot script, built-in headers, `rp0_base` |
-| `0x03F9D`–`0x043FF` | free dictionary gap (`dict_free` at `0x3F9C`) |
+| `0x03000`–`0x03FCD` | kernel data, boot script, built-in headers, `rp0_base`, `dict_free` |
+| `0x03FCE`–`0x043FF` | free dictionary gap (`dict_free` at `0x3FCD`) |
 | `0x04400`–`0x0444E` | `serial-read` Forth wrapper (`0x4400`) and its built-in header (`0x4440`) |
 | `0x04460`–`0x045FF` | `fitdemo` header, code and text |
 | `0x04600`–`0x0461E` | `bdos-slice` Forth wrapper (`0x4600`) |
 | `0x0461F`–`0x0463F` | `gfx@`/`gfx!`/`gfx-cp` wrappers (BDOS 24–26) |
 | `0x04640` | `bdos-slice` built-in header |
+| `0x0464E`–`0x04670` | BDOS 7: restore the caller's segments and return |
 | `0x04680`–`0x046BF` | BDOS function 11 (`read-slice`) |
 | `0x046C0`–`0x046DF` | `spi-ctrl!` / `spi-xfer` built-in headers |
 | `0x04700`–`0x0477F` | `spi-ctrl!` (`0x4700`) and `spi-xfer` (`0x4740`) Forth wrappers |
 | `0x04780`–`0x047BF` | BDOS function 12 (`spi_ctrl`) |
 | `0x047C0`–`0x047FF` | BDOS function 13 (`spi_xfer`) |
-| `0x04800`–`0x048E2` | BDOS function 10 (`serial_read`) |
-| `0x048E3`–`0x048FF` | free |
-| `0x04900`–`0x0499A` | BDOS 14–23: palette, I2S, SIC and sound-window helpers |
-| `0x049A0`–`0x049C3` | BDOS 24–26: `gfx-read`, `gfx-write`, `gfx-copy` |
-| `0x049C4`–`0x049FF` | free (the old Pac-Man/Frogger gap) |
+| `0x04800`–`0x0483A` | BDOS function 10 (`serial_read`) |
+| `0x0483B`–`0x048A8` | BDOS 7: the rest of `fd_program` |
+| `0x048A9`–`0x048DF` | free |
+| `0x048E0`–`0x048E1` | `serial_read` saved R10/R11 |
+| `0x048E2`–`0x048FF` | free |
+| `0x04900`–`0x04987` | BDOS 14–23: palette, I2S, SIC and sound-window helpers |
+| `0x04988`–`0x04995` | `slice-write` primitive (Forth entry for BDOS 7) |
+| `0x04996`–`0x0499F` | free |
+| `0x049A0`–`0x049C2` | BDOS 24–26: `gfx-read`, `gfx-write`, `gfx-copy` |
+| `0x049C3`–`0x049FB` | BDOS 7: `bdos_fwrite` entry |
+| `0x049FC`–`0x049FF` | free |
 | `0x04A00`–`0x04D33` | BIOS code (dispatch, console functions 0–6, D16D `gfx_back` menu return) |
 | `0x04D34`–`0x04FE0` | D16D showcase menu block (sparse; magic at `0x04DE4`, entry `0x04D34`) |
 | `0x04FE1`–`0x0519B` | free, then the ILL trap handler (DIV/DIV32) at `0x05000` |
@@ -169,7 +178,7 @@ loader. The dictionary then continues at `0x6000`.
 | `boot_script` | `0x3C14` | baked `forth/boot.fth` source |
 | `boot_ptr` | `0x3010` | next boot-script line |
 | `rp0_base` | `0x3001` | return-stack base cell (`0x5800` flat, `0x2FF0` D16SEG) |
-| `dict_free` | `0x434F` | first statically free word |
+| `dict_free` | `0x3FCD` | first statically free word |
 | `bios_entry` | `0x4A00` | BIOS entry / dispatch |
 | `irq_handler` | `0x51A0` | hardware IRQ (vector 1) handler |
 | `ill_handler` | `0x5000` | ILL trap handler |
@@ -180,7 +189,9 @@ loader. The dictionary then continues at `0x6000`.
 | `word_serialread` | `0x4400` | machine-speed UART block read for XMODEM (delegates to BDOS 10 at `0x4800`) |
 | `word_spi_ctrl` | `0x4700` | `spi-ctrl!`: BDOS function 12 (BIOS f20) |
 | `word_spi_xfer` | `0x4740` | `spi-xfer`: BDOS function 13 (BIOS f21/f22) |
-| `bd_count` | `0x2FB8` | cell count for BDOS 23 (`snd-cpy`) and 26 (`gfx-cp`) |
+| `bd_count` | `0x2FB8` | cell count for BDOS 23 (`snd-cpy`), 26 (`gfx-cp`) and 7 (`fwrite`) |
+| `bdos_fwrite` | `0x49C3` | BDOS 7: erase and program one 4 KiB slice |
+| `word_slice_write` | `0x4988` | `slice-write ( src slice u -- r )`, the Forth entry for BDOS 7 |
 | `bios_f23` | `0x57E4` | atomic SIC write: `R1` = mask, `R2` = `0xB0`/`0xB2` |
 
 The D16D showcase is now only the menu: a four-word header at `0x3E4`
@@ -236,7 +247,7 @@ tile bank at `0xF3C00` (tile 96), the sprite bank at `0xF4000` (group 0) and
 the palette window at `0xF6080` (set 0, bank 0). It leaves the console font
 (tiles 0–95) and the bird sprite (group 24) alone.
 
-The `0x4350` gap is still free (`dict_free = 0x434F`), and the BIOS has taken
+The `0x4350` gap is still free (`dict_free = 0x3FCD`), and the BIOS has taken
 over the top of the old game area: the menu/BDOS bridge ends at `0x548D`, the
 PS/2 host init and sender sit at `0x5490`–`0x55FE` (BIOS functions 7 and 8),
 and the game sound generator/table at `0x5600`–`0x56C6` (functions 9 and 10).
@@ -265,7 +276,7 @@ automatically after ten seconds).
 
 ### 4.3 D16nano dictionary
 
-* Static image ends at `dict_free = 0x434F`; `0x4350`–`0x49FF` is the free gap
+* Static image ends at `dict_free = 0x3FCD`; `0x3FCE`–`0x49FF` is the free gap
   before the BIOS at `0x4A00`.
 * On PSRAM the boot probe moves `HERE` to `0x6000`; the runtime dictionary and
   the boot definitions (`free`, `mem`, `divtest` header, etc.)
@@ -299,7 +310,7 @@ Within `DS=0x1000`:
 | `0x0000`–`0x1FFF` | free: the SD driver keeps its sector buffer in the dictionary instead (`sd-buf`), so this window is still unclaimed |
 | `0x2000`–`0x2FFF` | return stack, top `0x2FF0` down, 4,080 frames |
 | `0x3000`–`0x434E` | kernel data, boot script, built-in headers (`rp0_base = 0x3001`) |
-| `0x434F`–`0x49FF` | free (`dict_free = 0x434F`); the old Pac-Man gap. Pac-Man now lives in config flash and loads to segment `0x2000` |
+| `0x3FCE`–`0x49FF` | free (`dict_free = 0x3FCD`); the old Pac-Man gap. Pac-Man now lives in config flash and loads to segment `0x2000` |
 | `0x4A00`–`0x57DC` | BIOS and D16D data |
 | `0x5800`–`0xFFEF` | dictionary, grows up, ~42K words |
 

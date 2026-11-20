@@ -106,6 +106,19 @@ in R1, return in R0/R1):
 **Minimum viable subset:** `fopen`, `fclose`, `fread`, `fwrite`, `fcreate`.
 `fseek`/`fsize`/`fdelete` are nice-to-have.
 
+**Status 2026-11-20.** The write half of the minimum subset is implemented as
+BDOS function 7, `fwrite`: `R1` = slice number, `R4` = source offset in the
+caller's DS, `bd_count` = cells. It erases the slice's 4 KiB sector and
+page-programs the cells, returns the count in `R0`, and refuses a source whose
+header has bit 15 set. Forth reaches it as
+`slice-write ( src slice u -- r )` (the primitive at `0x4988`, created by the
+boot script), and `essentials`' `slice-flush` now saves through it. Reads stay
+on function 11 (`read-slice`), which copies the whole 4 KiB slice into the
+caller's DS, so a load/save cycle is `read-slice` -> edit -> `fwrite` -> done.
+`fcreate`, `fdelete`, `fsize` and `fseek` are still open; the editor saves an
+existing slice today. `fseek` is unlikely to be needed in v1: the slice is the
+unit and read/write take an explicit source offset, not a hidden file cursor.
+
 **Slice-backed note:** a single slice holds 512 words. For files larger than
 one slice, `fread`/`fwrite` should follow the slice chain (continuation
 slices, as BDOS function 3 already does for loads) or expose a flat
@@ -141,8 +154,8 @@ No menus, no search/replace in v1, no syntax highlighting.
 
 ## 8. Dependencies / risks
 
-- The editor is blocked on **BDOS gaining write/create** (functions 7 and 10).
-  Until then, only read-only viewing is possible.
+- The editor is no longer blocked on writing: BDOS function 7 exists and the
+  Forth editor saves through it. **Create** (save-as) is the remaining gap.
 - Gap buffer size must fit in the chosen build's RAM (screen build: ~1M words;
   D16nano: 24K words — use the screen/IDE build for serious editing).
 - FiT text mode is 80x24, not 80x25; the status row consumes the last visible row.

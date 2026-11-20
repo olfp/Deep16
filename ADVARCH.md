@@ -141,15 +141,16 @@ slice-type ( a -- t )
 slice-link ( a -- n )         the next slice in the chain
 screen ( n -- )               follow the chain, concatenate 2040 cells/slice
                               into text-buf, interpret the result
-cf-erase                      sector erase
 cf-protect / cf-unprotect     BP = 2 MB / clear BP
 ```
 
-Catalog words (`5 screen`): `cf-page ( sector cell -- )` (256-byte page
-program), `slice-create ( n t -- )`, `slice-name!`, `slice-flush`, `dir`,
+The sector erase and the 256-byte page program moved into BDOS 7 (`fwrite`),
+reached from Forth as `slice-write ( src slice u -- r )`; catalog words
+(`5 screen`): `slice-create ( n t -- )`, `slice-name!`, `slice-flush`, `dir`,
 `find`, `dir-add`, `dir-remove`, `slice-alloc`,
 `p-screen ( n which -- )` (packed source, type 8), `sprite-slice` (type 2),
-`slice-run ( n -- )`. `slice-flush` refuses a WP slice.
+`slice-run ( n -- )`. `slice-flush` refuses a WP slice, and `slice-force`
+clears the header's WP bit before the directory editor rewrites slice 0.
 
 Packed source: screen 0 = cells 8..1027, screen 1 = 1028..2047, 2 chars/cell.
 RLL: PackBits, bit 7=1 literal `(n&0x7F)+1`, bit 7=0 repeat, `0x00` end.

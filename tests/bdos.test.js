@@ -280,10 +280,32 @@ test('function 6 (fread) loads a slice like function 3', () => {
   assert.equal(r1, pac.entry, 'fread returns the entry point');
 });
 
-test('function 7 (fwrite) is not implemented yet', () => {
-  const { r0, r1 } = callBdos(7, 1);
-  assert.equal(r0, 0xFFFF);
-  assert.equal(r1, 4);
+test('function 7 (fwrite) erases and programs a slice', () => {
+  const slice = 100;
+  const mem = buildMemory(kernel);
+  for (let i = 0; i < 16; i++) mem[0x0400 + i] = 0x1100 + i;
+  mem[kernel.symbols.bd_count] = 16;
+  const { r0, r1, sim } = callBdos(7, slice, { mem, arg4: 0x0400 });
+  assert.equal(r0, 16, 'fwrite returns the cell count');
+  assert.equal(r1, 0);
+  const off = SCREEN_BASE + slice * SLICE_BYTES;
+  for (let i = 0; i < 16; i++) {
+    const word = sim.spiFlash.mem[off + i * 2] | (sim.spiFlash.mem[off + i * 2 + 1] << 8);
+    assert.equal(word, 0x1100 + i, `cell ${i}`);
+  }
+  assert.equal(sim.spiFlash.mem[off + 32], 0xFF, 'the rest of the sector stays erased');
+});
+
+test('function 7 refuses a write-protected image', () => {
+  const mem = buildMemory(kernel);
+  mem[0x0400] = 0x8000;                  // bit 15: write protected
+  mem[kernel.symbols.bd_count] = 16;
+  const wp = callBdos(7, 100, { mem, arg4: 0x0400 });
+  assert.equal(wp.r0, 0xFFFF);
+  assert.equal(wp.r1, 5, 'the header marks the slice read-only');
+
+  const big = callBdos(7, 512, { mem: buildMemory(kernel) });
+  assert.equal(big.r0, 0xFFFF, 'a slice outside 0..511 is refused');
 });
 
 test('function 11 reads a source slice into callers DS and keeps ES', () => {

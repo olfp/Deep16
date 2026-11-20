@@ -80,7 +80,7 @@ the SPI flash model in the segmented suite.
 
 `slice` already reads into `slice-buf`. Add a `slice-cached` cell (the slice
 number, or a sentinel) and skip `cf-read-burst` when the requested slice is
-already there. Invalidate it when `cf-page`/`slice-flush` writes the current
+already there. Invalidate it when a slice write (`slice-flush`) writes the current
 slice.
 
 Effect: `p-screen` on both halves of one slice, repeated `slice-run` and any

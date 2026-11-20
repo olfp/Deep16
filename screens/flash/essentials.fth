@@ -39,7 +39,6 @@ variable spi-div-val drop
   decimal 0 cs! cr ;
 : cf-protect ( -- ) cf-wren  2 cs! 1 spi! 0x38 spi!  0 cs! cf-wait ;
 : cf-unprotect ( -- ) cf-wren  2 cs! 1 spi! 0x00 spi!  0 cs! cf-wait ;
-: cf-erase ( sector -- ) cf-wren 2 cs! 0x20 spi! 0 cf-addr 0 cs! cf-wait ;
 
 \ The console attribute cell: 0x8000 | text pair << 12. The editor needs it
 \ without loading graphics, so it lives here with the console-adjacent words.
@@ -50,14 +49,8 @@ variable add-n drop
 variable sn-a drop
 variable sn-l drop
 
-: cf-page ( sector cell -- )
-  cf-wren  2 cs! 2 spi!  swap over 2* cf-addr
-  slice-buf swap cells +  128 0 do
-    dup @ dup 0xff and spi!  8 rshift 0xff and spi!  cell+
-  loop drop 0 cs! cf-wait ;
-
 \ ---- directory and slice editor ------------------------------------------
-: slice-force ( -- ) 0 slice-wp ! ;
+: slice-force ( -- ) slice-buf dup @ 0x7FFF and swap ! 0 slice-wp ! ;
 : slice-create ( n t -- )
   swap slice swap 0x5000 or over !
   0xffff over 1 cells + !
@@ -73,9 +66,8 @@ variable sn-l drop
   loop ;
 : slice-flush ( -- )
   slice-wp @ if ." slice: write protected" cr exit then
-  slice-sec @ 512 + cf-erase
-  16 0 do slice-sec @ 512 + i 128 * cf-page loop
-  ." slice written" cr ;
+  slice-buf slice-sec @ 2048 slice-write
+  0< if ." slice: write failed" cr else ." slice written" cr then ;
 : .name ( a -- )
   2 cells + 6 0 do
     dup i cells + @  ( a c )

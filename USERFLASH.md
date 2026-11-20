@@ -13,7 +13,7 @@ build; it remains only for the one-time installer fallback below.
 | `0x200000`–`0x3FFFFF` | source slices, 4 KB each (`0x200000 + n*0x1000`) | writable |
 
 `BP = 0x38` protects the lower 2 MB (bitstream and boot image). The slices sit
-above it, so `cf-erase`/slice writes cannot corrupt the boot. On a protected
+above it, so slice writes cannot corrupt the boot. On a protected
 board, run `cf-unprotect` first for the **full** `flash:tile` path (the host
 `--unprotect-flash` flag is a no-op on this P25Q32H, so the script does not
 use it). The development board normally stays unprotected: `flash:slices` and

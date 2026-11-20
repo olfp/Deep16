@@ -1532,6 +1532,12 @@ interpret_next:
 ;                     into the segment in its header, follows the link chain,
 ;                     and returns R0 = segment, R1 = entry (0xFFFF/3 on a bad
 ;                     header or a truncated chain).
+;   7  fwrite      -> R1 = slice (0..511), R4 = source offset in the caller's
+;                     DS, bd_count = cells. Erases the slice's 4 KiB sector and
+;                     page-programs the cells. Returns R0 = cells; R0 = 0xFFFF
+;                     with R1 = 5 when the slice is outside 0..511 or the
+;                     source header sets bit 15 (write protected), and R1 = 6
+;                     for a cell count past 2048.
 ;  10  serial-read -> R1 = destination, R4 = pairs. Reads UART byte pairs,
 ;                     packs two bytes per cell (low byte first), and returns
 ;                     R0 = complete pairs stored.
@@ -2298,6 +2304,102 @@ spi_caps:
 .org 0x2FB8
 bd_count:
     .word 0
+
+; BDOS 7 (fwrite): flash-writer state. The writer runs with DS = 0xF000,
+; so every cell here is addressed through CS.
+.org 0x2FB9
+bd_wr_n:
+    .word 0
+bd_wr_err:
+    .word 0
+bd_slice:
+    .word 0
+bd_name:
+    .word 0
+bd_type:
+    .word 0
+bd_new:
+    .word 0
+bd_ent:
+    .word 0
+bd_tmp:
+    .word 0
+bd_tmp2:
+    .word 0
+bd_wr_ds:
+    .word 0
+bd_wr_es:
+    .word 0
+bd_wr_src:
+    .word 0
+bd_wr_left:
+    .word 0
+bd_wr_page:
+    .word 0
+
+; fwrite, part 2: write-protect check, programming call and result.
+.org 0x2FC7
+.code
+fw_part2:
+        LDI bd_wr_left
+        MOV R2, R0
+        STS R3, CS, R2
+        LDI bd_tmp
+        MOV R2, R0
+        STS R3, CS, R2
+        LDI bd_wr_src
+        MOV R2, R0
+        LDS R4, CS, R2
+        LDS R3, ES, R4
+        LDI 1
+        SL R0, 15
+        AND R3, R0
+        JZ fw_unprot
+        NOP
+        LDI fw_err5 - 0x4000
+        OR R0, 14
+        MOV PC, R0
+        NOP
+fw_unprot:
+        LDI 0x0FFF
+        MOV R2, R0
+        INV R2
+        MVS DS, R2
+        LSI R1, 1
+        LDI fd_fw_ret
+        MOV R12, R0
+        LDI bd_slice
+        MOV R2, R0
+        LDS R7, CS, R2
+        LDI fd_program
+        MOV PC, R0
+        NOP
+fd_fw_ret:
+        LDI bd_wr_err
+        MOV R2, R0
+        LDS R3, CS, R2
+        LSI R4, 0
+        CMP R3, R4
+        JZ fw_ok
+        NOP
+        LDI fw_restore - 0x4000
+        OR R0, 14
+        MOV R2, R0
+        LSI R0, -1
+        LSI R1, 4
+        MOV PC, R2
+        NOP
+fw_ok:
+        LDI fw_restore - 0x4000
+        OR R0, 14
+        MOV R2, R0
+        LDI bd_tmp
+        MOV R3, R0
+        LDS R0, CS, R3
+        LSI R1, 0
+        MOV PC, R2
+        NOP
+
 
 .org 0x3000
 sp0_base:
@@ -4157,6 +4259,8 @@ boot_script:
     .string "create cf-burst-prim 0x2F49 ,"
     .string ": cf-burst ( sector buf -- ) cf-burst-prim execute ;"
     .string ": cf-read-burst ( sector -- ) slice-buf cf-burst ;"
+    .string "create slice-write-prim 0x4988 ,"
+    .string ": slice-write ( src slice u -- r ) slice-write-prim execute ;"
     .string ": slice ( n -- a )"
     .string "  dup 0 511 within 0= if .\" slice: 0..511\" cr drop slice-buf exit then"
     .string "  dup slice-sec !  slice-buf bdos-slice"
@@ -4216,6 +4320,160 @@ dict_free:               ; colon definitions are built upwards from here
 ; serial line loader) is gone, and with it the pressure — but 0x0500 keeps real
 ; headroom rather than the seven words that are left at 0x0400 today. The data
 ; section sits at 0x3000, the threading engine at 0x2000.
+
+; ============================================================
+; BDOS 7: config-flash write driver (erase and page program)
+; ============================================================
+.org 0x0475
+.code
+fd_wren:
+        LDI 0x80
+        MOV R2, R0
+        LSI R3, 2
+        STS R3, DS, R2
+        LSI R3, 6
+        LDI spi_put
+        MOV R5, R0
+        LDI fd_wren_ok
+        MOV R8, R0
+        JMP R5
+        NOP
+fd_wren_ok:
+        LDI 0x80
+        MOV R2, R0
+        LSI R3, 0
+        STS R3, DS, R2
+        MOV PC, R9
+        NOP
+
+fd_wait:
+        LDI 0x7FFF
+        MOV R6, R0
+fd_wait_again:
+        LDI 0x80
+        MOV R2, R0
+        LSI R3, 2
+        STS R3, DS, R2
+        LSI R3, 5
+        LDI spi_put
+        MOV R5, R0
+        LDI fd_wait_cmd
+        MOV R8, R0
+        JMP R5
+        NOP
+fd_wait_cmd:
+        LDI spi_get
+        MOV R5, R0
+        LDI fd_wait_got
+        MOV R8, R0
+        JMP R5
+        NOP
+fd_wait_got:
+        LDI 0x80
+        MOV R2, R0
+        LSI R4, 0
+        STS R4, DS, R2
+        LSI R2, 1
+        AND R3, R2
+        JZ fd_wait_ok
+        NOP
+        SUB R6, 1
+        JNZ fd_wait_again
+        NOP
+        LDI bd_wr_err
+        MOV R2, R0
+        LSI R3, 1
+        STS R3, CS, R2
+fd_wait_ok:
+        MOV PC, R9
+        NOP
+
+fd_cmd:
+        LDI 0x80
+        MOV R2, R0
+        LSI R4, 2
+        STS R4, DS, R2
+        LDI spi_put
+        MOV R5, R0
+        LDI fd_cmd_b2
+        MOV R8, R0
+        JMP R5
+        NOP
+fd_cmd_b2:
+        MOV R3, R7
+        SR R3, 1
+        SR R3, 1
+        SR R3, 1
+        SR R3, 1
+        LDI 0x20
+        ADD R3, R0
+        LDI spi_put
+        MOV R5, R0
+        LDI fd_cmd_b1
+        MOV R8, R0
+        JMP R5
+        NOP
+fd_cmd_b1:
+        MOV R3, R7
+        LDI 0x0F
+        MOV R2, R0
+        AND R3, R2
+        SL R3, 1
+        SL R3, 1
+        SL R3, 1
+        SL R3, 1
+        OR R3, R6
+        LDI spi_put
+        MOV R5, R0
+        LDI fd_cmd_b0
+        MOV R8, R0
+        JMP R5
+        NOP
+fd_cmd_b0:
+        LSI R3, 0
+        LDI spi_put
+        MOV R5, R0
+        LDI fd_cmd_done
+        MOV R8, R0
+        JMP R5
+        NOP
+fd_cmd_done:
+        MOV PC, R9
+        NOP
+
+fd_program:
+        LDI 0x86
+        MOV R2, R0
+        LSI R3, 0
+        STS R3, DS, R2
+        LDI bd_wr_page
+        MOV R2, R0
+        LSI R3, 0
+        STS R3, CS, R2
+        LDI fd_pg_e1
+        MOV R9, R0
+        LDI fd_wren
+        MOV PC, R0
+        NOP
+fd_pg_e1:
+        LSI R6, 0
+        LDI 0x20
+        MOV R3, R0
+        LDI fd_pg_e2
+        MOV R9, R0
+        LDI fd_cmd
+        MOV PC, R0
+        NOP
+fd_pg_e2:
+        LDI 0x80
+        MOV R2, R0
+        LSI R3, 0
+        STS R3, DS, R2
+        LDI fd_pg_part2 - 0x4000
+        OR R0, 14
+        MOV PC, R0
+        NOP
+
 .org 0x0500
 word_plus:
     MOV R9, SP
@@ -19982,6 +20240,49 @@ h_bslice:
     .text "bdos-slice"
     .word word_bslice
 
+
+; ============================================================
+; BDOS 7: restore the caller segments and return
+; ============================================================
+.org 0x464E
+.code
+fw_restore:
+        MOV R2, R0
+        LDI bd_tmp2
+        MOV R3, R0
+        STS R2, CS, R3
+        MOV R2, R1
+        LDI bd_name
+        MOV R3, R0
+        STS R2, CS, R3
+        LDI 0x0FFF
+        MOV R2, R0
+        INV R2
+        MVS DS, R2
+        LDI 0x80
+        MOV R3, R0
+        LSI R4, 0
+        STS R4, DS, R3
+        LDI bd_wr_es
+        MOV R3, R0
+        LDS R4, CS, R3
+        MVS ES, R4
+        LDI bd_wr_ds
+        MOV R3, R0
+        LDS R4, CS, R3
+        MVS DS, R4
+        LDI bd_name
+        MOV R2, R0
+        LDS R1, CS, R2
+        LDI bd_ent
+        MOV R2, R0
+        LDS R12, CS, R2
+        LDI bd_tmp2
+        MOV R2, R0
+        LDS R0, CS, R2
+        JML R10
+        NOP
+
 .org 0x46C0
 h_spi_ctrl:
     .word h_spi_xfer
@@ -20189,6 +20490,204 @@ sxi_done:
 ; ============================================================
 ; BDOS 14..23: palette, I2S, SIC and the sound window
 ; ============================================================
+
+; ============================================================
+; BDOS 7: config-flash write driver, part 2
+; ============================================================
+.org 0x483B
+.code
+fd_pg_part2:
+        LDI fd_pg_e3 - 0x4000
+        OR R0, 14
+        MOV R9, R0
+        LDI fd_wait
+        MOV PC, R0
+        NOP
+fd_pg_e3:
+        LDI bd_wr_err
+        MOV R2, R0
+        LSI R3, 0
+        STS R3, CS, R2
+fd_pg_page:
+        LDI bd_wr_left
+        MOV R2, R0
+        LDS R3, CS, R2
+        LSI R4, 0
+        CMP R3, R4
+        JNZ fd_pg_go
+        NOP
+        LDI fd_pg_done - 0x4000
+        OR R0, 14
+        MOV PC, R0
+        NOP
+fd_pg_go:
+        MOV R4, R3
+        LDI 128
+        MOV R2, R0
+        CMP R4, R2
+        JC fd_pg_n_done
+        NOP
+        MOV R4, R2
+fd_pg_n_done:
+        LDI bd_wr_n
+        MOV R2, R0
+        STS R4, CS, R2
+        LDI fd_pg_p1 - 0x4000
+        OR R0, 14
+        MOV R9, R0
+        LDI fd_wren
+        MOV PC, R0
+        NOP
+fd_pg_p1:
+        LDI bd_wr_page
+        MOV R2, R0
+        LDS R6, CS, R2
+        LSI R3, 2
+        LDI fd_pg_p2 - 0x4000
+        OR R0, 14
+        MOV R9, R0
+        LDI fd_cmd
+        MOV PC, R0
+        NOP
+fd_pg_p2:
+        LDI bd_wr_src
+        MOV R2, R0
+        LDS R6, CS, R2
+        LDI bd_wr_n
+        MOV R2, R0
+        LDS R9, CS, R2
+fd_pg_cell:
+        LDS R4, ES, R6
+        MOV R3, R4
+        LDI 0x00FF
+        MOV R2, R0
+        AND R3, R2
+        LDI spi_put
+        MOV R5, R0
+        LDI fd_pg_hi - 0x4000
+        OR R0, 14
+        MOV R8, R0
+        JMP R5
+        NOP
+fd_pg_hi:
+        MOV R3, R4
+        SR R3, 8
+        LDI spi_put
+        MOV R5, R0
+        LDI fd_pg_next - 0x4000
+        OR R0, 14
+        MOV R8, R0
+        JMP R5
+        NOP
+fd_pg_next:
+        ADD R6, 1
+        SUB R9, 1
+        JNZ fd_pg_cell
+        NOP
+        LDI 0x80
+        MOV R2, R0
+        LSI R3, 0
+        STS R3, DS, R2
+        LDI bd_wr_src
+        MOV R2, R0
+        STS R6, CS, R2
+        LDI bd_wr_left
+        MOV R2, R0
+        LDS R3, CS, R2
+        LDI bd_wr_n
+        MOV R5, R0
+        LDS R4, CS, R5
+        SUB R3, R4
+        STS R3, CS, R2
+        LDI bd_wr_page
+        MOV R2, R0
+        LDS R3, CS, R2
+        ADD R3, 1
+        STS R3, CS, R2
+        LDI fd_pg_p3 - 0x4000
+        OR R0, 14
+        MOV R9, R0
+        LDI fd_wait
+        MOV PC, R0
+        NOP
+fd_pg_p3:
+        LDI fd_pg_page - 0x4000
+        OR R0, 14
+        MOV PC, R0
+        NOP
+fd_pg_done:
+        MOV PC, R12
+        NOP
+
+
+; ============================================================
+; BDOS 7 (fwrite): program one slice from the caller buffer
+; ============================================================
+.org 0x49C3
+.code
+bdos_fwrite:
+        LDI bd_ent
+        MOV R2, R0
+        STS R12, CS, R2
+        MVS R2, DS
+        LDI bd_wr_ds
+        MOV R3, R0
+        STS R2, CS, R3
+        MVS R2, ES
+        LDI bd_wr_es
+        MOV R3, R0
+        STS R2, CS, R3
+        LDI bd_slice
+        MOV R2, R0
+        STS R1, CS, R2
+        LDI bd_wr_src
+        MOV R2, R0
+        STS R4, CS, R2
+        LDI 512
+        MOV R2, R0
+        CMP R1, R2
+        JC fw_slice_ok
+        NOP
+fw_err5:
+        LDI fw_restore - 0x4000
+        OR R0, 14
+        MOV R2, R0
+        LSI R0, -1
+        LSI R1, 5
+        MOV PC, R2
+        NOP
+fw_slice_ok:
+        LDI bd_wr_ds
+        MOV R2, R0
+        LDS R2, CS, R2
+        MVS ES, R2
+        LDI bd_count
+        MOV R2, R0
+        LDS R3, DS, R2
+        LSI R4, 0
+        CMP R3, R4
+        JNZ fw_count_ok
+        NOP
+        LDI 2048
+        MOV R3, R0
+fw_count_ok:
+        LDI 2049
+        MOV R2, R0
+        CMP R3, R2
+        JC fw_count_ok2
+        NOP
+        LDI fw_restore - 0x4000
+        OR R0, 14
+        MOV R2, R0
+        LSI R0, -1
+        LSI R1, 6
+        MOV PC, R2
+        NOP
+fw_count_ok2:
+        LDI fw_part2
+        MOV PC, R0
+        NOP
+
 .org 0x4900
 .code
 bdos_palette:
@@ -20353,6 +20852,28 @@ bdos_sample_copy_done:
 ; ============================================================
 ; BDOS 24..26: the remaining graphics registers
 ; ============================================================
+
+; ============================================================
+; Forth entry for BDOS 7 (fwrite)
+; ============================================================
+.org 0x4988
+.code
+word_slice_write:
+        LD R3, SP, 0
+        ADD SP, 1
+        LD R1, SP, 0
+        ADD SP, 1
+        LD R4, SP, 0
+        ADD SP, 1
+        LDI bd_count
+        MOV R2, R0
+        ST R3, R2, 0
+        LDI 7
+        MOV R7, R0
+        LDI bdos_word_call_r0
+        MOV PC, R0
+        NOP
+
 .org 0x49A0
 .code
 bdos_gfx_read:
