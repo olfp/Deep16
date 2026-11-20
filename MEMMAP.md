@@ -240,15 +240,20 @@ segment layout is:
 |---|---|
 | `0x0000` | the slice entry |
 | `0x0100`–`0x03FF` | the renderer and its helpers |
-| `0x0400`–`0x04AF` | the curve, width, hill and sprite tables |
 | `0x04B0`–`0x051F` | the state, the scratch cells and the band descriptors |
 | `0x0520`–`0x053F` | the harness's own cells (the frame counter, the report helpers) |
 | `0x0580`–`0x05BF` | the report strings |
-| `0x0600`–`0x08FF` | the board driver and its helpers |
-| `0x0900`–`0x092F` | `pole_art_copy`, the bank copy |
+| `0x0600`–`0x08FF` | the board/game driver and its helpers |
+| `0x0A00`–`0x0AAF` | the curve, width, hill and sprite tables |
+| `0x0B00`–`0x0B31` | `pole_dirty_prepare`, the dirty-redraw helper |
+| `0x0C00`–`0x0C2F` | `pole_art_copy`, the bank copy |
 | `0x1000`–`0x13FF` | the tile art: 32 tiles of 32 words (slots 96–127) |
 | `0x1400`–`0x24FF` | the sprite art: 17 groups of 256 words (group 0 = the player) |
 | `0x2500`–`0x252F` | the palettes: the text, art and sprite banks of set 0 |
+
+The tables moved out of `0x0400` because the renderer and the state helpers
+grew past it; `pole_state.asm` holds `pole_dirty_prepare` at `0x0B00`, and the
+art copy follows at `0x0C00` because the game driver reaches `0x08FF`.
 
 The copy routine (`asm/pole/pole_art.asm`) moves the three blocks into the
 tile bank at `0xF3C00` (tile 96), the sprite bank at `0xF4000` (group 0) and

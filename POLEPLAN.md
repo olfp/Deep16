@@ -1,12 +1,14 @@
 # POLEPLAN — Pole Position-style racer for Deep16 FiT
 
-Status: **milestones 1–2 complete; milestone 3 art built; milestones 4–5
-implemented 2026-11-20.** The on-board harness ran on the real FPGA: 99,127
-cycles per frame, 88.1% of the 60 Hz budget. The art pipeline's core3
-baseline is 56,697 cycles per frame (50.4% of the budget) after the scrolling
-grass and the alternating mountain row. The playable game is now the `pole`
-slice and the showcase menu launches it with **R**. Still open: the dirty
-redraw and the board run with the art (milestones 3/6).
+Status: **milestones 1–2 complete; milestone 3 art and dirty redraw built;
+milestones 4–5 implemented 2026-11-20.** The on-board harness ran on the real
+FPGA: 99,127 cycles per frame, 88.1% of the 60 Hz budget. The art pipeline's
+core3 baseline is 56,697 cycles per frame (50.4% of the budget) after the
+scrolling grass and the alternating mountain row. The dirty redraw saves 8.33%
+of the board harness's simulated steps on the JS core (848,191 against
+925,284, identical picture). The playable game is now the `pole` slice and the
+showcase menu launches it with **R**. Still open: the board run with the art
+and the dirty redraw (milestone 3/6).
 
 ## Objective
 
@@ -230,13 +232,12 @@ About 55% of the instructions are the per-cell fill loop: the renderer writes
 and the address bump in the branch delay slot). The rest is the band
 projection, the per-row edge and stripe arithmetic, and the eight sprites.
 
-The remaining lever is the full redraw. The renderer paints the whole
-80x24 back bank every frame because the bank is swapped every frame; a dirty
-scheme that keeps the sky rows in both banks would cut roughly a quarter of
-the cells, and fewer effective road bands would cut the projection. On the
-board the margin is only 13,373 cycles per frame, so the dirty scheme moves
-up from milestone 4 into milestone 3: it is the cheapest way to buy back the
-time the gameplay slice needs.
+The remaining lever is the full redraw. The renderer paints the whole 80x24
+back bank every frame because the bank is swapped every frame; the dirty
+scheme (now implemented, see milestone 3) keeps the rows that are plain sky in
+both banks and cuts about a twelfth of the renderer's steps. On the board the
+margin is only 13,373 cycles per frame, so the dirty scheme moved up from
+milestone 4 into milestone 3.
 
 #### Board measurement (measured 17 November 2026)
 
@@ -337,7 +338,8 @@ board and bench drivers leave the same state behind.
 - `scripts/bench_pole.mjs`, `scripts/bench_pole_board.mjs`
 - `rtl/sim/core3_pole_bench_tb.sv`, `rtl/sim/core3_pole_bench_tb.cpp`
 - `scripts/build_core3_pole_bench.sh`
-- `tests/pole-asm.test.js` (10 tests), `tests/pole-board.test.js` (12 tests)
+- `tests/pole-asm.test.js` (10 tests), `tests/pole-board.test.js` (12 tests),
+  `tests/pole-dirty.test.js` (1 test)
 
 ### Milestone 3 — final art pipeline (art built, board run pending)
 
@@ -398,8 +400,40 @@ back to 228 words and left room to grow again.
 - The board run with the art. The copy costs about 38,000 instructions once,
   before the measured loop, so the cycles per frame should only move by the
   grass change.
-- The dirty redraw, which milestone 2 pulled forward: the margin on the
-  board is 13,373 cycles per frame.
+- The on-board run with the dirty redraw: the simulator saving is measured,
+  the FPGA figure is not.
+
+#### Dirty redraw (implemented and measured on the simulator, 2026-11-20)
+
+The back bank is swapped every frame, so a row can only be left alone when it
+is plain sky in both banks. `pole_dirty_prepare` (at `0x0B00` in
+`pole_state.asm`) computes
+
+```
+T0 = floor((H - 22) / 15)          ; H is the horizon in pixels
+skip = min(T0 of the back bank's last paint, T0 now)
+```
+
+and stores it in `SCR_SKIP`. Rows below the horizon stay plain sky whatever
+their depth (the band projection gives them no road), so everything from
+`skip` down is repainted: the mountain and tree rows and every road row. Each
+bank's last T0 is kept at `BANKT0_0`/`BANKT0_1` (`0x04DD`/`0x04DF`) and reset
+to 0 at state init, so the first paint of a bank is always full.
+
+The renderer keeps only the per-row skip check and the post-swap T0 store; the
+bench, board and game drivers call `pole_dirty_prepare` before `pole_render`.
+A build define, `POLE_NODIRTY`, forces the skip to 0 and is used by
+`tests/pole-dirty.test.js` to run both variants on the JS core.
+
+Measured on the 64-frame board harness: **848,191 steps dirty against 925,284
+full, a saving of 77,093 steps (8.33%)**, with the final map identical. The
+quarter the plan expected was optimistic: at the usual horizon only four of
+the 24 rows are plain sky, and the per-row skip check eats a few instructions
+of what those four rows save.
+
+Moving the renderer's grown code and the T0 helper needed room: the tables
+moved from `0x0400` to `0x0A00`, the helper sits at `0x0B00`, and the art copy
+moved from `0x0900` to `0x0C00`.
 
 ### Milestone 4 — gameplay slice (v1 implemented 2026-11-20)
 
@@ -423,8 +457,9 @@ The HUD text uses the console font cells in the pole palette's text bank.
 `tests/pole-game.test.js` boots the slice in segment `0x7000`, accelerates,
 checks the HUD glyphs in the tilemap and returns through Esc.
 
-Still open from milestone 3: the dirty redraw (the full back-bank paint is
-still ~56.7k core3 cycles per frame) and the board run with the art.
+Still open from milestone 3: the board run with the art and with the dirty
+redraw. The dirty redraw itself is done: it saves 8.33% of the board harness's
+simulated steps with an identical picture.
 
 ### Milestone 5 — config-flash and menu integration (done 2026-11-20)
 
@@ -454,7 +489,8 @@ sprite priority, input latency, and behavior with several opponents visible.
 The core3 measurement (55.8k cycles per frame) is inside the allocation, so
 no feature has been cut. The board measurement is still the gate: if the
 board's real memory latency pushes the renderer past its share, the dirty sky
-scheme and the reduced band count are the next steps, in that order.
+scheme (now implemented, 8.33% of the board harness's simulated steps) and the
+reduced band count are the next steps, in that order.
 
 ## References
 

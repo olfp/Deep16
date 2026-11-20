@@ -25,7 +25,7 @@ const CTRL_BASE = 0xF2000;     // the FiT control registers
 const CTRL_MAP = 0xF2008;      // control 4: the write/display map bank
 
 const CODE_START = 0x0100;
-const CODE_END = 0x0400;       // the tables start here
+const CODE_END = 0x0A00;       // the tables start here
 const ST_FRAMES = 0x0520;
 const ST_BANK = 0x04B8;
 const ST_PHASE = 0x04B0;
@@ -115,14 +115,14 @@ test('the renderer and the tables fit below the table block', () => {
   const words = new Map(res.memoryChanges.map((c) => [c.address, c.value & 0xFFFF]));
 
   // Nothing may be placed on top of the tables: the curve table starts at
-  // 0x0400 and the renderer code has to end before it.
+  // 0x0A00 and the renderer code has to end before it.
   for (const [base, values] of [
-    [0x0400, Model.CURVE_TRACK],
-    [0x0440, Model.WIDTH_TRACK],
-    [0x0480, Model.HILL_OFFSETS],
-    [0x04A0, Model.SPRITE_W],
-    [0x04A4, Model.SPRITE_H],
-    [0x04A8, Model.SPRITE_GROUPS],
+    [0x0A00, Model.CURVE_TRACK],
+    [0x0A40, Model.WIDTH_TRACK],
+    [0x0A80, Model.HILL_OFFSETS],
+    [0x0AA0, Model.SPRITE_W],
+    [0x0AA4, Model.SPRITE_H],
+    [0x0AA8, Model.SPRITE_GROUPS],
   ]) {
     values.forEach((value, i) => {
       assert.equal(words.get(base + i), value & 0xFFFF,

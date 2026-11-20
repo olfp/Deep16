@@ -105,8 +105,8 @@ test('the board program assembles and fits the slice', () => {
     const res = assemblePoleBoard(defines);
     assert.equal(res.success, true, res.errors.join('; '));
     const max = Math.max(...res.memoryChanges.map((c) => c.address));
-    // The code and the tables fit below the art copy at 0x0900, and the art
-    // blocks start at 0x1000.
+    // The code, the tables and the dirty helper fit below the art copy at
+    // 0x0C00, and the art blocks start at 0x1000.
     assert.ok(max < 0x1000,
       `the board program reaches 0x${max.toString(16)}, into the art`);
     // The entry is at offset 0 and the renderer is where the other drivers

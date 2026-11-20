@@ -314,10 +314,10 @@ export function checkPole(pole) {
       break;
     }
   }
-  // The code has to end before the art copy at 0x0900, and the art blocks
+  // The code has to end before the art copy at 0x0C00, and the art blocks
   // have to sit where asm/pole/pole_art.asm expects them.
-  const code = pole.words.filter(([a]) => a < 0x0900).map(([a]) => a);
-  if (Math.max(...code) >= 0x0900) {
+  const code = pole.words.filter(([a]) => a < 0x0C00).map(([a]) => a);
+  if (Math.max(...code) >= 0x0C00) {
     fail.push(`the pole code reaches 0x${Math.max(...code).toString(16)}`);
   }
   for (const [base, length] of [[ART_OFFSETS.TILE, 1024],

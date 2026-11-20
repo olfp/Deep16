@@ -19,7 +19,9 @@
 ;   0x0100  the entry point
 ;   0x0120  the benchmark driver (pole_bench.asm)
 ;   0x01A0  the renderer and its helpers
-;   0x0400  the curve, width, hill and sprite tables (pole_tables.asm)
+;   0x0A00  the curve, width, hill and sprite tables (pole_tables.asm)
+;   0x0B00  the dirty-redraw helper (pole_state.asm)
+;   0x0C00  the art copy (pole_art.asm)
 ;   0x04B0  the state block
 ;   0x04DC  the scratch cells
 ;   0x04F0  the band descriptors: 24 x { centre, half width }
@@ -79,6 +81,10 @@
 .equ SCR_EDGER   0x04EA
 .equ SCR_MID     0x04EC
 .equ SCR_GRASS   0x04EE
+.equ SCR_SKIP    0x04E1
+.equ SCR_T0NEW   0x04E3
+.equ BANKT0_0    0x04DD
+.equ BANKT0_1    0x04DF
 .equ BND_BASE    0x04F0
 
 ; The entry point jumps to whichever driver the program was built with:
@@ -246,6 +252,18 @@ row_loop:
     MOV R3, R1
     SL R3, 1
     ADD R12, R3
+
+    ; rows that are plain sky in this bank already are left untouched
+    LDI SCR_SKIP
+    MOV R2, R0
+    LD R3, R2, 0
+    CMP R1, R3
+    JNC row_draw
+    NOP
+    LDI row_next
+    MOV PC, R0
+    NOP
+row_draw:
 
     ; dy = row*15 + 7 - horizon
     MOV R2, R1
@@ -705,6 +723,28 @@ opp_next:
     MOV R2, R0
     SR R3, 1                   ; (new << 1) | new >> 1 = the new bank
     ST R3, R2, 0
+
+    ; ---- remember this bank's first non-plain row -----------------------
+    AND R3, R3
+    JNZ dirty_store1
+    NOP
+    LDI BANKT0_0
+    MOV R2, R0
+    LDI SCR_T0NEW
+    MOV R5, R0
+    LD R4, R5, 0
+    ST R4, R2, 0
+    LDI dirty_store_done
+    MOV PC, R0
+    NOP
+dirty_store1:
+    LDI BANKT0_1
+    MOV R2, R0
+    LDI SCR_T0NEW
+    MOV R5, R0
+    LD R4, R5, 0
+    ST R4, R2, 0
+dirty_store_done:
 
     ; ---- return ---------------------------------------------------------
     LDI SCR_LR

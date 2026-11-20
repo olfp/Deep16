@@ -24,14 +24,14 @@
 ;   0x0140  pole_state_init
 ;   0x0180  pole_state_advance
 ;   0x01A0  the renderer
-;   0x0400  the tables
+;   0x0A00  the tables
 ;   0x04B0  the state block
 ;   0x04DC  the renderer's scratch cells
 ;   0x04F0  the band descriptors
 ;   0x0520  the frame counter and the harness's own cells
 ;   0x0580  the report strings
 ;   0x0600  the driver and its helpers
-;   0x0900  the art copy (asm/pole/pole_art.asm)
+;   0x0C00  the art copy (asm/pole/pole_art.asm)
 ;   0x1000  the tile art (32 tiles, 1024 words)
 ;   0x1400  the sprite art (17 groups, 4352 words)
 ;   0x2500  the palettes (48 words)
@@ -208,6 +208,11 @@ board_main:
     ; The frame counter lives in memory: the renderer uses every register.
 board_loop:
     LDI pole_state_advance
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI pole_dirty_prepare
     MOV R4, R0
     LINK
     JMP R4

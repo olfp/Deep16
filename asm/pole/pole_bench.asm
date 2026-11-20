@@ -34,6 +34,11 @@ bench_loop:
     NOP
     ; the renderer
 .ifdef BENCH_RENDER
+    LDI pole_dirty_prepare
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
     LDI pole_render
     MOV R4, R0
     LINK

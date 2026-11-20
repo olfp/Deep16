@@ -12,7 +12,7 @@
 ; The HUD is drawn after pole_render has selected the new bank, so it lands on
 ; the visible map and is redrawn every frame.
 ;
-; Segment layout stays as the renderer documents it: code below 0x0900, art
+; Segment layout stays as the renderer documents it: code below 0x0C00, art
 ; at 0x1000/0x1400/0x2500, state and scratch where the renderer expects them.
 
 .equ SEG_IO    -0x1000          ; 0xF000
@@ -107,6 +107,11 @@ game_main:
     ST R0, R2, 0
 
     ; one frame before the first key, so the track is on screen
+    LDI pole_dirty_prepare
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
     LDI pole_render
     MOV R4, R0
     LINK
@@ -413,6 +418,11 @@ game_no_lap:
     AND R4, R5
     ST R4, R2, 0
     ; ---- draw ------------------------------------------------------------
+    LDI pole_dirty_prepare
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
     LDI pole_render
     MOV R4, R0
     LINK

@@ -7,6 +7,7 @@
 ;
 ; The art lives in the slice's own segment:
 ;
+;   0x0C00  this copy
 ;   0x1000  the 32 tile words (tiles 96..127), 1024 words
 ;   0x1400  the 17 sprite groups, 4352 words
 ;   0x2500  the three palettes, 48 words
@@ -43,7 +44,7 @@
 ; The slice runs with DS on its own segment, so the source is read with DS
 ; and the destination is written with ES. Clobbers every register.
 ; ---------------------------------------------------------------------------
-.org 0x0900
+.org 0x0C00
 pole_art_copy:
     ; ---- the tile art ----------------------------------------------------
     LDI ART_TILE_SRC
