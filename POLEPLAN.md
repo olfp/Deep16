@@ -339,6 +339,10 @@ POLE frames=01024 ms=14092 cyc16=27782 cyc_per_frame=92891 core3=052173
   costs about 1,700 on the board and the dirty skip saves about 8,000, which
   matches the core3 drop scaled by the board's 1.78x memory factor.
 
+This run predates the wide player car and the diagonal edge; those change one
+sprite and drop one opponent, so the board number has to be re-measured with
+the new art (the core3 figure moved from 52,211 to 52,173).
+
 The screen during the milestone-2 run showed the report line, the console's
 own text and the road, but the road was drawn with the wrong tiles: the slice
 carried no tile art, so tiles 96..120 held whatever the last game left in
