@@ -252,6 +252,8 @@ class Deep16Simulator {
         this.registers = new Array(16).fill(0);
         this.segmentRegisters = { CS: 0xFFFF, DS: 0x0000, SS: 0x0000, ES: 0x0000 };
         this.shadowRegisters = { PSW: 0, PC: 0, CS: 0, DS: 0, SS: 0, ES: 0, R0: 0, R1: 0, R2: 0, R3: 0, R13: 0, R14: 0 };
+        this.savedSegments = { CS: 0, DS: 0, SS: 0, ES: 0 };
+        this.savedSegments = { CS: 0, DS: 0, SS: 0, ES: 0 };
         this.psw = 0;
         this.running = false;
         // D16nano: DIV/DIV32 are not in the core; trap them to the ILL vector
@@ -393,6 +395,8 @@ class Deep16Simulator {
         this.shiftCarryOut = null;
         this.segmentRegisters = { CS: 0xFFFF, DS: 0x0000, SS: 0x0000, ES: 0x0000 };
         this.shadowRegisters = { PSW: 0, PC: 0, CS: 0, DS: 0, SS: 0, ES: 0, R0: 0, R1: 0, R2: 0, R3: 0, R13: 0, R14: 0 };
+        this.savedSegments = { CS: 0, DS: 0, SS: 0, ES: 0 };
+        this.savedSegments = { CS: 0, DS: 0, SS: 0, ES: 0 };
         this.cycleCount = 0;
         this.tileStatus = null;
         this.tileStatusReads = 0;
@@ -1412,6 +1416,14 @@ class Deep16Simulator {
     executeSWI() {
         // Spec 4.4: park the interrupted PSW, then enter the handler with a
         // fresh PSW (S=1, I=0, flags clear) -- NOT a copy of the old one.
+        // The caller's segment registers must survive the trap: the BIOS runs
+        // in its own segment and overwrites the shadow set, so keep a copy.
+        this.savedSegments = {
+            CS: this.segmentRegisters.CS & 0xFFFF,
+            DS: this.segmentRegisters.DS & 0xFFFF,
+            SS: this.segmentRegisters.SS & 0xFFFF,
+            ES: this.segmentRegisters.ES & 0xFFFF,
+        };
         this.shadowRegisters.PSW = this.psw & 0xFFFF;
         this.psw = 0x0020;
         this.shadowRegisters.CS = 0x0000;
@@ -1436,6 +1448,12 @@ class Deep16Simulator {
             this.running = false;
             return;
         }
+        this.savedSegments = {
+            CS: this.segmentRegisters.CS & 0xFFFF,
+            DS: this.segmentRegisters.DS & 0xFFFF,
+            SS: this.segmentRegisters.SS & 0xFFFF,
+            ES: this.segmentRegisters.ES & 0xFFFF,
+        };
         this.shadowRegisters.PSW = this.psw & 0xFFFF;
         this.psw = 0x0020;
         this.shadowRegisters.CS = 0x0000;
@@ -1461,6 +1479,12 @@ class Deep16Simulator {
         // copying: the normal registers were never modified.
         if ((this.psw & (1 << 5)) !== 0) {
             this.psw = this.shadowRegisters.PSW & 0xFFFF;
+            if (this.savedSegments) {
+                this.segmentRegisters.CS = this.savedSegments.CS & 0xFFFF;
+                this.segmentRegisters.DS = this.savedSegments.DS & 0xFFFF;
+                this.segmentRegisters.SS = this.savedSegments.SS & 0xFFFF;
+                this.segmentRegisters.ES = this.savedSegments.ES & 0xFFFF;
+            }
             this.shadowRegisters.PSW = 0;
         } else {
             // Spurious RETI outside a handler: legacy behaviour, just make sure S stays clear
