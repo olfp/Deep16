@@ -40,7 +40,9 @@ register contents survive the change. The choice is remembered in
 `localStorage`.
 
 The front end shows the **Tiles** screen only: the D16nano FiT engine renders a
-640x360 canvas. The **Screen Demo** and **String Demo** examples write FiT text
+640x360 canvas. The simulator also models the I2S FIFO at `0xF00A0`: the first
+Run click starts a Web Audio sink, and game sounds from BIOS 9/10 and the
+μ-law sample player are audible. Stop or Reset suspends the sink. The **Screen Demo** and **String Demo** examples write FiT text
 cells into the 82x26 map at `0xF1000`. **DeepForth** builds the generic nano
 console with `CONSOLE_UART`, `D16NANO`, `D16SEG` and `CONSOLE_PS2`: console
 output stays on the tile screen while browser keystrokes enter through the

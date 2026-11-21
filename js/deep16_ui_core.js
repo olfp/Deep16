@@ -13,6 +13,7 @@ class DeepWebUI {
         this.assembler = new Deep16Assembler();
         this.simulator = new Deep16Simulator();
         this.disassembler = new Deep16Disassembler();
+        this.audio = (typeof Deep16Audio === 'function') ? new Deep16Audio() : null;
         // FiT tile engine, created in tiles mode.
         this.tileEngine = null;
         // 'nano' for the generic nano console, 'd16d' for the showcase image,
@@ -551,6 +552,25 @@ class DeepWebUI {
             this.addTranscriptEntry('Tiles mode runs on the JS core: the compiled cores have no display-status word yet', 'warning');
         }
         try { this.setCore('js', { mirror: true }); } catch {}
+    }
+
+    audioStart() {
+        if (this.audio && this.consoleMode() === 'tiles') this.audio.start();
+    }
+
+    audioStop() {
+        if (this.audio) this.audio.stop();
+    }
+
+    // Drain the simulated I2S FIFO by wall-clock time and hand the samples to
+    // the browser sink. Called from the run loop; never from step(), so the
+    // audio rate stays independent of how many instructions a tick retires.
+    pumpAudio() {
+        if (!this.audio || !this.audio.ready || !this.simulator) return;
+        const samples = this.simulator.drainAudio
+            ? this.simulator.drainAudio(performance.now())
+            : null;
+        if (samples && samples.length) this.audio.push(samples);
     }
 
     // The CPU runs in 10 ms slices; the display latches at 60 Hz. One timer
@@ -2550,6 +2570,7 @@ class DeepWebUI {
         // kernel's serial build wants a core that speaks UART.
         this.ensureTerminalCore();
         this.ensureTileCore();
+        this.audioStart();
         // The D16D showcase needs its config-flash slices before the machine
         // starts: without them the menu's BDOS lookups fail and a game key
         // just redraws the menu instead of launching the game.
@@ -2613,6 +2634,7 @@ class DeepWebUI {
         this.runInterval = setInterval(() => {
             if (!this.simulator.running) {
                 clearInterval(this.runInterval);
+                this.audioStop();
                 this.status("Program halted");
                 this.addTranscriptEntry("Program execution stopped", "info");
                 this.updateAllDisplays();
@@ -2626,6 +2648,7 @@ class DeepWebUI {
             // without this the serial output only appeared once the program
             // stopped.
             this.pumpConsole();
+            this.pumpAudio();
             const stepsPerTick = this.instructionsPerTick();
             // Type in whatever the keyboard queue still has room for, once per
             // tick, paced by what the machine consumed since the last tick.
@@ -2697,6 +2720,7 @@ class DeepWebUI {
             this.runInterval = null;
         }
         this.stopTileClock();
+        this.audioStop();
         this.simulator.running = false;
         this.status("Program halted");
         this.addTranscriptEntry("Program execution stopped", "info");
@@ -3101,6 +3125,7 @@ class DeepWebUI {
             this.runInterval = null;
         }
         this.stopTileClock();
+        this.audioStop();
         this.tileFrame = 0;
         // A reset empties the keyboard queue on both the core and its JS
         // mirror, so half a file would go on waiting for input that never
@@ -3193,6 +3218,7 @@ class DeepWebUI {
         this.runInterval = setInterval(() => {
             if (!this.simulator.running) {
                 clearInterval(this.runInterval);
+                this.audioStop();
                 this.status("Program halted");
                 this.addTranscriptEntry("Program execution stopped", "info");
                 this.updateAllDisplays();
@@ -3201,6 +3227,7 @@ class DeepWebUI {
             }
             // Same cadence as the JS loop: one pump per tick, not per step.
             this.pumpConsole();
+            this.pumpAudio();
             const stepsPerTick = this.instructionsPerTick();
             if (this.fileUpload) this.pumpKeyQueue();
             let cont = true;
@@ -3915,6 +3942,7 @@ class DeepWebUI {
                 this.runInterval = null;
             }
             this.stopTileClock();
+            this.audioStop();
             this.tileFrame = 0;
             if (this.simulator) {
                 this.simulator.running = false;
