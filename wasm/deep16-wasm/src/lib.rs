@@ -38,6 +38,7 @@ struct Cpu {
     sr13: u16,
     sr14: u16,
     running: bool,
+    faulted: bool,
     delay_active: bool,
     delayed_pc: u16,
     delayed_cs: u16,
@@ -95,6 +96,7 @@ impl Cpu {
             sr13: 0,
             sr14: 0,
             running: false,
+            faulted: false,
             delay_active: false,
             delayed_pc: 0,
             delayed_cs: 0,
@@ -144,6 +146,7 @@ impl Cpu {
         self.sr13 = 0;
         self.sr14 = 0;
         self.running = false;
+        self.faulted = false;
         self.delay_active = false;
         self.delayed_pc = 0;
         self.delayed_cs = 0;
@@ -881,6 +884,8 @@ fn exec_jump(c: &mut Cpu, instr: u16) -> bool {
 }
 
 fn step_one(c: &mut Cpu) -> bool {
+    // A double fault is sticky: unlike a halt, stepping again must not resume.
+    if c.faulted { return false; }
     if !c.running { c.running = true; }
     let in_shadow = (c.psw & (1 << 5)) != 0;
     if c.delay_active {
@@ -901,7 +906,7 @@ fn step_one(c: &mut Cpu) -> bool {
         if c.branch_taken {
             if c.delayed_to_shadow { c.spc = c.delayed_pc; c.scs = c.delayed_cs; } else { c.reg[15] = c.delayed_pc; c.cs = c.delayed_cs; }
         }
-        return !is_branch || c.running;
+        return !c.faulted && (!is_branch || c.running);
     }
     let active_cs = if in_shadow { c.scs } else { c.cs };
     let active_pc = if in_shadow { c.spc } else { c.reg[15] };
@@ -920,9 +925,16 @@ fn step_one(c: &mut Cpu) -> bool {
         c.last_alu_result = 0;
         c.last_alu_overflow = false;
         c.shift_carry_out = None;
-        exec_sys(c, instr);
+        let after_pc = if in_shadow { c.spc } else { c.reg[15] };
+        exec_sys(c, instr, after_pc);
         update_psw_flags(c);
-        return true;
+        return !c.faulted;
+    }
+    if instr != 0xFFFF && (instr >> 3) == 0b1111111111111 {
+        // 0xFFF8..0xFFFE: reserved/FPU space traps to ILL.
+        if in_shadow { c.spc = c.spc.wrapping_add(1); } else { c.reg[15] = c.reg[15].wrapping_add(1); }
+        let after_pc = if in_shadow { c.spc } else { c.reg[15] };
+        return exec_ill(c, 0, after_pc);
     }
     let original_pc = active_pc;
     if in_shadow { c.spc = c.spc.wrapping_add(1); } else { c.reg[15] = c.reg[15].wrapping_add(1); }
@@ -932,14 +944,15 @@ fn step_one(c: &mut Cpu) -> bool {
     c.shift_carry_out = None;
     let _is_branch = exec_instruction(c, instr, original_pc);
     update_psw_flags(c);
-    true
+    !c.faulted
 }
 
 fn exec_instruction(c: &mut Cpu, instr: u16, original_pc: u16) -> bool {
     // Fast-path: System instructions. Spec Table 5 defines these in the
     // 0xFFF0..0xFFF7 space (top 13 bits 1111111111110); 0xFFF8..0xFFFE are
-    // outside it (no-op) and 0xFFFF (HLT) is handled in step_one.
-    if (instr >> 3) == 0b1111111111110 { exec_sys(c, instr); return false; }
+    // reserved and trap to ILL, and 0xFFFF (HLT) is handled in step_one.
+    if (instr >> 3) == 0b1111111111110 { exec_sys(c, instr, original_pc.wrapping_add(1)); return false; }
+    if instr != 0xFFFF && (instr >> 3) == 0b1111111111111 { exec_ill(c, 0, original_pc.wrapping_add(1)); return true; }
     if (instr & 0x8000) == 0 { exec_ldi(c, instr); return false; }
     if ((instr >> 14) & 0x3) == 0b10 { exec_mem(c, instr); return false; }
     let opcode3 = (instr >> 13) & 0x7;
@@ -955,7 +968,7 @@ fn exec_instruction(c: &mut Cpu, instr: u16, original_pc: u16) -> bool {
             if ((instr >> 6) & 0x3FF) == 0b1111111110 { return exec_sop(c, instr); }
             if ((instr >> 5) & 0x7FF) == 0b11111111110 { exec_set_clr(c, instr); return false; }
             if ((instr >> 4) & 0xFFF) == 0b111111111110 { return exec_jml(c, instr); }
-            if ((instr >> 3) & 0x1FFF) == 0b1111111111110 { exec_sys(c, instr); return false; }
+            if ((instr >> 3) & 0x1FFF) == 0b1111111111110 { exec_sys(c, instr, original_pc.wrapping_add(1)); return false; }
             false
         }
         _ => false,
@@ -1192,7 +1205,35 @@ pub fn get_shadow_state() -> Box<[u16]> {
         vec![c.spc, c.scs, c.spsw].into_boxed_slice()
     }
 }
-fn exec_sys(c: &mut Cpu, instr: u16) -> bool {
+fn exec_ill(c: &mut Cpu, vector: u16, after_pc: u16) -> bool {
+    if (c.psw & (1 << 5)) != 0 {
+        // A trap inside a handler is a double fault. The sticky flag keeps a
+        // later step() from re-arming the core past it.
+        c.running = false;
+        c.faulted = true;
+        c.delay_active = false;
+        c.branch_taken = false;
+        return false;
+    }
+    c.spsw = c.psw;
+    c.psw = 0x0020;
+    c.scs = 0x0000;
+    c.sds = 0x0000;
+    c.sss = 0x0000;
+    c.ses = 0x0000;
+    c.sr14 = after_pc;
+    c.delay_active = false;
+    c.branch_taken = false;
+    let pa = phys(0, vector as u32);
+    let target = if pa < c.mem.len() { c.mem[pa] & 0xFFFF } else { 0xFFFF };
+    c.spc = target;
+    c.last_event_code = 0;
+    c.last_event_spc = c.spc;
+    c.last_event_scs = c.scs;
+    true
+}
+
+fn exec_sys(c: &mut Cpu, instr: u16, after_pc: u16) -> bool {
     let op = (instr & 0x7) as u16;
     match op {
         0 => { /* NOP */ false }
@@ -1239,6 +1280,9 @@ fn exec_sys(c: &mut Cpu, instr: u16) -> bool {
         6 => { /* SAPF (ARCHREV §2) */
             c.spsw = (c.spsw & 0xFFF0) | (c.sr0 & 0x000F);
             false
+        }
+        7 => { /* NIO: non-implemented opcode */
+            exec_ill(c, 0, after_pc)
         }
         _ => false,
     }

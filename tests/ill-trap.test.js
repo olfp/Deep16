@@ -161,3 +161,93 @@ test('DIV32 quotient in R0 and remainder in R1 go through SMV', () => {
   assert.equal(sim.registers[1], 2);
   assert.equal(sim.registers[2], 7);
 });
+test('reserved FPU words and NIO trap and return', () => {
+  const reserved = boot();
+  runProgram(reserved, `
+.org 0x4f00
+    .word 0xFFF8
+    LDI 7
+    HALT
+`);
+  assert.equal(reserved.registers[0] & 0xFFFF, 7, '0xFFF8 trapped and returned');
+
+  const nio = boot();
+  runProgram(nio, `
+.org 0x4f00
+    NIO
+    LDI 9
+    HALT
+`);
+  assert.equal(nio.registers[0] & 0xFFFF, 9, 'NIO trapped and returned');
+});
+
+test('DIV delivers the quotient flags through SAPF', () => {
+  const zero = boot();
+  runProgram(zero, `
+.org 0x4f00
+    LDI 0
+    MOV R1, R0          ; dividend 0
+    LDI 7
+    MOV R2, R0          ; divisor 7
+    MOV R0, R1
+    DIV R0, R2
+    HALT
+`);
+  assert.equal(zero.psw & 0xF, 0x2, 'Z for a zero quotient');
+
+  const negative = boot();
+  runProgram(negative, `
+.org 0x4f00
+    LDI 100
+    MOV R1, R0
+    LDI 7
+    MOV R2, R0
+    MOV R0, R1
+    NEG R0
+    DIV R0, R2
+    HALT
+`);
+  assert.equal(negative.psw & 0xF, 0x1, 'N for a negative quotient');
+
+  const positive = boot();
+  runProgram(positive, `
+.org 0x4f00
+    LDI 100
+    MOV R1, R0
+    LDI 7
+    MOV R2, R0
+    MOV R0, R1
+    DIV R0, R2
+    HALT
+`);
+  assert.equal(positive.psw & 0xF, 0x0, 'no flags for a positive quotient');
+});
+
+test('DIV32 delivers the quotient flags through SAPF', () => {
+  const zero = boot();
+  runProgram(zero, `
+.org 0x4f00
+    LDI 0
+    MOV R1, R0          ; low half 0
+    MOV R0, R1          ; high half 0
+    LDI 7
+    MOV R2, R0          ; divisor 7
+    DIV32 R0, R2
+    HALT
+`);
+  assert.equal(zero.psw & 0xF, 0x2, 'Z for a zero quotient');
+
+  const negative = boot();
+  runProgram(negative, `
+.org 0x4f00
+    LDI 7
+    MOV R2, R0          ; divisor 7
+    LDI 100
+    MOV R1, R0          ; low half 100
+    LDI 0
+    SUB R0, 1           ; high half 0xFFFF -> R0:R1 = -100
+    DIV32 R0, R2
+    HALT
+`);
+  assert.equal(negative.psw & 0xF, 0x1, 'N for a negative quotient');
+});

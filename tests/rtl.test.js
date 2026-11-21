@@ -927,3 +927,74 @@ loop:
   const r = await runRtl(res, { cs: 0xFFFF, es: 0xF000, maxSteps: 20000, keys: ['a', 'b', 'c', 'd'] });
   assert.equal(r.kbdAvailable(), 2, 'two of the four keystrokes are still queued');
 });
+
+// P1: NIO (SYS sub-op 7) and the reserved/FPU window 0xFFF8..0xFFFE are
+// undefined, so the full core traps them to vector 0 like the behavioural
+// cores. The handler marks R9 and RETIs; the word after the trap then runs.
+test('the RTL core traps NIO and reserved words to vector 0', async () => {
+  const program = (word) => assemble(`
+.org 0
+    .word handler
+    .word 0x${word.toString(16)}
+    LDI 7
+    HALT
+.org 0x20
+handler:
+    LDI 1
+    MOV R9, R0
+    RETI
+    NOP
+    HALT
+`);
+  for (const word of [0xFFF7, 0xFFF8, 0xFFFA, 0xFFFE]) {
+    const res = program(word);
+    const { js, rtl } = await parity(res, { name: `trap 0x${word.toString(16)}`, cs: 0x0000 });
+    assert.equal(rtl.registers[0], 7, `0x${word.toString(16)} must trap and return`);
+    assert.equal(rtl.registers[9], 1, `0x${word.toString(16)} must enter the handler`);
+    assert.equal(rtl.steps, js.steps, `0x${word.toString(16)}: trap step count`);
+  }
+});
+
+test('the RTL core double-faults on a trap inside the handler', async () => {
+  const res = assemble(`
+.org 0
+    .word handler
+    .word 0xFFF8
+    LDI 7
+    HALT
+.org 0x20
+handler:
+    .word 0xFFF8
+    RETI
+    NOP
+`);
+  const rtl = await runRtl(res, { cs: 0x0000 });
+  assert.equal(rtl.registers[0], 0x20, 'the handler must not return');
+  assert.equal(rtl.steps, 3, 'the core stops on the double fault');
+});
+
+test('the RTL core drops a branch whose delay slot traps', async () => {
+  const res = assemble(`
+.org 0
+    .word handler
+    LDI over
+    MOV R3, R0
+    JMP R3
+    .word 0xFFF8
+    LDI 1
+    MOV R8, R0
+over:
+    LDI 7
+    HALT
+.org 0x20
+handler:
+    LDI 9
+    MOV R9, R0
+    RETI
+    NOP
+`);
+  const { js, rtl } = await parity(res, { name: 'trap in a delay slot', cs: 0x0000 });
+  assert.equal(rtl.registers[8], 1, 'the branch must be dropped');
+  assert.equal(rtl.registers[9], 9, 'the handler must run');
+  assert.equal(rtl.steps, js.steps);
+});

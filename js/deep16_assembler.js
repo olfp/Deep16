@@ -804,6 +804,7 @@ class Deep16Assembler {
                 case 'SETI': return this.encodeSystem(0b100);
                 case 'CLRI': return this.encodeSystem(0b101);
                 case 'SAPF': return this.encodeSystem(0b110);
+                case 'NIO': return this.encodeSystem(0b111);
                 case 'SETS': return this.encodeSET2Alias(0b0001);
                 case 'CLRS': return this.encodeCLR2Alias(0b0001);
                 

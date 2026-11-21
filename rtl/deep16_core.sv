@@ -330,6 +330,13 @@ module deep16_core
     ext_id  = idec_ex.ext;
   end
 
+  // Undefined-opcode trap: NIO (SYS sub-op 7) and the reserved/FPU window
+  // 0xFFF8..0xFFFE. HALT (0xFFFF) is caught before decode.
+  wire is_nio      = (cls == 3'd1) && (id_ex.instr[2:0] == 3'd7);
+  wire is_reserved = (id_ex.instr != 16'hFFFF) && (cls == 3'd5) && (ext_id == 4'd10);
+  wire ill_undef   = id_ex.valid && (is_nio || is_reserved) && !ctx_e.psw[FLG_S];
+  wire ill_double  = id_ex.valid && (is_nio || is_reserved) &&  ctx_e.psw[FLG_S];
+
   idec_t id_dec;
   rd_t   id_rd;
 
@@ -1089,6 +1096,29 @@ module deep16_core
         default: ;
       endcase
 
+      // ---- ILL trap for NIO / reserved FPU words --------------------------
+      // Same entry as SWI: vector 0, shadow R14 = the word after the trapped
+      // instruction, and a fresh handler PSW. A trap inside the handler is a
+      // double fault handled in the sequential block below.
+      if (ill_undef) begin
+        ctx_next_ex.spsw = ctx_e.psw;
+        ctx_next_ex.psw  = 16'h0020;
+        ctx_next_ex.scs  = 16'h0000;
+        ctx_next_ex.sds  = 16'h0000;
+        ctx_next_ex.sss  = 16'h0000;
+        ctx_next_ex.ses  = 16'h0000;
+        ctx_next_ex.branch_taken = 1'b0;
+        ctx_next_ex.delay_active = 1'b0;
+        reg_we_a   = 1'b0; reg_wa = 4'd0; reg_da = 16'h0000;
+        reg_we_b   = 1'b1; reg_wb = 4'd14; reg_db = pc_own1;
+        reg_bank_b = 1'b1;
+        is_swi_ex       = 1'b1;
+        mem_addr_ex     = 21'd0;
+        mem_rd_valid_ex = 1'b1; mem_is_load_ex = 1'b0;
+        evt_we_ex = 1'b1; evt_code_ex = 16'd0; evt_scs_ex = 16'h0000;
+        flags_we = 1'b0;
+      end
+
       // FSH is a one-shot like the delay state: it must not stay asserted.
       if (!fsh_ex) ctx_next_ex.fsh = 1'b0;
 
@@ -1423,6 +1453,11 @@ module deep16_core
           // of every step: the fetch picks up again where the halt word is
           halt_sticky <= 1'b0;
         end
+      end else if (ill_double) begin
+        // A trap while already in the handler is a double fault.
+        ctx         <= CTX_RESET;
+        run         <= 1'b0;
+        halt_sticky <= 1'b1;
       end else if (step_done && !i_free) begin
         // In free-run the machine keeps going past a retirement: the retiring
         // instruction leaves WB and its successor is already behind it in the

@@ -280,8 +280,11 @@ module deep16_core3
   // to the kernel's software divide. Only the cases that would have needed the
   // iterative divider trap: the zero-divisor and odd-DIV32-destination cases
   // keep the ALU's fixed result and match the full core without a trap.
-  wire ill_div    = ex.valid && div_needs_hw && !ctx.psw[FLG_S];
-  wire ill_double = ex.valid && div_needs_hw &&  ctx.psw[FLG_S];
+  wire is_nio      = (cls == 3'd1) && (ex.instr[2:0] == 3'd7);
+  wire is_reserved = (ex.instr != 16'hFFFF) && (cls == 3'd5) && (ext_id == 4'd10);
+  wire ill_undef   = ex.valid && (is_nio || is_reserved) && !ctx.psw[FLG_S];
+  wire ill_div     = ex.valid && div_needs_hw && !ctx.psw[FLG_S];
+  wire ill_double  = ex.valid && (div_needs_hw || is_nio || is_reserved) && ctx.psw[FLG_S];
 
   assign div_req = 1'b0;
   assign div_busy = 1'b0;
@@ -760,13 +763,13 @@ module deep16_core3
       // FSH is a one-shot like the delay state: it must not stay asserted.
       if (!fsh_ex) ctx_next.fsh = 1'b0;
 
-      // ---- ILL trap for DIV/DIV32 ----------------------------------------
+      // ---- ILL trap for DIV/DIV32 and undefined opcodes -------------------
       // Same entry sequence as the SWI, but the vector is 0 and the shadow LR
       // is the interrupted PC (the instruction after the trapped one), which is
       // what the handler needs to fetch the opcode at PC-1. The caller's R0..R3
       // are left untouched in the normal bank; the new SMV write form lets the
       // handler put the quotients there.
-      if (ill_div) begin
+      if (ill_div || ill_undef) begin
         ctx_next.spsw = ctx.psw;
         ctx_next.psw  = 16'h0020;         // S=1, I=0, flags clear
         ctx_next.scs  = 16'h0000;

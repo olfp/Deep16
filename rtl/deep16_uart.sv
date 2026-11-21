@@ -47,9 +47,11 @@ module deep16_uart #(
   // the normal bit slice otherwise. A bare 6-bit index into a [0:0] array is
   // rejected by Verilator -Wall (and would index out of range at runtime).
   localparam int TX_AW = (TX_DEPTH > 1) ? $clog2(TX_DEPTH) : 1;
-  function automatic integer tx_idx(input logic [6:0] p);
-    tx_idx = (TX_DEPTH > 1) ? int'(p[TX_AW-1:0]) : 0;
-  endfunction
+  localparam logic [6:0] TX_MASK = (1 << TX_AW) - 1;
+  // A macro, not a function: Verilator 5.032 aborts with an internal error
+  // ("Multiple Write refs on LHS of NBA") when this index helper is inlined
+  // into the FIFO write. The expression is the same elaborated constant.
+  `define TX_IDX(p) ((TX_DEPTH > 1) ? ((p) & TX_MASK) : 0)
 
   // ---- transmitter -------------------------------------------------------
   logic [7:0]  tx_mem [0:TX_DEPTH-1];
@@ -130,7 +132,7 @@ module deep16_uart #(
 
       // ---- TX push ----
       if (!RX_ONLY && tx_push) begin
-        tx_mem[tx_idx(tx_tail)] <= tx_data[7:0];
+        tx_mem[`TX_IDX(tx_tail)] <= tx_data[7:0];
         tx_tail  <= tx_tail + 7'd1;
       end
 
@@ -151,7 +153,7 @@ module deep16_uart #(
           tx_timer <= tx_timer + 16'd1;
         end
       end else if (tx_pop) begin
-        tx_shift <= {1'b1, tx_mem[tx_idx(tx_head)], 1'b0};   // stop, data, start
+        tx_shift <= {1'b1, tx_mem[`TX_IDX(tx_head)], 1'b0};   // stop, data, start
         tx_head  <= tx_head + 7'd1;
         tx_busy  <= 1'b1;
         tx_bit   <= 4'd0;

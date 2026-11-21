@@ -733,6 +733,11 @@ class Deep16Simulator {
                             // console.log("System instruction");
                             this.executeSystem(instruction);
                             return false;
+                        } else if (instruction !== 0xFFFF && (instruction >>> 3) === 0b1111111111111) {
+                            // 0xFFF8..0xFFFE: reserved/FPU space traps to ILL.
+                            // 0xFFFF stays HALT (reached here only in a delay slot).
+                            this.executeILL();
+                            return true;
                         } else {
                             // console.warn("Unknown extended opcode");
                             return false;
@@ -1540,6 +1545,9 @@ class Deep16Simulator {
                 this.shadowRegisters.PSW =
                     (this.shadowRegisters.PSW & 0xFFF0) | (this.shadowRegisters.R0 & 0x000F);
                 break;
+            case 0b111: // NIO: non-implemented opcode
+                this.executeILL();
+                break;
             default:
         }
     }
@@ -1599,6 +1607,10 @@ class Deep16Simulator {
         const pa = this.phys(0, 0);
         const target = pa < this.memory.length ? (this.memory[pa] & 0xFFFF) : 0xFFFF;
         this.shadowRegisters.PC = target;
+        // A trap in a branch delay slot drops the pending transfer: RETI must
+        // resume after the trapped word, not at the branch target.
+        this.branchTaken = false;
+        this.delaySlotActive = false;
         this.flushPipeline();
     }
 

@@ -39,14 +39,15 @@ This enabke implementing ILL, first for DIV/DIV32.
   its software divide for its own Forth words. Only binaries containing a real
   DIV/DIV32 reach the handler.
 
-## Known gap: DIV/DIV32 condition codes
+## DIV/DIV32 condition codes (P2, implemented)
 
-The handler does **not** reproduce the NZVC flags the full core sets from the
-quotient (Z = quotient == 0, N = quotient[15], C = V = 0). The zero-divisor
-and odd-DIV32-destination cases never trap, so their flags are already right;
-only a normal trapping division loses them. Nothing tests this and the kernel
-does not branch on flags right after a division, so it has gone unnoticed.
-`SAPF` — see `FPUEMUPLAN.md` §3 and §4 — closes it.
+The handler used to lose the NZVC flags the full core sets from the quotient
+(Z = quotient == 0, N = quotient[15], C = V = 0). The zero-divisor and
+odd-DIV32-destination cases never trap, so their flags were already right.
+Both `ill_div16` and `ill_div32` now build the nibble, store it in
+`ill_flags`, load it into the handler's R0 and issue `SAPF` before `RETI`, so
+the interrupted PSW comes back with the quotient flags. `tests/ill-trap.test.js`
+covers zero, negative and positive quotients for DIV and DIV32.
 
 ## NIO — the last free SYS opcode
 
@@ -76,6 +77,11 @@ Reasons:
 
 It is **not** an FPU opcode and must not become one: the seven-word FPU range
 stays as specified, so `NIO` cannot be used to smuggle in an eighth operation.
+
+Implemented in P1: the assembler emits `NIO` (`0xFFF7`), the disassembler
+prints it, and JS, WASM, core3 and the full core trap it to vector 0. The
+kernel handler recognises words above `0xDEFF` as non-DIV and returns through
+`ill_unknown`.
 
 Implementation notes:
 

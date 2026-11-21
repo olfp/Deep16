@@ -1,7 +1,7 @@
 # FPU Emulation via ILL — Design Plan
 
-Status: **design agreed, nothing implemented.** Written against `932815c`
-("Snapshot: D16nano tile console, ILL trap, 720p DVI").
+Status: **P0-P2 implemented.** Written against `932815c`
+("Snapshot: D16nano tile console, ILL trap, 720p DVI"). P3+ remain design.
 
 ---
 
@@ -32,8 +32,8 @@ Steps 1 and 2 are small and low-risk. Step 3 is the project.
 | Thing | State |
 |---|---|
 | `SMV ARy, Rx` write form | **Done.** APSW moved `0100` → `1100`, `0100..0111` are the writes; assembler, disassembler, JS, WASM, both RTL cores |
-| ILL trap | Exists in `rtl/deep16_core3.sv` only, and only for DIV/DIV32 |
-| FPU opcodes `0xFFF8..0xFFFE` | **Decode to NOP** (`ext_id == 10`, `default: ;`) in all cores |
+| ILL trap | **Done (P1).** All four cores trap DIV/DIV32 on the nano and NIO/reserved words; a trap inside the handler resets/stops the core |
+| FPU opcodes `0xFFF8..0xFFFE` | **Trap to ILL** in all four cores; no mnemonics yet |
 | Assembler FPU mnemonics | None |
 | FPU tests | None |
 | `doc/Deep16-FPU.md` | 732 lines of spec, no implementation, several bugs (§10) |
@@ -45,9 +45,8 @@ nothing else.
 **Which core runs where.** `D16NANO` selects `core3`
 (`rtl/deep16_top.sv:208`); every other build — the standard D16, D16MINI and
 the PSRAM machine — uses the five-stage `deep16_core` with the hardware
-divider and **no ILL trap at all**. So today the FPU range NOPs everywhere,
-and the trap that would make it work exists on exactly one of the two
-machines.
+divider. P1 added the ILL trap to that core too, so the FPU range traps on
+both machines (and in the JS and WASM models).
 
 Anchors:
 
@@ -259,9 +258,9 @@ From `rtl/deep16_alu.sv:222-250` and
 
 The last three rows never trap on the nano — `div_needs_hw`
 (`core3:270`) excludes them, so the ALU handles them and their flags are
-already correct. **Only the trapping case loses its flags**: on the nano,
-`DIV Rd, Rs` with a non-zero divisor leaves Z/N/C/V exactly as they were
-before.
+already correct. Only the trapping case used to lose its flags. **P2 fixed
+this**: both `ill_div16` and `ill_div32` build the quotient nibble
+(N = Q[15], Z = Q == 0, V = C = 0) and deliver it with `SAPF` before `RETI`.
 
 ### 4.2 Why the existing handler cannot fix it
 
@@ -291,8 +290,8 @@ divide's flags.
 
 ## 5. The general undefined-opcode trap
 
-Today `0xFFF8..0xFFFE` is a silent NOP in all four cores. That alone is
-worth fixing: a reserved word that does nothing is undebuggable.
+Before P1, `0xFFF8..0xFFFE` was a silent NOP in all four cores. They now trap
+to vector 0; HALT (`0xFFFF`) stays a halt, including in a delay slot.
 
 Design mirrors the existing DIV trap (`core3:750-790`):
 
@@ -485,8 +484,8 @@ kernel is loaded at `0x5000`, so it competes with the demo area there.
 | Phase | Work | Exit criterion |
 |---|---|---|
 | P0 | `SAPF` in assembler, disassembler, both RTL cores, JS, WASM; arch doc | Encoding tests + a shadow-bank test that `SAPF` sets the restored flags |
-| P1 | General undefined-opcode trap in all four cores | A reserved word traps on every core; double fault is diagnosable |
-| P2 | `SAPF` in the DIV/DIV32 handler (§4) | `divtest` compares flags against `div16_call` |
+| P1 | **Done.** General undefined-opcode trap in all four cores | A reserved word traps on every core; double fault is diagnosable |
+| P2 | **Done.** `SAPF` in the DIV/DIV32 handler (§4) | `tests/ill-trap.test.js` covers zero, negative and positive quotients for DIV and DIV32 |
 | P3 | Soft-float layer 1+2 as subroutines, plus a direct test harness | Golden-vector tests pass on JS and RTL |
 | P4 | FPU decode + dispatch in the ILL handler (FADD/FSUB/FMUL/FCMP) | `tests/ill-trap.test.js` covers the four ops |
 | P5 | FDIV, FSQRT | ditto |

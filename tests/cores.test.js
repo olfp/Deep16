@@ -482,16 +482,49 @@ test('base 0 with offset -4 reads 0xFFFC, not 0x1C (both cores)', async () => {
 });
 
 // Spec Table 5: system instructions live in 0xFFF0..0xFFF7 (top 13 bits
-// 1111111111110); only 0xFFFF is HLT. The JS core used to stop on 0xFFF1 (a
-// legacy hack) while the WASM core dispatched all of 0xFFF0..0xFFFF as system
-// words and treated op 1 as HLT — so 0xFFF1 and 0xFFFA behaved differently.
-test('the system space is 0xFFF0..0xFFF7; 0xFFF8..0xFFFE are no-ops (both cores)', async () => {
-  for (const word of [0xFFF0, 0xFFF1, 0xFFF7, 0xFFF8, 0xFFFA, 0xFFFE]) {
+// 1111111111110); only 0xFFFF is HLT. NOP (0xFFF0) and FSH (0xFFF1) do
+// nothing, and the JS core used to stop on 0xFFF1 (a legacy hack) while the
+// WASM core treated op 1 as HLT.
+test('0xFFF0 (NOP) and 0xFFF1 (FSH) are no-ops (both cores)', async () => {
+  for (const word of [0xFFF0, 0xFFF1]) {
     const prog = rawProgram([word, 0x0007, enc.HLT]);
     const js = runJs(prog, { cs: 0x0000 });
     assert.equal(js.registers[0] & 0xFFFF, 7, `JS: 0x${word.toString(16)} must be a no-op`);
     const wasm = await runWasm(prog, { cs: 0x0000 });
     assert.equal(wasm.registers[0], 7, `WASM: 0x${word.toString(16)} must be a no-op`);
+    assert.deepEqual(wasm.registers, js.registers.map(v => v & 0xFFFF),
+      `0x${word.toString(16)}: cores must agree`);
+  }
+});
+
+// P1: NIO (the SYS sub-op 7) and the reserved/FPU window 0xFFF8..0xFFFE are
+// undefined. They trap to vector 0 instead of falling through, so a handler
+// runs and RETI resumes at the word after the trapped one. The handler marks
+// R9, which a no-op would leave at 0.
+test('NIO and reserved words trap to vector 0 (both cores)', async () => {
+  const program = (word) => assemble(`
+.org 0
+    .word handler
+    .word 0x${word.toString(16)}
+    LDI 7
+    HALT
+.org 0x20
+handler:
+    LDI 1
+    MOV R9, R0
+    RETI
+    NOP
+    HALT
+`);
+  for (const word of [0xFFF7, 0xFFF8, 0xFFFA, 0xFFFE]) {
+    const prog = program(word);
+    assert.equal(prog.success, true, prog.errors.join('; '));
+    const js = runJs(prog, { cs: 0x0000 });
+    assert.equal(js.registers[0] & 0xFFFF, 7, `JS: 0x${word.toString(16)} must trap and return`);
+    assert.equal(js.registers[9] & 0xFFFF, 1, `JS: 0x${word.toString(16)} must enter the handler`);
+    const wasm = await runWasm(prog, { cs: 0x0000 });
+    assert.equal(wasm.registers[0], 7, `WASM: 0x${word.toString(16)} must trap and return`);
+    assert.equal(wasm.registers[9], 1, `WASM: 0x${word.toString(16)} must enter the handler`);
     assert.deepEqual(wasm.registers, js.registers.map(v => v & 0xFFFF),
       `0x${word.toString(16)}: cores must agree`);
   }
@@ -564,4 +597,65 @@ loop:
   const { registers } = runJs(res, { cs: 0x0000, maxSteps: 2000 });
   assert.equal(registers[2], 5, `the loop must run five times, R2=${registers[2]}`);
   assert.equal(registers[9], 0x77, 'the marker before the label must survive');
+});
+
+// P1: a trap taken while PSW.S is already set (i.e. inside the handler) is a
+// double fault. It must stop the core rather than RETI past the bad word. The
+// program loads 0x20 from the vector slot at address 0, traps, and the handler
+// traps again; R0 stays 0x20 instead of reaching the LDI 7 after the RETI.
+test('a trap inside the handler is a double fault (both cores)', async () => {
+  const res = assemble(`
+.org 0
+    .word handler
+    .word 0xFFF8
+    LDI 7
+    HALT
+.org 0x20
+handler:
+    .word 0xFFF8
+    RETI
+    NOP
+`);
+  assert.equal(res.success, true, res.errors.join('; '));
+  const js = runJs(res, { cs: 0x0000 });
+  assert.equal(js.sim.running, false, 'JS: the core must stop');
+  assert.equal(js.registers[0] & 0xFFFF, 0x20, 'JS: the handler must not return');
+  const wasm = await runWasm(res, { cs: 0x0000 });
+  assert.equal(wasm.registers[0], 0x20, 'WASM: the handler must not return');
+  assert.equal(wasm.steps, js.steps, 'the cores must stop on the same step');
+});
+
+// A branch's delay slot is the last place a trap can land. RETI must resume
+// after the trapped word (the branch is dropped), not at the branch target, so
+// R8 is 1 (the word after the slot ran) rather than 0 (the transfer won).
+test('a trap in a branch delay slot drops the branch (both cores)', async () => {
+  const res = assemble(`
+.org 0
+    .word handler
+    LDI over
+    MOV R3, R0
+    JMP R3
+    .word 0xFFF8
+    LDI 1
+    MOV R8, R0
+over:
+    LDI 7
+    HALT
+.org 0x20
+handler:
+    LDI 9
+    MOV R9, R0
+    RETI
+    NOP
+`);
+  assert.equal(res.success, true, res.errors.join('; '));
+  const js = runJs(res, { cs: 0x0000 });
+  assert.equal(js.registers[0] & 0xFFFF, 7, 'JS: execution continues');
+  assert.equal(js.registers[8] & 0xFFFF, 1, 'JS: the branch must be dropped');
+  assert.equal(js.registers[9] & 0xFFFF, 9, 'JS: the handler must run');
+  const wasm = await runWasm(res, { cs: 0x0000 });
+  assert.equal(wasm.registers[0], 7, 'WASM: execution continues');
+  assert.equal(wasm.registers[8], 1, 'WASM: the branch must be dropped');
+  assert.equal(wasm.registers[9], 9, 'WASM: the handler must run');
+  assert.equal(wasm.steps, js.steps, 'the cores must retire the same steps');
 });

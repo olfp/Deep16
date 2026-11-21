@@ -18903,6 +18903,16 @@ ill_save_addr_lr:
     ST R0, SP, 0                ; Rd
     SUB SP, 1
     ST R1, SP, 0                ; Rs
+    ; ---- reject reserved/NIO words --------------------------------------
+    ; 0xFFF8..0xFFFE (and NIO, 0xFFF7) have top byte 0xFF, so their func5
+    ; field reads 0x1F -- the same as DIV32. The handler only emulates DIV
+    ; and DIV32, so anything above 0xDEFF returns as a no-op.
+    MOV R3, R2
+    SR R3, 8
+    LDI 0xFF
+    CMP R3, R0
+    JZ ill_unknown
+    NOP
     ; ---- func5 = (instr >> 8) & 0x1F ------------------------------------
     MOV R3, R2
     SR R3, 8
@@ -18968,6 +18978,25 @@ ill_after_d16_rs:
     LINK
     JMP R0
     NOP
+    ; quotient in R0: build NZVC (N=Q[15], Z=(Q==0), V=C=0) for SAPF.
+    MOV R12, R0
+    LSI R2, 0
+    CMP R12, 0
+    JNZ ill_d16_flags_n
+    NOP
+    OR R2, 1                  ; Z = bit 1
+ill_d16_flags_n:
+    CMP R12, 0
+    JNN ill_d16_flags_store
+    NOP
+    OR R2, 0                  ; N = bit 0
+ill_d16_flags_store:
+    MOV R3, PC
+ill_d16_flags_addr_lr:
+    LDI ill_flags - ill_d16_flags_addr_lr
+    ADD R3, R0
+    ST R2, R3, 0
+    MOV R0, R12
     ; result: quotient in R0, destination index in the stack at [SP+1]
     LD R1, SP, 1
     ADD SP, 2
@@ -19002,6 +19031,12 @@ ill_d16_put_disp:
     MOV PC, R3
     NOP
 ill_after_d16_put:
+    MOV R2, PC
+ill_d16_flags_load_lr:
+    LDI ill_flags - ill_d16_flags_load_lr
+    ADD R2, R0
+    LD R0, R2, 0
+    SAPF
     MOV R1, PC
 ill_d16_ret_lr:
     LDI ill_return - ill_d16_ret_lr
@@ -19072,6 +19107,25 @@ ill_after_d32_rs:
     LINK
     JMP R0
     NOP
+    ; quotient in R0: build NZVC before the destination writes clobber R0.
+    MOV R10, R0
+    LSI R12, 0
+    CMP R10, 0
+    JNZ ill_d32_flags_n
+    NOP
+    OR R12, 1                 ; Z = bit 1
+ill_d32_flags_n:
+    CMP R10, 0
+    JNN ill_d32_flags_store
+    NOP
+    OR R12, 0                 ; N = bit 0
+ill_d32_flags_store:
+    MOV R2, PC
+ill_d32_flags_addr_lr:
+    LDI ill_flags - ill_d32_flags_addr_lr
+    ADD R2, R0
+    ST R12, R2, 0
+    MOV R0, R10
     ; save the remainder in R3 before the destination load clobbers R1
     MOV R3, R1
     LD R1, SP, 1
@@ -19125,6 +19179,12 @@ ill_d32_pr_disp:
     MOV PC, R3
     NOP
 ill_after_d32_pr:
+    MOV R2, PC
+ill_d32_flags_load_lr:
+    LDI ill_flags - ill_d32_flags_load_lr
+    ADD R2, R0
+    LD R0, R2, 0
+    SAPF
     MOV R1, PC
 ill_d32_ret_lr:
     LDI ill_return - ill_d32_ret_lr
@@ -19189,8 +19249,14 @@ ill_ret_addr_lr:
     NOP
 
 ; ---- table dispatch helpers -------------------------------------------
-; Get: R1 = register index, LR = continuation. The table entry jumps to the
-; matching stub, which reads the caller's register into R2 and returns via LR.
+; These cannot sit after ill_return any more: the DIV flag code pushed the
+; handler past its fixed 0x51A0 IRQ neighbour, and the D16D showcase menu is
+; already laid sparsely over 0x4D34..0x547F. Split them across the two holes
+; that both the kernel image and the menu leave free (0x4E4C..0x4EAF and
+; 0x5143..0x519F). Both are inside the 0x4A00..0x57FF BIOS copy.
+.org 0x4e4c
+.code
+    NOP                         ; the target-1 pad for the PC-relative jump
 ill_get_dispatch:
     MOV R3, PC
     LDI ill_get_table - ill_get_dispatch - 1
@@ -19282,6 +19348,8 @@ ill_get_r15:
     NOP
 
 ; ---- put stubs ---------------------------------------------------------
+; The second hole holds the put stubs, both tables and the save cells.
+.org 0x5143
 ill_put_r0:
     SMV AR0, R2
     JMP LR
@@ -19340,6 +19408,8 @@ ill_put_none:
     JMP LR
     NOP
 
+; The tables and the two save cells go in the upper hole; the routines above
+; reach them with a 13-bit PC-relative LDI.
 ill_get_table:
 .ifdef D16D
     .word ill_get_r0 - BIOS_BASE,  ill_get_r1 - BIOS_BASE,  ill_get_r2 - BIOS_BASE,  ill_get_r3 - BIOS_BASE
@@ -19367,6 +19437,8 @@ ill_put_table:
 
 ; ---- the saved handler bank (segment 0, beside the handler) -----------
 ill_save_sp:
+    .word 0
+ill_flags:
     .word 0
 
 ; ============================================================
