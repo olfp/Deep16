@@ -243,6 +243,130 @@ class SpiFlash {
     }
 }
 
+// I2S output at 0xF00A0, mirroring rtl/deep16_i2s.sv.
+// A 128-sample mono FIFO drains at 21.09375 kHz. The simulator feeds the
+// drained signed samples to the browser's audio sink; the CPU only sees the
+// register/FIFO view.
+class Deep16I2S {
+    constructor() {
+        this.fifo = new Uint16Array(128);
+        this.wr = 0;
+        this.rd = 0;
+        this.count = 0;
+        this.enable = false;
+        this.loop = false;
+        this.irqEnable = false;
+        this.underrun = false;
+        this.everFull = false;
+        this.audioFrac = 0;
+        this.lastDrain = null;
+    }
+
+    reset() {
+        this.wr = this.rd = this.count = 0;
+        this.enable = false;
+        this.loop = false;
+        this.irqEnable = false;
+        this.underrun = false;
+        this.everFull = false;
+        this.audioFrac = 0;
+        this.lastDrain = null;
+    }
+
+    resetFifo() {
+        this.wr = this.rd = this.count = 0;
+        this.underrun = false;
+        this.everFull = false;
+    }
+
+    fifoIrq() {
+        return this.enable && this.irqEnable && !this.full() && this.count < 32;
+    }
+
+    empty() { return this.count === 0; }
+    full() { return this.count >= 128; }
+    low() { return !this.full() && this.count < 32; }
+
+    status() {
+        return (this.empty() ? 1 : 0)
+            | (this.full() ? 2 : 0)
+            | (this.low() ? 4 : 0)
+            | (this.underrun ? 8 : 0)
+            | (this.enable ? 16 : 0)
+            | (this.fifoIrq() ? 32 : 0);
+    }
+
+    write(offset, value) {
+        const v = value & 0xFFFF;
+        if (offset === 0) {
+            if (this.count < 128) {
+                this.fifo[this.wr] = v;
+                this.wr = (this.wr + 1) & 127;
+                this.count++;
+                if (this.count === 128) this.everFull = true;
+            }
+        } else if (offset === 2) {
+            this.enable = !!(v & 1);
+            this.irqEnable = !!(v & 8);
+            this.loop = !!(v & 4);
+            if (v & 2) this.resetFifo();
+            if (this.enable) this.lastDrain = null;
+        }
+    }
+
+    read(offset) {
+        if (offset === 0) return this.count;
+        if (offset === 4) return this.status();
+        return 0;
+    }
+
+    pop() {
+        if (this.count === 0) {
+            if (this.loop && this.everFull) {
+                this.rd = 0;
+                this.count = 128;
+            } else {
+                this.underrun = true;
+                return 0;
+            }
+        }
+        const sample = this.fifo[this.rd];
+        this.rd = (this.rd + 1) & 127;
+        this.count--;
+        return sample;
+    }
+
+    // Drain by wall-clock seconds. The fractional sample phase is preserved so
+    // the pitch does not drift when the run loop fires at 10 ms but the audio
+    // device runs at 21.09375 kHz.
+    drain(seconds) {
+        if (!this.enable) {
+            this.audioFrac = 0;
+            this.lastDrain = null;
+            return new Int16Array(0);
+        }
+        this.audioFrac += Math.max(0, seconds) * 21093.75;
+        let n = Math.floor(this.audioFrac);
+        this.audioFrac -= n;
+        if (n <= 0) return new Int16Array(0);
+        if (n > 4096) { n = 4096; this.audioFrac = 0; }
+        const out = new Int16Array(n);
+        for (let i = 0; i < n; i++) out[i] = this.pop();
+        return out;
+    }
+
+    drainTo(nowMs) {
+        if (!this.enable) {
+            this.lastDrain = nowMs;
+            return new Int16Array(0);
+        }
+        if (this.lastDrain === null) this.lastDrain = nowMs;
+        const seconds = Math.min(Math.max(0, nowMs - this.lastDrain) / 1000, 0.1);
+        this.lastDrain = nowMs;
+        return this.drain(seconds);
+    }
+}
+
 // Deep16 Simulator - Complete CPU Execution and State Management with Delay Slot
 class Deep16Simulator {
     constructor() {
@@ -252,7 +376,6 @@ class Deep16Simulator {
         this.registers = new Array(16).fill(0);
         this.segmentRegisters = { CS: 0xFFFF, DS: 0x0000, SS: 0x0000, ES: 0x0000 };
         this.shadowRegisters = { PSW: 0, PC: 0, CS: 0, DS: 0, SS: 0, ES: 0, R0: 0, R1: 0, R2: 0, R3: 0, R13: 0, R14: 0 };
-        this.savedSegments = { CS: 0, DS: 0, SS: 0, ES: 0 };
         this.savedSegments = { CS: 0, DS: 0, SS: 0, ES: 0 };
         this.psw = 0;
         this.running = false;
@@ -266,6 +389,7 @@ class Deep16Simulator {
         this.sdCard = new SdCard();
         // On-board P25Q32U config flash on SPI CS1.
         this.spiFlash = new SpiFlash();
+        this.i2s = new Deep16I2S();
         // D16nano benchmark time base: one step is one instruction (the JS core
         // is not cycle-accurate). The board exposes the real CPU cycle counter.
         this.cycleCount = 0;
@@ -285,6 +409,7 @@ class Deep16Simulator {
         this.sicEnable = 0;
         this.sicScratch = 0;
         this.sicRaster = 0;
+        this.i2s.reset();
         this.lastOperationWasALU = false;
         this.lastALUResult = 0;
         this.lastALUOverflow = false;
@@ -395,7 +520,6 @@ class Deep16Simulator {
         this.shiftCarryOut = null;
         this.segmentRegisters = { CS: 0xFFFF, DS: 0x0000, SS: 0x0000, ES: 0x0000 };
         this.shadowRegisters = { PSW: 0, PC: 0, CS: 0, DS: 0, SS: 0, ES: 0, R0: 0, R1: 0, R2: 0, R3: 0, R13: 0, R14: 0 };
-        this.savedSegments = { CS: 0, DS: 0, SS: 0, ES: 0 };
         this.savedSegments = { CS: 0, DS: 0, SS: 0, ES: 0 };
         this.cycleCount = 0;
         this.tileStatus = null;
@@ -736,7 +860,9 @@ class Deep16Simulator {
         // console.log(`Recent memory access: ${this.recentMemoryAccess.type} at ${segmentName}:0x${addressOffset.toString(16).padStart(4, '0')} (physical: 0x${physicalAddress.toString(16).padStart(5, '0')})`);
 
         if (d === 0) { // LD
-            if (physicalAddress < this.memory.length) {
+            if (physicalAddress >= 0xF00A0 && physicalAddress <= 0xF00A7) {
+                this.writeGPR(rd, this.i2sRead(physicalAddress - 0xF00A0));
+            } else if (physicalAddress < this.memory.length) {
                 const value = this.memory[physicalAddress];
                 this.writeGPR(rd, value);
                 // console.log(`LD: ${this.getRegisterName(rd)} = [${segmentName}:${this.getRegisterName(rb)}+${offset}] = 0x${value.toString(16).padStart(4, '0')}`);
@@ -744,7 +870,9 @@ class Deep16Simulator {
                 // console.warn(`LD: Physical address 0x${physicalAddress.toString(16)} out of bounds`);
             }
         } else { // ST
-            if (physicalAddress < this.memory.length) {
+            if (physicalAddress >= 0xF00A0 && physicalAddress <= 0xF00A7) {
+                this.i2sWrite(physicalAddress - 0xF00A0, this.readGPR(rd));
+            } else if (physicalAddress < this.memory.length) {
                 const value = this.readGPR(rd);
                 this.memory[physicalAddress] = value;
                 // console.log(`ST: [${segmentName}:${this.getRegisterName(rb)}+${offset}] = ${this.getRegisterName(rd)} (0x${value.toString(16).padStart(4, '0')})`);
@@ -1319,6 +1447,8 @@ class Deep16Simulator {
             if (physicalAddress === this.KBD_STATUS_ADDR) {
                 const ready = this.kbdBuffer.length > 0 ? 1 : 0;
                 this.writeGPR(rd, ready);
+            } else if (physicalAddress >= 0xF00A0 && physicalAddress <= 0xF00A7) {
+                this.writeGPR(rd, this.i2sRead(physicalAddress - 0xF00A0));
             } else if (physicalAddress === this.KBD_DATA_ADDR) {
                 const data = this.kbdBuffer.length > 0 ? (this.kbdBuffer.shift() & 0xFFFF) : 0;
                 this.kbdLastData = data;
@@ -1347,6 +1477,8 @@ class Deep16Simulator {
                 this.writeGPR(rd, (this.cycleCount >>> 16) & 0xFFFF);
             } else if (physicalAddress >= 0xF0080 && physicalAddress <= 0xF0087) {
                 this.writeGPR(rd, this.spiRead(physicalAddress - 0xF0080));
+            } else if (physicalAddress >= 0xF00A0 && physicalAddress <= 0xF00A7) {
+                this.writeGPR(rd, this.i2sRead(physicalAddress - 0xF00A0));
             } else if (physicalAddress >= 0xF00B0 && physicalAddress <= 0xF00BF) {
                 this.writeGPR(rd, this.sicRead(physicalAddress - 0xF00B0));
             } else if (physicalAddress < this.memory.length) {
@@ -1367,6 +1499,8 @@ class Deep16Simulator {
                 if (value & 0x2) { this.uartTx = []; }
             } else if (physicalAddress >= 0xF0080 && physicalAddress <= 0xF0087) {
                 this.spiWrite(physicalAddress - 0xF0080, this.readGPR(rd));
+            } else if (physicalAddress >= 0xF00A0 && physicalAddress <= 0xF00A7) {
+                this.i2sWrite(physicalAddress - 0xF00A0, this.readGPR(rd));
             } else if (physicalAddress >= 0xF00B0 && physicalAddress <= 0xF00BF) {
                 this.sicWrite(physicalAddress - 0xF00B0, this.readGPR(rd));
             } else if (physicalAddress < this.memory.length) {
@@ -1529,6 +1663,12 @@ class Deep16Simulator {
         }
         // Same entry convention as SWI (spec 4.4): park the interrupted PSW,
         // then a fresh handler PSW (S=1, I=0).
+        this.savedSegments = {
+            CS: this.segmentRegisters.CS & 0xFFFF,
+            DS: this.segmentRegisters.DS & 0xFFFF,
+            SS: this.segmentRegisters.SS & 0xFFFF,
+            ES: this.segmentRegisters.ES & 0xFFFF,
+        };
         this.shadowRegisters.PSW = this.psw & 0xFFFF;
         this.psw = 0x0020;
         this.shadowRegisters.CS = 0x0000;
@@ -1620,7 +1760,27 @@ class Deep16Simulator {
     // the sources, STATUS reports the aggregated level and any pending bit,
     // SCRATCH is the ISR's free 16-bit counter. The JS core has no timer, so a
     // test raises a bit with raiseIRQ() and takes the vector explicitly.
+    i2sRead(off) {
+        return this.i2s.read(off);
+    }
+
+    i2sWrite(off, value) {
+        this.i2s.write(off, value);
+        this.updateAudioIrq();
+    }
+
+    drainAudio(nowMs) {
+        const samples = this.i2s.drainTo(nowMs);
+        this.updateAudioIrq();
+        return samples;
+    }
+
+    updateAudioIrq() {
+        if (this.i2s && this.i2s.fifoIrq()) this.sicPending |= 4;
+    }
+
     sicRead(off) {
+        this.updateAudioIrq();
         switch (off & 0xF) {
             case 0x0: return this.sicPending & 0xF;
             case 0x2: return this.sicEnable & 0xF;
@@ -1647,6 +1807,7 @@ class Deep16Simulator {
     }
 
     irqLine() {
+        this.updateAudioIrq();
         return (this.sicPending & this.sicEnable) !== 0;
     }
 

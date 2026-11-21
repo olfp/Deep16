@@ -483,17 +483,21 @@ test('function 14 writes a palette entry', () => {
 });
 
 test('functions 15-17 drive and read I2S', () => {
-  const mem = buildMemory(kernel);
-  mem[0xF00A4] = 0x1234;                 // status
-  mem[0xF00A0] = 0x5678;                 // level
-  const read = callBdos(17, 0, { mem });
-  assert.equal(read.r0, 0x1234, 'status');
-  assert.equal(read.r1, 0x5678, 'level');
+  const read = callBdos(17, 0);
+  assert.equal(read.r0 & 1, 1, 'status says empty');
+  assert.equal(read.r0 & 4, 4, 'empty is also below the low mark');
+  assert.equal(read.r1, 0, 'empty level');
 
   const write = callBdos(15, 0x1357);
-  assert.equal(write.sim.memory[0xF00A0] & 0xFFFF, 0x1357, 'sample word');
+  assert.equal(write.sim.i2s.count, 1, 'sample queued');
+  assert.equal(write.sim.i2s.fifo[0], 0x1357, 'sample word');
+  const level = callBdos(17, 0, { mem: buildMemory(kernel) });
+  assert.equal(level.r1, 0, 'a fresh machine starts empty');
+
   const ctrl = callBdos(16, 9);
-  assert.equal(ctrl.sim.memory[0xF00A2] & 0xFFFF, 9, 'control word');
+  assert.equal(ctrl.sim.i2s.enable, true, 'enable');
+  assert.equal(ctrl.sim.i2s.irqEnable, true, 'irq enable');
+  assert.equal(ctrl.sim.i2s.loop, false, 'loop off');
 });
 
 test('function 18 sets the SIC enable mask', () => {

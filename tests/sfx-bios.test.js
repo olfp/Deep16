@@ -2,9 +2,7 @@
 //
 // The games are slices in their own segments; they reach the sound generator
 // through the BIOS. These tests install the SWI vector, call the functions the
-// way a game does, and inspect the I2S control register and the frame counter.
-// The JS core has no I2S model, so the FIFO/control writes land in the MMIO
-// memory window; control bit 0/2 and the saved registers are what matter here.
+// way a game does, and inspect the I2S FIFO/control state and the frame counter.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -17,8 +15,6 @@ const kernel = assemble(fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm')
                         { defines: { CONSOLE_UART: 1, D16NANO: 1, D16D: 1 } });
 assert.equal(kernel.success, true, kernel.errors?.join('; '));
 const sym = kernel.symbols;
-const CTRL = 0xF00A2;
-
 // The games use R4-R12 across the call; function 9 must save and restore all
 // of them. R0-R2 are the call's scratch, as documented.
 const PATTERNS = [0x1234, 0x2345, 0x3456, 0x1567, 0x1678, 0x1789, 0x189A, 0x1234, 0x1321];
@@ -90,38 +86,44 @@ function savedRegs(sim) {
 }
 
 test('function 9 starts an effect and preserves the shared registers', () => {
-  const sim = run(1, 6);
-  assert.equal(sim.memory[CTRL] & 0xFFFF, 0x0005, 'enable + loop');
+  const sim = run(2, 6);
+  assert.equal(sim.i2s.enable, true, 'enable');
+  assert.equal(sim.i2s.loop, true, 'loop');
+  assert.equal(sim.i2s.count, 128, 'the effect filled the FIFO');
+  const samples = sim.i2s.drain(128 / 21093.75);
+  assert.equal(samples.length, 128);
+  assert.ok(samples.some((v) => v !== 0), 'the effect generated audible samples');
   assert.equal(sim.memory[sym.sfx_frames] & 0xFFFF, 6, 'six frames queued');
   assert.deepEqual(savedRegs(sim), PATTERNS, 'R4-R12 survived the call');
 });
 
 test('function 10 runs the effect down and stops it', () => {
   const one = run(1, 2, 1);
-  assert.equal(one.memory[CTRL] & 0xFFFF, 0x0005, 'still playing');
+  assert.equal(one.i2s.enable, true, 'still playing');
+  assert.equal(one.i2s.loop, true, 'still looping');
   assert.equal(one.memory[sym.sfx_frames] & 0xFFFF, 1, 'one frame left');
 
   const two = run(1, 2, 2);
-  assert.equal(two.memory[CTRL] & 0xFFFF, 0x0000, 'stopped at the last frame');
+  assert.equal(two.i2s.enable, false, 'stopped at the last frame');
   assert.equal(two.memory[sym.sfx_frames] & 0xFFFF, 0, 'counter cleared');
 });
 
 test('effect 0 stops the sound and clears the counter', () => {
   const sim = run(0, 10, 1);
-  assert.equal(sim.memory[CTRL] & 0xFFFF, 0x0000);
+  assert.equal(sim.i2s.enable, false);
   assert.equal(sim.memory[sym.sfx_frames] & 0xFFFF, 0);
 });
 
 test('an out-of-range effect is treated as stop', () => {
   const sim = run(9, 10);
-  assert.equal(sim.memory[CTRL] & 0xFFFF, 0x0000);
+  assert.equal(sim.i2s.enable, false);
   assert.equal(sim.memory[sym.sfx_frames] & 0xFFFF, 0);
 });
 
 test('function 11 streams a decaying noise flap sample by sample', () => {
   // Effect 1 is mode 3: function 9 only seeds the stream, and the game's frame
-  // wait calls function 11 to keep the FIFO fed. The JS core has no I2S, so the
-  // status read would return the erased 0xFFFF (full); force room instead.
+  // wait calls function 11 to keep the FIFO fed. Without the host draining it,
+  // the 128-entry FIFO fills and function 11 correctly stops pushing.
   const stub = assemble(`
         .org 0x0100
         LDI ${sym.swi_to_bios}
@@ -149,16 +151,17 @@ loop:
   for (const c of stub.memoryChanges) mem[c.address] = c.value & 0xFFFF;
   const sim = new globalThis.Deep16Simulator();
   sim.loadProgram(mem);
-  sim.memory[0xF00A4] = 0;
   Object.assign(sim.segmentRegisters, { CS: 0xFFFF, DS: 0, SS: 0, ES: 0 });
   sim.running = true;
   for (let i = 0; i < 6_000_000 && sim.running; i++) sim.step();
   assert.equal(sim.running, false, 'the stub returned to HALT');
 
   assert.equal(sim.memory[sym.sfx_stream] & 0xFFFF, 1, 'stream stays active');
-  assert.equal(sim.memory[sym.sfx_phase] & 0xFFFF, 600, 'one sample per call');
+  assert.equal(sim.memory[sym.sfx_phase] & 0xFFFF, 128, 'the FIFO filled');
+  assert.equal(sim.i2s.count, 128, '128 streamed samples queued');
+  assert.equal(sim.i2s.full(), true, 'the FIFO reports full');
   const env = sim.memory[sym.sfx_env] & 0xFFFF;
-  assert.ok(env > 0 && env < 0x1000, `envelope decayed (0x${env.toString(16)})`);
+  assert.ok(env > 0 && env < 0x2000, `envelope decayed (0x${env.toString(16)})`);
   assert.notEqual(sim.memory[sym.sfx_lfsr] & 0xFFFF, 0xACE1, 'the LFSR advanced');
   assert.notEqual(sim.memory[sym.sfx_filt] & 0xFFFF, 0, 'the low-pass produced samples');
 });

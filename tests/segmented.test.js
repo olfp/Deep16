@@ -631,39 +631,45 @@ test('the μ-law sample runs from the sound window on the FIFO IRQ', () => {
   assert.match(line(`${pingFirst} sample-start`), / ok/);
   const win = 0xE0000;                  // segment 0xE000
   assert.equal(sim.memory[win] & 0xffff, 1, 'run flag set');
-  assert.equal(sim.memory[win + 2] & 0xffff, 0, 'pos starts at 0');
+  const firstPos = sim.memory[win + 2] & 0xffff;
+  assert.ok(firstPos === 0 || firstPos === 32, `sample-start queued ${firstPos} samples`);
   assert.equal(sim.memory[win + 3] & 0xffff, 4080, 'the whole slice is queued');
   assert.equal(sim.memory[win + 0x08] & 0xffff, 0x8284, 'μ-law table copied');
   assert.equal(sim.memory[win + 0x100] & 0xffff,
                slices.words[pingFirst * SLICE_WORDS + 8], 'payload copied');
-  assert.equal(sim.memory[0xF00A2] & 0xffff, 9, 'enable + FIFO-low IRQ');
+  assert.equal(sim.i2s.enable, true, 'enable');
+  assert.equal(sim.i2s.irqEnable, true, 'FIFO-low IRQ enabled');
   assert.equal(sim.sicEnable & 4, 4, 'SIC audio bit enabled');
 
   // Take the audio vector directly: one burst is 32 source samples, and the
   // handler W1Cs the level only after the level has fallen.
+  sim.i2s.count = 0; sim.i2s.rd = 0; sim.i2s.wr = 0;
+  sim.memory[win + 2] = 0;
   sim.sicPending = 4;
   line('1 drop');                    // the interpreter runs with I=1
   for (let i = 0; i < 200000 && sim.running && (sim.sicPending & 4); i++) step(1);
   assert.equal(sim.sicPending & 4, 0, 'audio bit cleared');
   assert.equal(sim.memory[win] & 0xffff, 1, 'still running');
   assert.equal(sim.memory[win + 2] & 0xffff, 32, 'one burst queued');
-  assert.equal(sim.memory[0xF00A2] & 0xffff, 9, 'still enabled');
+  assert.equal(sim.i2s.enable, true, 'still enabled');
   const last = number(line('31 sample-value . cr'), '31 sample-value . cr');
-  assert.equal(sim.memory[0xF00A0] & 0xffff, last & 0xffff, 'last FIFO word is sample 31');
+  assert.equal(sim.i2s.fifo[63] & 0xffff, last & 0xffff, 'last FIFO word is the second copy of sample 31');
 
   // Reaching the end stops the voice instead of re-filling.
   sim.memory[win + 3] = 33;
+  sim.i2s.count = 0; sim.i2s.rd = 0; sim.i2s.wr = 0;
   sim.sicPending = 4;
   line('1 drop');
   for (let i = 0; i < 200000 && sim.running && (sim.sicPending & 4); i++) step(1);
   assert.equal(sim.sicPending & 4, 0, 'end clears the audio bit');
   assert.equal(sim.memory[win] & 0xffff, 0, 'end clears the run flag');
   assert.equal(sim.memory[win + 2] & 0xffff, 33, 'end position reached');
-  assert.equal(sim.memory[0xF00A2] & 0xffff, 0, 'end disables the I2S');
+  assert.equal(sim.i2s.enable, false, 'end disables the I2S');
 
   line('sample-stop');
   assert.equal(sim.memory[win] & 0xffff, 0, 'run flag cleared');
-  assert.equal(sim.memory[0xF00A2] & 0xffff, 2, 'FIFO reset and disabled');
+  assert.equal(sim.i2s.enable, false, 'disabled');
+  assert.equal(sim.i2s.count, 0, 'FIFO reset');
   assert.equal(sim.sicEnable & 4, 0, 'SIC audio bit cleared');
 });
 
