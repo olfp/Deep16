@@ -24,10 +24,11 @@ class DeepWebUI {
         this.sliceAssetsLoaded = false;
         // 60 Hz display clock and the status word it drives at 0xF0066.
         this.tileClock = null;
+        this.tileClockRaf = false;
         this.tileFrame = 0;
         this.tileVblank = false;
         this.tileS2 = false;
-        this.tileStepsPerTick = 6000;
+        this.tileStepsPerTick = 20000;
         this.memoryStartAddress = 0;
         this.runInterval = null;
         this.transcriptEntries = [];
@@ -557,13 +558,37 @@ class DeepWebUI {
     // from the run loop.
     startTileClock() {
         if (this.consoleMode() !== 'tiles' || this.tileClock) return;
-        this.tileClock = setInterval(() => this.tickTileFrame(), 1000 / 60);
+        const period = 1000 / 60;
+        let last = performance.now();
+        let acc = 0;
+        const tick = (now) => {
+            if (!this.tileClock) return;
+            const elapsed = Math.min(Math.max(now - last, 0), 250);
+            last = now;
+            acc += elapsed;
+            let frames = 0;
+            while (acc >= period && frames < 4) {
+                acc -= period;
+                this.tickTileFrame();
+                frames++;
+            }
+            this.tileClock = requestAnimationFrame(tick);
+        };
+        this.tileClockRaf = (typeof requestAnimationFrame === 'function');
+        this.tileClock = this.tileClockRaf
+            ? requestAnimationFrame(tick)
+            : setInterval(() => this.tickTileFrame(), period);
     }
 
     stopTileClock() {
         if (this.tileClock) {
-            clearInterval(this.tileClock);
+            if (this.tileClockRaf && typeof cancelAnimationFrame === 'function') {
+                cancelAnimationFrame(this.tileClock);
+            } else {
+                clearInterval(this.tileClock);
+            }
             this.tileClock = null;
+            this.tileClockRaf = false;
         }
     }
 
@@ -600,7 +625,7 @@ class DeepWebUI {
     // Tile mode executes far more than the screen build's 200 instructions per
     // 10 ms tick; the game's wait_frame loop needs a few thousand per frame.
     instructionsPerTick() {
-        return this.tileStepsPerTick || 6000;
+        return this.tileStepsPerTick || 20000;
     }
 
     // The kernel's serial build wants a core that talks UART. All three do
