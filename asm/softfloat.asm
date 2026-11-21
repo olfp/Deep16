@@ -215,9 +215,9 @@ u2f:
 
 ; ---- fadd32 / fsub32 ---------------------------------------------------
 ; A in R6:R7, B in R8:R9, result in R6:R7.
-; Truncation policy: the exact sum is truncated toward zero. Alignment keeps
-; a sticky bit so subtraction can drop the final ulp when the discarded tail
-; is nonzero.
+; Truncation policy: addition discards the aligned tail. Subtraction with
+; d < 24 aligns A left and subtracts exactly, so the guard bits survive
+; normalisation; d >= 24 uses the previous-float shortcut.
 ; Clobbers R0..R12; preserves R13, R14 (restored), R15.
 fsub32:
     XOR R8, 15                 ; flip B's sign
@@ -355,8 +355,8 @@ fadd_finite:
     CMP R1, 0
     JNZ fadd_pack_b
     NOP
-    CMP R0, R0
-    JZ fadd_zero               ; +0 + +0 (and the -0 convention)
+    LDI fadd_zero              ; +0 + +0 (and the -0 convention)
+    JMP R0
     NOP
 fadd_pack_b:
     MOV R10, R8
@@ -412,11 +412,11 @@ fadd_order:
 fadd_ordered:
     MOV R10, R3
     SUB R10, R9                ; d = expA - expB
-    ; Opposite signs with d >= 24: |B| is strictly below one ulp of A, so
-    ; the exact result is the previous float below |A|. Handle it before the
-    ; alignment loop destroys d. (The d < 24 path keeps a sticky bit; it can
-    ; be one ulp low when a small difference renormalises across a power of
-    ; two - a recorded prototype limitation.)
+    ; Opposite signs:
+    ;   d >= 24 -> |B| is below one ulp of A, so the result is the previous
+    ;              float below |A| (exact, no guard bits needed).
+    ;   d < 24  -> align A left to expB and subtract exactly. This keeps the
+    ;              guard bits the right-aligned sticky path lost.
     CMP R2, R8
     JZ fadd_align_start
     NOP
@@ -425,16 +425,15 @@ fadd_ordered:
     CMP R10, R6
     JNC fadd_sub_tiny
     NOP
+    CMP R0, R0
+    JZ fadd_sub_exact
+    NOP
 fadd_align_start:
-    LSI R11, 0                 ; sticky
     LSI R7, 1
 fadd_align:
     CMP R10, 0
-    JZ fadd_aligned
+    JZ fadd_add
     NOP
-    MOV R6, R1
-    AND R6, R7
-    OR R11, R6                 ; sticky |= B low bit
     MOV R6, R0
     AND R6, R7
     SL R6, 15
@@ -444,13 +443,6 @@ fadd_align:
     SUB R10, 1
     CMP R0, R0
     JZ fadd_align
-    NOP
-fadd_aligned:
-    CMP R2, R8
-    JZ fadd_add
-    NOP
-    CMP R0, R0
-    JZ fadd_sub
     NOP
 
 fadd_add:
@@ -470,65 +462,8 @@ fadd_add_carry:
 fadd_add_store:
     MOV R5, R6
     MOV R4, R7
-    CMP R0, R0
-    JZ fadd_normalize
-    NOP
-
-fadd_sub:
-    ; compare |A| and |B|
-    CMP R4, R0
-    JC fadd_sub_b_bigger
-    NOP
-    JNZ fadd_sub_a_bigger
-    NOP
-    CMP R5, R1
-    JC fadd_sub_b_bigger
-    NOP
-fadd_sub_a_bigger:
-    MOV R6, R5
-    SUB R6, R1
-    JC fadd_sub_a_borrow
-    NOP
-    MOV R7, R4
-    SUB R7, R0
-    CMP R0, R0
-    JZ fadd_sub_a_store
-    NOP
-fadd_sub_a_borrow:
-    MOV R7, R4
-    SUB R7, 1
-    SUB R7, R0
-fadd_sub_a_store:
-    MOV R5, R6
-    MOV R4, R7
-    CMP R4, 0
-    JNZ fadd_sub_a_dec
-    NOP
-    CMP R5, 0
-    JNZ fadd_sub_a_dec
-    NOP
-    CMP R0, R0
-    JZ fadd_zero               ; exact difference was only the discarded tail
-    NOP
-fadd_sub_a_dec:
-    CMP R11, 0
-    JZ fadd_normalize
-    NOP
-    MOV R6, R5
-    SUB R6, 1
-    JC fadd_sub_a_dec_borrow
-    NOP
-    MOV R5, R6
-    CMP R0, R0
-    JZ fadd_normalize
-    NOP
-fadd_sub_a_dec_borrow:
-    MOV R5, R6
-    MOV R6, R4
-    SUB R6, 1
-    MOV R4, R6
-    CMP R0, R0
-    JZ fadd_normalize
+    LDI fadd_normalize
+    JMP R0
     NOP
 
 fadd_sub_tiny:
@@ -548,8 +483,8 @@ fadd_sub_tiny:
     ADD R4, 15                 ; 0xFF
     LSI R5, 0
     SUB R5, 1                  ; 0xFFFF
-    CMP R0, R0
-    JZ fadd_pack
+    LDI fadd_pack
+    JMP R0
     NOP
 fadd_sub_tiny_dec:
     MOV R6, R5
@@ -557,38 +492,180 @@ fadd_sub_tiny_dec:
     JC fadd_sub_tiny_borrow
     NOP
     MOV R5, R6
-    CMP R0, R0
-    JZ fadd_pack
+    LDI fadd_pack
+    JMP R0
     NOP
 fadd_sub_tiny_borrow:
     MOV R5, R6
     MOV R6, R4
     SUB R6, 1
     MOV R4, R6
-    CMP R0, R0
-    JZ fadd_pack
+    LDI fadd_pack
+    JMP R0
     NOP
 
-fadd_sub_b_bigger:
+; ---- exact subtraction for d < 24 --------------------------------------
+; A and B have opposite signs and expA - expB = d in 0..23. Align A to expB
+; (shift left d; the value is up to 47 bits in W2:W1:W0 = R11:R4:R5), subtract
+; exactly, then normalise and keep the top 24 bits. This preserves the guard
+; bits that a right-aligned sticky subtraction would lose across a
+; power-of-two boundary.
+fadd_sub_exact:
+    LSI R11, 0                 ; W2 = 0
+    MOV R6, R10                ; shift count = d
+    CMP R6, 0
+    JZ fadd_exact_shifted
+    NOP
+fadd_exact_shift:
+    MOV R7, R4
+    SR R7, 15
+    SL R11, 1
+    OR R11, R7                 ; W2 = (W2 << 1) | (W1 >> 15)
+    MOV R7, R5
+    SR R7, 15
+    SL R4, 1
+    OR R4, R7                  ; W1 = (W1 << 1) | (W0 >> 15)
+    SL R5, 1                   ; W0 <<= 1
+    SUB R6, 1
+    JNZ fadd_exact_shift
+    NOP
+fadd_exact_shifted:
+    ; compare A' = W2:W1:W0 with B' = 0:R0:R1
+    CMP R11, 0
+    JNZ fadd_exact_a
+    NOP
+    CMP R4, R0
+    JC fadd_exact_b
+    NOP
+    JNZ fadd_exact_a
+    NOP
+    CMP R5, R1
+    JC fadd_exact_b
+    NOP
+fadd_exact_a:
+    ; D = A' - B'; result sign remains signA in R2
+    MOV R6, R5
+    SUB R6, R1
+    JC fadd_exact_a_low
+    NOP
+    MOV R7, R4
+    SUB R7, R0
+    JC fadd_exact_a_mid
+    NOP
+    CMP R0, R0
+    JZ fadd_exact_norm
+    NOP
+fadd_exact_a_mid:
+    SUB R11, 1
+    CMP R0, R0
+    JZ fadd_exact_norm
+    NOP
+fadd_exact_a_low:
+    MOV R7, R4
+    SUB R7, R0
+    JC fadd_exact_a_both
+    NOP
+    SUB R7, 1
+    JC fadd_exact_a_lowcarry
+    NOP
+    CMP R0, R0
+    JZ fadd_exact_norm
+    NOP
+fadd_exact_a_lowcarry:
+    SUB R11, 1
+    CMP R0, R0
+    JZ fadd_exact_norm
+    NOP
+fadd_exact_a_both:
+    SUB R7, 1
+    JC fadd_exact_a_bothcarry
+    NOP
+    SUB R11, 1
+    CMP R0, R0
+    JZ fadd_exact_norm
+    NOP
+fadd_exact_a_bothcarry:
+    SUB R11, 2
+    CMP R0, R0
+    JZ fadd_exact_norm
+    NOP
+
+fadd_exact_b:
     MOV R2, R8                 ; result sign follows B
+    ; D = B' - A'; the comparison guarantees a positive result below 2^24
     MOV R6, R1
     SUB R6, R5
-    JC fadd_sub_b_borrow
+    JC fadd_exact_b_low
     NOP
     MOV R7, R0
     SUB R7, R4
+    LSI R11, 0
     CMP R0, R0
-    JZ fadd_sub_b_store
+    JZ fadd_exact_norm
     NOP
-fadd_sub_b_borrow:
+fadd_exact_b_low:
     MOV R7, R0
+    SUB R7, R4
     SUB R7, 1
-    SUB R7, R4
-fadd_sub_b_store:
-    MOV R5, R6
-    MOV R4, R7
+    LSI R11, 0
     CMP R0, R0
-    JZ fadd_normalize
+    JZ fadd_exact_norm
+    NOP
+
+fadd_exact_norm:
+    ; D = R11:R7:R6; zero only on exact cancellation
+    CMP R11, 0
+    JNZ fadd_exact_nz
+    NOP
+    CMP R7, 0
+    JNZ fadd_exact_nz
+    NOP
+    CMP R6, 0
+    JZ fadd_zero
+    NOP
+fadd_exact_nz:
+    LSI R10, 0                 ; s = 0
+fadd_exact_norm_loop:
+    MOV R0, R11
+    SR R0, 15
+    CMP R0, 0
+    JNZ fadd_exact_norm_done
+    NOP
+    MOV R0, R11
+    SL R11, 1
+    MOV R1, R7
+    SR R1, 15
+    OR R11, R1
+    MOV R1, R6
+    SR R1, 15
+    SL R7, 1
+    OR R7, R1
+    SL R6, 1
+    ADD R10, 1
+    CMP R0, R0
+    JZ fadd_exact_norm_loop
+    NOP
+fadd_exact_norm_done:
+    ; significand = D >> 24 = (D2 << 8) | (D1 >> 8)
+    MOV R4, R11
+    SR R4, 8
+    MOV R5, R11
+    LSI R0, 15
+    SL R0, 4
+    ADD R0, 15                 ; 0xFF
+    AND R5, R0
+    SL R5, 8
+    MOV R0, R7
+    SR R0, 8
+    OR R5, R0
+    ; exponent = expB + 24 - s
+    MOV R3, R9
+    LSI R0, 12
+    SL R0, 1                   ; 24
+    ADD R3, R0
+    SUB R3, R10
+    LDI fadd_pack
+    JMP R0
     NOP
 
 fadd_zero:

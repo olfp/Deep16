@@ -148,6 +148,18 @@ const vectors = [
   ['fsub32', '1 - 2', f32(0x3F80, 0), f32(0x4000, 0), f32(0xBF80, 0)],
   ['fsub32', '0 - 1', 0, f32(0x3F80, 0), f32(0xBF80, 0)],
   ['fsub32', '1 - 0', f32(0x3F80, 0), 0, f32(0x3F80, 0)],
+  // Close subtractions across a power-of-two boundary: the exact difference
+  // is far below A's exponent, so the guard bits decide the result.
+  ['fsub32', '1 - nextbelow(1)', f32(0x3F80, 0), f32(0x3F7F, 0xFFFF), f32(0x3380, 0)],
+  ['fsub32', '1 - 2ulp below 1', f32(0x3F80, 0), f32(0x3F7F, 0xFFFE), f32(0x3400, 0)],
+  ['fsub32', '1 - 3ulp below 1', f32(0x3F80, 0), f32(0x3F7F, 0xFFFD), f32(0x3440, 0)],
+  ['fsub32', '2 - nextbelow(2)', f32(0x4000, 0), f32(0x3FFF, 0xFFFF), f32(0x3400, 0)],
+  ['fsub32', '1 - 0.5', f32(0x3F80, 0), f32(0x3F00, 0), f32(0x3F00, 0)],
+  ['fsub32', '1 - 0.75', f32(0x3F80, 0), f32(0x3F40, 0), f32(0x3E80, 0)],
+  ['fsub32', '3 - nextbelow(3)', f32(0x4040, 0), f32(0x403F, 0xFFFF), f32(0x3480, 0)],
+  ['fsub32', '0.5 - nextbelow(0.5)', f32(0x3F00, 0), f32(0x3EFF, 0xFFFF), f32(0x3300, 0)],
+  ['fsub32', '1.5 - nextbelow(1.5)', f32(0x3FC0, 0), f32(0x3FBF, 0xFFFF), f32(0x3400, 0)],
+  ['fsub32', '3 - 2ulp below 3', f32(0x4040, 0), f32(0x403F, 0xFFFE), f32(0x3500, 0)],
   // FMUL
   ['fmul32', '1.5 * 2.25', f32(0x3FC0, 0), f32(0x4010, 0), f32(0x4058, 0)],
   ['fmul32', '2 * 3', f32(0x4000, 0), f32(0x4040, 0), f32(0x40C0, 0)],
@@ -227,5 +239,57 @@ test('fmul24 matches a BigInt reference', () => {
     assert.equal(got, want.significand, `fmul24 ${a.toString(16)} * ${b.toString(16)}`);
     assert.equal(sim.memory[0x302], want.increment,
                  `fmul24 exponent increment ${a.toString(16)} * ${b.toString(16)}`);
+  }
+});
+
+// A BigInt reference for truncating subtraction: decode both operands, align
+// to the smaller exponent, subtract exactly, then keep the top 24 bits. This
+// is the property the exact left-aligned path must reproduce for every
+// exponent difference, not just the hand-picked boundaries above.
+function truncSubtract(aBits, bBits) {
+  const decode = (bits) => {
+    const sign = bits >>> 31;
+    const exp = (bits >>> 23) & 0xFF;
+    const mant = bits & 0x7FFFFF;
+    return exp === 0 ? { sign: 0, exp: 0, mant: 0 } : { sign, exp, mant };
+  };
+  const a = decode(aBits);
+  const b = decode(bBits);
+  const aZero = a.exp === 0;
+  const bZero = b.exp === 0;
+  if (aZero && bZero) return 0;
+  const e = aZero ? b.exp : bZero ? a.exp : Math.min(a.exp, b.exp);
+  const toInt = (v) => {
+    if (v.exp === 0) return 0n;
+    const magnitude = BigInt(0x800000 | v.mant) << BigInt(v.exp - e);
+    return v.sign ? -magnitude : magnitude;
+  };
+  const d = toInt(a) - toInt(b);
+  if (d === 0n) return 0;
+  const sign = d < 0n ? 1 : 0;
+  const magnitude = d < 0n ? -d : d;
+  const length = magnitude.toString(2).length;
+  const significand = length <= 24
+    ? (magnitude << BigInt(24 - length))
+    : (magnitude >> BigInt(length - 24));
+  const exponent = e + length - 24;
+  if (exponent <= 0) return sign << 31;
+  if (exponent >= 255) return (sign << 31) | 0x7F800000;
+  return (sign << 31) | (exponent << 23) | Number(significand & 0x7FFFFFn);
+}
+
+test('fsub32 matches an exact BigInt reference across exponent differences', () => {
+  let seed = 0xC0FFEE;
+  const rnd = () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed;
+  };
+  for (let i = 0; i < 100; i++) {
+    const a = ((rnd() & 1) << 31) | ((1 + (rnd() % 254)) << 23) | (rnd() & 0x7FFFFF);
+    const b = ((rnd() & 1) << 31) | ((1 + (rnd() % 254)) << 23) | (rnd() & 0x7FFFFF);
+    const source = binaryProgram('fsub32', a >>> 0, b >>> 0);
+    const { sim } = runJsProgram(source);
+    assert.equal(binaryResult(sim), truncSubtract(a >>> 0, b >>> 0) >>> 0,
+                 `fsub32 ${hex(a)} - ${hex(b)}`);
   }
 });

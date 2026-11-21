@@ -419,18 +419,19 @@ checks:
 - FADD/FSUB/FMUL vectors (including +/-Inf, NaN, signed zero, overflow,
   underflow and the sub-ulp truncation cases) on the JS and RTL cores.
 
-Measured size: **776 words** from `f_unpack` through `fmul_ret`. That is the
+Measured size: **836 words** from `f_unpack` through `fmul_ret`. That is the
 placement problem the plan warned about: it does not fit the two BIOS holes
 P1 used (0x4E4C..0x4EAF and 0x5143..0x519F), and it is too big for the D16D
 BIOS copy. P4 must either place it in the flat image and reach it through a
 trampoline, shrink it, or accept a D16MINI-only FPU.
 
-Known truncation limitation: the `d < 24` subtraction path keeps only a
-sticky bit, so a result that renormalises across a power of two can come out
-one ulp *below* true truncation. The `d >= 24` case is handled exactly (the
-previous float below |A|). Fixing `d < 24` needs a guard bit carried through
-normalisation; the current tests avoid the affected narrow case and pin the
-common behaviour.
+Subtraction is exact on both sides of the guard-bit boundary. The `d >= 24`
+case returns the previous float below |A| directly; the `d < 24` case aligns A
+to the smaller exponent, subtracts the full 48-bit value, and keeps the top 24
+bits after normalisation. `tests/softfloat.test.js` includes close
+subtractions across powers of two (`1 - nextbelow(1)`, `2 - nextbelow(2)`,
+`3 - nextbelow(3)`, etc.) and 100 random finite pairs checked against a BigInt
+truncating reference.
 
 ---
 
@@ -511,7 +512,7 @@ kernel is loaded at `0x5000`, so it competes with the demo area there.
 | P0 | `SAPF` in assembler, disassembler, both RTL cores, JS, WASM; arch doc | Encoding tests + a shadow-bank test that `SAPF` sets the restored flags |
 | P1 | **Done.** General undefined-opcode trap in all four cores | A reserved word traps on every core; double fault is diagnosable |
 | P2 | **Done.** `SAPF` in the DIV/DIV32 handler (§4) | `tests/ill-trap.test.js` covers zero, negative and positive quotients for DIV and DIV32 |
-| P3 | **In progress.** Layer 1 + `i2f`/`u2f`/FADD/FSUB/FMUL in `asm/softfloat.asm` | `tests/softfloat.test.js` passes: exhaustive conversions, 100 random mantissa products, JS+RTL vectors. Remaining: FDIV/FSQRT/FCMP and the d<24 guard-bit fix |
+| P3 | **In progress.** Layer 1 + `i2f`/`u2f`/FADD/FSUB/FMUL in `asm/softfloat.asm` | `tests/softfloat.test.js` passes: exhaustive conversions, 100 random mantissa products, JS+RTL vectors. Remaining: FDIV/FSQRT/FCMP and f2i |
 | P4 | FPU decode + dispatch in the ILL handler (FADD/FSUB/FMUL/FCMP) | `tests/ill-trap.test.js` covers the four ops |
 | P5 | FDIV, FSQRT | ditto |
 | P6 | FEXP, FLOG — or never | — |
