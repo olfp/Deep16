@@ -57,7 +57,7 @@ test('the IDE builder fills the 24K code image and returns the kernel symbols', 
   assert.equal(result.memoryChanges.length, 0, 'the window was already written');
 });
 
-test('the IDE builder scatters the D16SEG copies and disables the baked script', () => {
+test('the IDE builder scatters the D16SEG copies and keeps the baked script', () => {
   const ui = makeUi();
   const result = ui.buildD16DImage(kernel);
   assert.equal(result.success, true, result.errors.join('; '));
@@ -65,8 +65,10 @@ test('the IDE builder scatters the D16SEG copies and disables the baked script',
   const bootPtr = result.symbols.boot_ptr;
   assert.ok(Number.isInteger(bootPtr), 'the kernel exports its boot-script pointer');
   assert.notEqual(result.image.words[bootPtr], 0, 'the flat image keeps the board script');
-  assert.equal(ui.simulator.memory[bootPtr], 0, 'the IDE flat copy starts at the prompt');
-  assert.equal(ui.simulator.memory[0x10000 + bootPtr], 0, 'the IDE DS copy starts at the prompt');
+  assert.equal(ui.simulator.memory[bootPtr], result.image.words[bootPtr],
+               'the IDE flat copy keeps the board script');
+  assert.equal(ui.simulator.memory[0x10000 + bootPtr], result.image.words[bootPtr],
+               'the IDE DS copy keeps the board script');
 
   assert.equal(ui.simulator.memory[0x10000 + 0x3000],
                result.image.words[0x3000], 'the DS copy matches the flat image');
@@ -144,7 +146,7 @@ test('the generic nano example boots to a PS/2 prompt and evaluates input', () =
   sim.running = true;
 
   let steps = 0;
-  while (sim.running && steps < 100000 &&
+  while (sim.running && steps < 2_000_000 &&
          (readTileText(sim.memory, 0, 0) !== 'Hello DeepForth!' ||
           readTileText(sim.memory, 1, 0) !== '> ')) {
     sim.step();

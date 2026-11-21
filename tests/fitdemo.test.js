@@ -39,7 +39,7 @@ function makeSimulator() {
 
   const sim = new Deep16Simulator();
   Deep16D16DImage.scatterD16SEG(image.words, {
-    bootPtr: image.symbols.boot_ptr,
+    bootPtr: null,
     memory: sim.memory,
   });
 
@@ -51,7 +51,7 @@ function makeSimulator() {
   return { sim, engine };
 }
 
-function runUntil(sim, predicate, limit = 500_000) {
+function runUntil(sim, predicate, limit = 2_000_000) {
   let steps = 0;
   while (sim.running && steps < limit && !predicate()) {
     sim.step();

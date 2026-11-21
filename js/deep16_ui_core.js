@@ -428,7 +428,9 @@ class DeepWebUI {
           defines: this.assembleDefines(),
         });
         Deep16D16DImage.scatterD16SEG(image.words, {
-          bootPtr: image.symbols && image.symbols.boot_ptr,
+          // Keep the baked boot script enabled so essentials/edit load like
+          // the board.
+          bootPtr: null,
           memory: this.simulator.memory,
         });
         return {
@@ -469,7 +471,9 @@ class DeepWebUI {
           defines: this.assembleDefines(),
         });
         Deep16D16DImage.scatterD16SEG(image.words, {
-          bootPtr: image.symbols && image.symbols.boot_ptr,
+          // Keep the baked boot script enabled so essentials/edit load like
+          // the board.
+          bootPtr: null,
           memory: this.simulator.memory,
         });
         return {
