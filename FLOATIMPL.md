@@ -1,9 +1,11 @@
 # Integer ↔ float conversion
 
-Status: **design note, nothing implemented.** `FPUEMUPLAN.md` §7.2 records that
-the FPU specification has no conversions at all. This note fixes the ABI, the
-algorithms, the edge cases and the test strategy *before* any arithmetic is
-written, because every float operation downstream depends on them.
+Status: **C0/C1 implemented; C2+ pending.** `FPUEMUPLAN.md` §7.2 records that
+the FPU specification has no conversions at all. This note fixed the ABI, the
+algorithms, the edge cases and the test strategy before arithmetic was
+written. `asm/softfloat.asm` now has `f_unpack`/`f_pack`, `i2f` and `u2f`;
+`tests/softfloat.test.js` checks the conversions exhaustively. `f2i`, the
+Forth words and the variable-shift `mulshift` remain.
 
 Companion documents: `FPUEMUPLAN.md` (FPU trap, `SAPF`, phases),
 `archive/ILLTRAP.md` (trap mechanics, `NIO`), `doc/Deep16-FPU.md` (the specification
@@ -287,9 +289,9 @@ encoding before the first FPU opcode is wired.
 
 | Phase | Work | Exit criterion |
 |---|---|---|
-| C0 | `f_unpack` / `f_pack` / `mulshift`+`p2` / `clz24` | unit tests against JS bit operations |
-| C1 | `i2f`, `u2f` | exhaustive against `Math.fround` on JS and RTL |
-| C2 | `f2i` | boundary table + invariant + round trip |
+| C0 | **`f_unpack` / `f_pack` done;** `mulshift`+`p2` / `clz24` pending | unit tests against JS bit operations |
+| C1 | **`i2f`, `u2f` done** | exhaustive against `Math.fround` on JS (RTL sampled through the FPU vector harness) |
+| C2 | `f2i` pending | boundary table + invariant + round trip |
 | C3 | wire into `fadd32` golden vectors | FADD vectors readable, no hand-built patterns |
 | C4 | Forth words `s>f`, `f>s`, `u>f` | dictionary test |
 
