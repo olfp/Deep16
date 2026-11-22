@@ -163,8 +163,16 @@ export function buildImage() {
       throw new Error(`fexp/flog end at 0x${sym.fpu_trans_end.toString(16)}, ` +
                       `over the pacman gap at 0x${PACMAN_SEG_BASE.toString(16)}`);
     }
-    if (sym.fpu_lit_build_end > sym.sf_parse) {
+    if (sym.fpu_lit_build_end > sym.f_ten_powers) {
       throw new Error(`the float literal build ends at 0x${sym.fpu_lit_build_end.toString(16)}, ` +
+                      `over the power-of-ten table at 0x${sym.f_ten_powers.toString(16)}`);
+    }
+    if (sym.f_ten_powers_end > sym.fpu_dot_base) {
+      throw new Error(`the power-of-ten table ends at 0x${sym.f_ten_powers_end.toString(16)}, ` +
+                      `over the f. cells at 0x${sym.fpu_dot_base.toString(16)}`);
+    }
+    if (sym.fpu_dot_cells_end > sym.sf_parse) {
+      throw new Error(`the f. cells end at 0x${sym.fpu_dot_cells_end.toString(16)}, ` +
                       `over the parser at 0x${sym.sf_parse.toString(16)}`);
     }
     if (sym.fpu_lit_build_end > WINDOW) {

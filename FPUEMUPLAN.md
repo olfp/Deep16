@@ -516,8 +516,8 @@ operands are present; they do not duplicate the kernel's underflow checks.
 
 `f.` prints a sign, the integer part and exactly four fractional digits. It
 uses `f2i`/`i2f` and the FADD/FMUL traps; the integer part is limited to the
-signed-16-bit range; larger finite values print scientific notation
-(`3.2767e4`, `1.6516e38`). NaN and infinities
+signed-16-bit range, and nonzero values below `1e-4`; both use scientific
+notation (`3.2767e4`, `1.6516e38`, `9.0000e-5`). NaN and infinities
 print `nan`/`inf`.
 
 Float literals use `[-]digits[.digits][e[+/-]digits]`. The integer part is

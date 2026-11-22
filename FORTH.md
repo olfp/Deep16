@@ -215,9 +215,10 @@ do not print a stack-underflow error.
 
 `f.` prints a sign, the integer part and exactly four fractional digits
 (`1.5000`). Values whose integer part fits a signed 16-bit cell use fixed
-point; larger finite values use scientific notation with one integer digit,
-four fractional digits and a decimal exponent (`3.2767e4`, `1.6516e38`).
-NaN prints `nan` and infinities print `inf`.
+point. Larger finite values and nonzero values below `1e-4` use scientific
+notation with one integer digit, four fractional digits and a decimal exponent
+(`3.2767e4`, `1.6516e38`, `9.0000e-5`). NaN prints `nan` and infinities print
+`inf`.
 
 A float literal is recognized by the number scanner. The integer part may be
 up to five digits but must fit 16 bits (65535); larger integer parts are

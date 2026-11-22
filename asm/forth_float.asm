@@ -417,6 +417,91 @@ fpu_words_end:
 ; the 0x6600 tail and are addressed PC-relatively, so they stay clear of the
 ; D16D 0x1F3C/0x1F40 code and the low-memory data cells.
 .org 0x6600
+f_ten_powers:
+    .word 0x3F80, 0x0000
+    .word 0x4120, 0x0000
+    .word 0x42C8, 0x0000
+    .word 0x447A, 0x0000
+    .word 0x461C, 0x4000
+    .word 0x47C3, 0x5000
+    .word 0x4974, 0x2400
+    .word 0x4B18, 0x9680
+    .word 0x4CBE, 0xBC20
+    .word 0x4E6E, 0x6B28
+    .word 0x5015, 0x02F9
+    .word 0x51BA, 0x43B7
+    .word 0x5368, 0xD4A5
+    .word 0x5511, 0x84E7
+    .word 0x56B5, 0xE621
+    .word 0x5863, 0x5FA9
+    .word 0x5A0E, 0x1BCA
+    .word 0x5BB1, 0xA2BC
+    .word 0x5D5E, 0x0B6B
+    .word 0x5F0A, 0xC723
+    .word 0x60AD, 0x78EC
+    .word 0x6258, 0xD727
+    .word 0x6407, 0x8678
+    .word 0x65A9, 0x6816
+    .word 0x6753, 0xC21C
+    .word 0x6904, 0x5951
+    .word 0x6AA5, 0x6FA6
+    .word 0x6C4E, 0xCB8F
+    .word 0x6E01, 0x3F39
+    .word 0x6FA1, 0x8F08
+    .word 0x7149, 0xF2CA
+    .word 0x72FC, 0x6F7C
+    .word 0x749D, 0xC5AE
+    .word 0x7645, 0x3719
+    .word 0x77F6, 0x84DF
+    .word 0x799A, 0x130C
+    .word 0x7B40, 0x97CE
+    .word 0x7CF0, 0xBDC2
+    .word 0x7E96, 0x7699
+f_ten_powers_end:
+
+.org 0x6650
+f_ten_powers_neg:
+    .word 0x3F80, 0x0000
+    .word 0x3DCC, 0xCCCD
+    .word 0x3C23, 0xD70A
+    .word 0x3A83, 0x126F
+    .word 0x38D1, 0xB717
+    .word 0x3727, 0xC5AC
+    .word 0x3586, 0x37BD
+    .word 0x33D6, 0xBF95
+    .word 0x322B, 0xCC77
+    .word 0x3089, 0x705F
+    .word 0x2EDB, 0xE6FF
+    .word 0x2D2F, 0xEBFF
+    .word 0x2B8C, 0xBCCC
+    .word 0x29E1, 0x2E13
+    .word 0x2834, 0x24DC
+    .word 0x2690, 0x1D7D
+    .word 0x24E6, 0x9595
+    .word 0x2338, 0x77AA
+    .word 0x2193, 0x92EF
+    .word 0x1FEC, 0x1E4A
+    .word 0x1E3C, 0xE508
+    .word 0x1C97, 0x1DA0
+    .word 0x1AF1, 0xC901
+    .word 0x1941, 0x6D9A
+    .word 0x179A, 0xBE15
+    .word 0x15F7, 0x9688
+    .word 0x1446, 0x1206
+    .word 0x129E, 0x74D2
+    .word 0x10FD, 0x87B6
+    .word 0x0F4A, 0xD2F8
+    .word 0x0DA2, 0x4260
+    .word 0x0C01, 0xCEB3
+    .word 0x0A4F, 0xB11F
+    .word 0x08A6, 0x274C
+    .word 0x0704, 0xEC3D
+    .word 0x0554, 0xAD2E
+    .word 0x03AA, 0x2425
+    .word 0x0208, 0x1CEA
+f_ten_powers_neg_end:
+
+.org 0x6700
 fpu_dot_base:
 f_dot_high:
     .word 0
@@ -703,45 +788,130 @@ fpu_lit_end:
 
 
 .org fpu_lib_end
-; lit_scale: R1 is a signed count. While it is positive, multiply the value
-; at SP+13/14 by 10.0; while it is negative, divide by 10.0. The trap
-; preserves SP and R6/R8.
+; lit_scale: R1 is a signed count. Multiply the value at SP+13/14 by
+; 10^|R1| (or divide when R1 is negative) using a table of float32 powers of
+; ten. One trap per call replaces the old repeated multiply/divide, which lost
+; several low bits by the time a large exponent such as 1e38 was built.
 lit_scale:
     CMP R1, 0
     JZ lit_scale_done
     NOP
-    JN lit_scale_neg
+    MOV R2, R1
+    CMP R1, 0
+    JNN lit_scale_pos
     NOP
-    SUB R1, 1
+    NEG R2
+lit_scale_pos:
+    LDI 39
+    MOV R3, R0
+    CMP R2, R3
+    JNC lit_scale_big
+    NOP
+    MOV R10, PC
+lit_scale_tbl:
+    LDI f_ten_powers - lit_scale_tbl
+    ADD R10, R0
+    CMP R1, 0
+    JNN lit_scale_base_ok
+    NOP
+    ; Negative exponents use the reciprocal table, except 10^-38: its
+    ; reciprocal is denormal and the library would flush it to zero, so
+    ; divide by 10^38 instead and keep values like 2e-38 normal.
+    LDI 38
+    MOV R3, R0
+    CMP R2, R3
+    JZ lit_scale_base_ok
+    NOP
+    LDI 0x50
+    ADD R10, R0
+lit_scale_base_ok:
+    MOV R7, R2
+    SL R2, 1
+    ADD R10, R2
+    LDS R4, CS, R10
+    ADD R10, 1
+    LDS R5, CS, R10
     LD R2, SP, 13
     LD R3, SP, 14
-    LDI 0x2090
-    MOV R4, R0
-    SL R4, 1                   ; 0x4120 = 10.0 high
-    LSI R5, 0
+    CMP R1, 0
+    JN lit_scale_neg
+    NOP
     FMUL
     CMP R0, R0
     JZ lit_scale_save
     NOP
-    CMP R0, R0
-    JZ lit_scale
-    NOP
 lit_scale_neg:
-    ADD R1, 1
-    LD R2, SP, 13
-    LD R3, SP, 14
-    LDI 0x2090
-    MOV R4, R0
-    SL R4, 1
-    LSI R5, 0
+    LDI 38
+    MOV R3, R0
+    CMP R7, R3
+    JZ lit_scale_div
+    NOP
+    FMUL
+    CMP R0, R0
+    JZ lit_scale_save
+    NOP
+lit_scale_div:
     FDIV
 lit_scale_save:
     ST R2, SP, 13
     ST R3, SP, 14
-    CMP R0, R0
-    JZ lit_scale
+    JMP LR
     NOP
+
+lit_scale_big:
+    ; |n| >= 39: a nonzero value overflows to +inf or underflows to zero;
+    ; zero stays zero. The caller applies the sign after scaling.
+    LD R2, SP, 13
+    LD R3, SP, 14
+    CMP R2, 0
+    JNZ lit_scale_big_nonzero
+    NOP
+    CMP R3, 0
+    JZ lit_scale_done
+lit_scale_big_nonzero:
+    CMP R1, 0
+    JN lit_scale_big_zero
+    NOP
+    LDI 0x7F
+    MOV R2, R0
+    SL R2, 8
+    LDI 0x80
+    OR R2, R0
+    LSI R3, 0
+    CMP R0, R0
+    JZ lit_scale_save
+lit_scale_big_zero:
+    LSI R2, 0
+    LSI R3, 0
+    CMP R0, R0
+    JZ lit_scale_save
+
 lit_scale_done:
+    JMP LR
+    NOP
+
+; lit_scale_frac: the fraction half of sf_build. It always divides by a
+; positive power of ten, because multiplying a small integer fraction by a
+; reciprocal such as 0.1 exposes the multiplier's low-bit truncation
+; (5 * 0.1 came out as 0.5000018). The count is 1..4; 10^1..10^4 are exact.
+lit_scale_frac:
+    MOV R2, R1
+    NEG R2
+    MOV R10, PC
+lit_scale_frac_tbl:
+    LDI f_ten_powers - lit_scale_frac_tbl
+    ADD R10, R0
+    MOV R11, R2
+    SL R11, 1
+    ADD R10, R11
+    LDS R4, CS, R10
+    ADD R10, 1
+    LDS R5, CS, R10
+    LD R2, SP, 13
+    LD R3, SP, 14
+    FDIV
+    ST R2, SP, 13
+    ST R3, SP, 14
     JMP LR
     NOP
 
@@ -848,8 +1018,11 @@ fd_cell_2:
     LINK
     JMP R4
     NOP
-    CMP R0, R0
-    JZ fd_done
+    MOV R11, PC
+fd_inf_done:
+    LDI fd_done - fd_inf_done
+    ADD R11, R0
+    MOV PC, R11
     NOP
 fd_nan:
     LDI put_char
@@ -870,8 +1043,11 @@ fd_nan:
     LINK
     JMP R4
     NOP
-    CMP R0, R0
-    JZ fd_done
+    MOV R11, PC
+fd_nan_done:
+    LDI fd_done - fd_nan_done
+    ADD R11, R0
+    MOV PC, R11
     NOP
 
 fd_finite:
@@ -887,6 +1063,27 @@ fd_finite:
     CMP R1, R4
     JNC fd_sci_jump
     NOP
+    ; Zero and denormal inputs stay fixed; f2i flushes them to 0.
+    CMP R1, 0
+    JZ fd_fixed
+    NOP
+    ; |x| < 1e-4 would print 0.0000 fixed; use scientific instead.
+    LDI 0x38D1
+    MOV R4, R0
+    CMP R2, R4
+    JC fd_sci_jump
+    NOP
+    JNZ fd_fixed
+    NOP
+    LDI 0xB7
+    MOV R4, R0
+    SL R4, 8
+    LDI 0x17
+    OR R4, R0
+    CMP R3, R4
+    JC fd_sci_jump
+    NOP
+fd_fixed:
     LSI R1, 0
     MOV R10, PC
 fd_cell_3:
@@ -1100,6 +1297,17 @@ fd_cell_18:
     LDI f_dot_exp - fd_cell_18
     ADD R10, R0
     LDS R2, CS, R10
+    CMP R2, 0
+    JNN fd_exp_positive
+    NOP
+    LDI put_char
+    MOV R4, R0
+    LDI '-'
+    LINK
+    JMP R4
+    NOP
+    NEG R2
+fd_exp_positive:
     LDI print_number
     MOV R3, R0
     LINK
@@ -1145,133 +1353,229 @@ fd_done:
     NOP
 
 fd_sci:
-    ; ---- normalise |x| to m in [1, 10), counting the decimal exponent ----
+    ; Park >IN and TIB. The traps preserve them, but the search and the
+    ; print path use the same cells for other scratch values.
     MOV R10, PC
-fd_cell_19:
-    LDI f_dot_in - fd_cell_19
+fd_sci_in:
+    LDI f_dot_in - fd_sci_in
     ADD R10, R0
-    STS R5, CS, R10            ; park >IN across the library calls
+    STS R5, CS, R10
     MOV R10, PC
-fd_cell_20:
-    LDI f_dot_tib - fd_cell_20
+fd_sci_tib:
+    LDI f_dot_tib - fd_sci_tib
     ADD R10, R0
-    STS R6, CS, R10            ; park TIB too; fdiv32 clobbers R6 and R9
-    LSI R1, 0
-    MOV R10, PC
-fd_cell_21:
-    LDI f_dot_exp - fd_cell_21
-    ADD R10, R0
-    STS R1, CS, R10
+    STS R6, CS, R10
 
-fd_sci_div_loop:
-    ; while m >= 10.0: m /= 10, d++
-    LDI 0x41
-    MOV R1, R0
-    SL R1, 8
-    LDI 0x20
-    OR R1, R0                  ; 0x4120 = 10.0 high
-    CMP R2, R1
-    JC fd_sci_mul_check
-    NOP
-    MOV R6, R2
-    MOV R7, R3
-    LDI 0x41
-    MOV R8, R0
-    SL R8, 8
-    LDI 0x20
-    OR R8, R0
-    LSI R9, 0
-    MOV R11, PC
-fd_sci_div:
-    LDI fdiv32 - fd_sci_div
-    ADD R11, R0
-    LINK
-    JMP R11
-    NOP
-    MOV R2, R6
-    MOV R3, R7
     MOV R10, PC
-fd_cell_22:
-    LDI f_dot_exp - fd_cell_22
+fd_sci_hi0:
+    LDI f_dot_high - fd_sci_hi0
     ADD R10, R0
-    LDS R1, CS, R10
-    ADD R1, 1
-    STS R1, CS, R10
+    LDS R2, CS, R10
+    MOV R10, PC
+fd_sci_lo0:
+    LDI f_dot_low - fd_sci_lo0
+    ADD R10, R0
+    LDS R3, CS, R10
+
+    ; |x| >= 1 uses a binary search for the largest 10^n <= |x|.
+    LDI 0x3F80
+    MOV R4, R0
+    CMP R2, R4
+    JC fd_sci_small
+    NOP
+
+    LSI R6, 0                  ; low
+    LDI 38
+    MOV R7, R0                 ; high
+    LSI R8, 0                  ; best
+fd_sci_bs:
+    CMP R7, R6
+    JN fd_sci_bs_done
+    NOP
+    MOV R9, R6
+    ADD R9, R7
+    SRA R9, 1                  ; mid
+    MOV R10, PC
+fd_sci_tbl:
+    LDI f_ten_powers - fd_sci_tbl
+    ADD R10, R0
+    MOV R11, R9
+    SL R11, 1
+    ADD R10, R11
+    LDS R4, CS, R10
+    ADD R10, 1
+    LDS R5, CS, R10
+    CMP R2, R4
+    JC fd_sci_bs_less
+    NOP
+    JNZ fd_sci_bs_more
+    NOP
+    CMP R3, R5
+    JC fd_sci_bs_less
+    NOP
+fd_sci_bs_more:
+    MOV R8, R9
+    MOV R6, R9
+    ADD R6, 1
     CMP R0, R0
-    JZ fd_sci_div_loop
+    JZ fd_sci_bs
     NOP
-
-fd_sci_mul_check:
-    ; while m < 1.0: m *= 10, d--
-    LDI 0x3F
-    MOV R1, R0
-    SL R1, 8
-    LDI 0x80
-    OR R1, R0                  ; 0x3F80 = 1.0 high
-    CMP R2, R1
-    JNC fd_sci_done
-    NOP
-    MOV R6, R2
-    MOV R7, R3
-    LDI 0x41
-    MOV R8, R0
-    SL R8, 8
-    LDI 0x20
-    OR R8, R0
-    LSI R9, 0
-    MOV R11, PC
-fd_sci_mul:
-    LDI fmul32 - fd_sci_mul
-    ADD R11, R0
-    LINK
-    JMP R11
-    NOP
-    MOV R2, R6
-    MOV R3, R7
-    MOV R10, PC
-fd_cell_23:
-    LDI f_dot_exp - fd_cell_23
-    ADD R10, R0
-    LDS R1, CS, R10
-    SUB R1, 1
-    STS R1, CS, R10
+fd_sci_bs_less:
+    MOV R7, R9
+    SUB R7, 1
     CMP R0, R0
-    JZ fd_sci_mul_check
+    JZ fd_sci_bs
+    NOP
+fd_sci_bs_done:
+    MOV R10, PC
+fd_sci_exp:
+    LDI f_dot_exp - fd_sci_exp
+    ADD R10, R0
+    STS R8, CS, R10
+    CMP R8, 0
+    JZ fd_sci_finish
+    NOP
+    MOV R10, PC
+fd_sci_tbl2:
+    LDI f_ten_powers - fd_sci_tbl2
+    ADD R10, R0
+    MOV R11, R8
+    SL R11, 1
+    ADD R10, R11
+    LDS R4, CS, R10
+    ADD R10, 1
+    LDS R5, CS, R10
+    MOV R10, PC
+fd_sci_hi1:
+    LDI f_dot_high - fd_sci_hi1
+    ADD R10, R0
+    LDS R2, CS, R10
+    MOV R10, PC
+fd_sci_lo1:
+    LDI f_dot_low - fd_sci_lo1
+    ADD R10, R0
+    LDS R3, CS, R10
+    FDIV
+    MOV R10, PC
+fd_sci_hi2:
+    LDI f_dot_high - fd_sci_hi2
+    ADD R10, R0
+    STS R2, CS, R10
+    MOV R10, PC
+fd_sci_lo2:
+    LDI f_dot_low - fd_sci_lo2
+    ADD R10, R0
+    STS R3, CS, R10
+    CMP R0, R0
+    JZ fd_sci_finish
     NOP
 
-fd_sci_done:
+fd_sci_small:
+    ; |x| < 1: multiply the original value by 10^n until it reaches [1,10).
+    LSI R8, 1                  ; n
+fd_sci_small_loop:
+    LDI 39
+    MOV R4, R0
+    CMP R8, R4
+    JNC fd_sci_small_done
+    NOP
     MOV R10, PC
-fd_cell_24:
-    LDI f_dot_in - fd_cell_24
+fd_sci_tbl3:
+    LDI f_ten_powers - fd_sci_tbl3
+    ADD R10, R0
+    MOV R11, R8
+    SL R11, 1
+    ADD R10, R11
+    LDS R4, CS, R10
+    ADD R10, 1
+    LDS R5, CS, R10
+    MOV R10, PC
+fd_sci_hi3:
+    LDI f_dot_high - fd_sci_hi3
+    ADD R10, R0
+    LDS R2, CS, R10
+    MOV R10, PC
+fd_sci_lo3:
+    LDI f_dot_low - fd_sci_lo3
+    ADD R10, R0
+    LDS R3, CS, R10
+    FMUL
+    LDI 0x3F80
+    MOV R4, R0
+    CMP R2, R4
+    JNC fd_sci_small_accept
+    NOP
+    ADD R8, 1
+    CMP R0, R0
+    JZ fd_sci_small_loop
+    NOP
+fd_sci_small_accept:
+    MOV R4, R8
+    NEG R4
+    MOV R10, PC
+fd_sci_small_exp:
+    LDI f_dot_exp - fd_sci_small_exp
+    ADD R10, R0
+    STS R4, CS, R10
+    MOV R10, PC
+fd_sci_hi4:
+    LDI f_dot_high - fd_sci_hi4
+    ADD R10, R0
+    STS R2, CS, R10
+    MOV R10, PC
+fd_sci_lo4:
+    LDI f_dot_low - fd_sci_lo4
+    ADD R10, R0
+    STS R3, CS, R10
+    CMP R0, R0
+    JZ fd_sci_finish
+    NOP
+
+fd_sci_small_done:
+    ; Only a denormal/zero input gets here; the caller keeps those fixed.
+    LSI R8, 0
+    MOV R10, PC
+fd_sci_zero_exp:
+    LDI f_dot_exp - fd_sci_zero_exp
+    ADD R10, R0
+    STS R8, CS, R10
+    LSI R2, 0
+    LSI R3, 0
+    MOV R10, PC
+fd_sci_hi5:
+    LDI f_dot_high - fd_sci_hi5
+    ADD R10, R0
+    STS R2, CS, R10
+    MOV R10, PC
+fd_sci_lo5:
+    LDI f_dot_low - fd_sci_lo5
+    ADD R10, R0
+    STS R3, CS, R10
+
+fd_sci_finish:
+    MOV R10, PC
+fd_sci_in2:
+    LDI f_dot_in - fd_sci_in2
     ADD R10, R0
     LDS R5, CS, R10
     MOV R10, PC
-fd_cell_25:
-    LDI f_dot_tib - fd_cell_25
+fd_sci_tib2:
+    LDI f_dot_tib - fd_sci_tib2
     ADD R10, R0
     LDS R6, CS, R10
     LSI R1, 1
     MOV R10, PC
-fd_cell_26:
-    LDI f_dot_sci - fd_cell_26
+fd_sci_flag:
+    LDI f_dot_sci - fd_sci_flag
     ADD R10, R0
     STS R1, CS, R10
-    MOV R10, PC
-fd_cell_27:
-    LDI f_dot_high - fd_cell_27
-    ADD R10, R0
-    STS R2, CS, R10
-    MOV R10, PC
-fd_cell_28:
-    LDI f_dot_low - fd_cell_28
-    ADD R10, R0
-    STS R3, CS, R10
     MOV R11, PC
 fd_sci_back:
     LDI fd_print - fd_sci_back
     ADD R11, R0
     MOV PC, R11
     NOP
+
 fpu_dot_end:
 
 .org 0x2D2F
@@ -1291,7 +1595,7 @@ sf_build_tramp_l:
     NOP
 fpu_lit_tramp_end:
 
-.org 0x6700
+.org 0x6800
 sf_parse:
     LD R1, SP, 0
     MOV R3, R6
@@ -1416,7 +1720,7 @@ sf_i2f_frac:
     NEG R1                     ; divide by 10^frac_count
     MOV R11, PC
 sf_scale1:
-    LDI lit_scale - sf_scale1
+    LDI lit_scale_frac - sf_scale1
     ADD R11, R0
     LINK
     JMP R11
