@@ -1,11 +1,12 @@
 # Integer ↔ float conversion
 
-Status: **C0/C1 implemented; C2+ pending.** `FPUEMUPLAN.md` §7.2 records that
+Status: **C0/C1/C2 implemented; C3/C4 pending.** `FPUEMUPLAN.md` §7.2 records that
 the FPU specification has no conversions at all. This note fixed the ABI, the
 algorithms, the edge cases and the test strategy before arithmetic was
 written. `asm/softfloat.asm` now has `f_unpack`/`f_pack`, `i2f` and `u2f`;
-`tests/softfloat.test.js` checks the conversions exhaustively. `f2i`, the
-Forth words and the variable-shift `mulshift` remain.
+`tests/softfloat.test.js` checks the conversions exhaustively (including an
+exhaustive `i2f -> f2i` round trip). The Forth words and the variable-shift
+`mulshift` remain.
 
 Companion documents: `FPUEMUPLAN.md` (FPU trap, `SAPF`, phases),
 `archive/ILLTRAP.md` (trap mechanics, `NIO`), `doc/Deep16-FPU.md` (the specification
@@ -44,7 +45,7 @@ body is shared.
 |---|---|---|---|---|
 | `i2f` | `R0`, signed 16-bit | `F0 = R2:R3` | none | `R0`, `R1` |
 | `u2f` | `R0`, unsigned 16-bit | `F0 = R2:R3` | none | `R0`, `R1` |
-| `f2i` | `F0 = R2:R3` | `R0`, signed 16-bit | `N`, `Z`, `V` = clamped | `R0`, `R1`, `R6` |
+| `f2i` | `F0 = R2:R3` | `R0`, signed 16-bit | `R10`: N=bit0, Z=bit1, V=bit2 (C=bit3=0) | `R0`, `R1`, `R6`, `R7`, `R10`, `R11` |
 
 `R4..R12` are preserved. **No memory, no stack, no `DIV`** (see §6). Every
 routine is re-entrant and callable from inside the ILL handler.
@@ -291,7 +292,7 @@ encoding before the first FPU opcode is wired.
 |---|---|---|
 | C0 | **`f_unpack` / `f_pack` done;** `mulshift`+`p2` / `clz24` pending | unit tests against JS bit operations |
 | C1 | **`i2f`, `u2f` done** | exhaustive against `Math.fround` on JS (RTL sampled through the FPU vector harness) |
-| C2 | `f2i` pending | boundary table + invariant + round trip |
+| C2 | **`f2i` done** | boundary table + invariant + exhaustive round trip |
 | C3 | wire into `fadd32` golden vectors | FADD vectors readable, no hand-built patterns |
 | C4 | Forth words `s>f`, `f>s`, `u>f` | dictionary test |
 
@@ -322,8 +323,9 @@ than before, so it should be an explicit decision rather than an inheritance.
 
 ## 13. Open questions
 
-1. **`f2i` flags**: `V` only (recommended, and what §5.3 assumes), or `V` plus
-   `C = inexact`? Decide before the tests, because the tests encode it.
+1. **`f2i` flags**: decided - `V` only for clamping, plus the ordinary `N`/`Z`
+   of the result. `C` is not an inexact flag. The library returns the nibble in
+   `R10` so it can also be called from inside the ILL handler.
 2. **NaN → `0` or NaN → `32767`?** §5.3 assumes `0`; the alternative is
    "largest negative / largest positive" style saturation. It must match what
    `F.` does when it prints a NaN.

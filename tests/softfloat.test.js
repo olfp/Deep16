@@ -115,6 +115,8 @@ function binaryProgram(routine, a, b) {
     ST R6, R5, 0
     ADD R5, 1
     ST R7, R5, 0
+    ADD R5, 1
+    ST R10, R5, 0
     HALT
 .org 0x0200
     .word 0x${((a >>> 16) & 0xFFFF).toString(16)}
@@ -291,5 +293,154 @@ test('fsub32 matches an exact BigInt reference across exponent differences', () 
     const { sim } = runJsProgram(source);
     assert.equal(binaryResult(sim), truncSubtract(a >>> 0, b >>> 0) >>> 0,
                  `fsub32 ${hex(a)} - ${hex(b)}`);
+  }
+});
+
+function f2iProgram(valueBits) {
+  return `
+.org 0
+    LDI f2i
+    MOV R5, R0
+    LDI 0x0200
+    MOV R8, R0
+    LD R2, R8, 0
+    LD R3, R8, 1
+    LINK
+    JMP R5
+    NOP
+    MOV R6, R0
+    MOV R7, R10
+    LDI 0x0300
+    MOV R9, R0
+    ST R6, R9, 0
+    ADD R9, 1
+    ST R7, R9, 0
+    HALT
+.org 0x0200
+    .word 0x${((valueBits >>> 16) & 0xFFFF).toString(16)}
+    .word 0x${(valueBits & 0xFFFF).toString(16)}
+`;
+}
+
+test('f2i truncates, clamps and reports N/Z/V', () => {
+  const cases = [
+    [0x00000000, 0, 0x2],                 // +0 -> Z
+    [0x80000000, 0, 0x2],                 // -0 -> Z
+    [0x3F800000, 1, 0x0],                 // 1.0
+    [bitsOf(1.9999), 1, 0x0],             // truncates toward zero
+    [bitsOf(-1.9999), 0xFFFF, 0x1],       // -1, N
+    [bitsOf(0.9999), 0, 0x2],             // < 1 -> 0
+    [bitsOf(-0.9999), 0, 0x2],
+    [bitsOf(32767.9), 0x7FFF, 0x0],       // representable after truncation
+    [bitsOf(32768.0), 0x7FFF, 0x4],       // clamp, V
+    [bitsOf(-32768.0), 0x8000, 0x1],      // exact -32768, no V
+    [bitsOf(-32768.9), 0x8000, 0x5],      // clamp, N|V
+    [0x7F800000, 0x7FFF, 0x4],            // +Inf -> +32767, V
+    [0xFF800000, 0x8000, 0x5],            // -Inf -> -32768, N|V
+    [0x7FC00000, 0, 0x6],                 // NaN -> 0, Z|V
+    [bitsOf(65536.0), 0x7FFF, 0x4],
+    [0x00000001, 0, 0x2],                 // denormal flushed
+    [0x80000001, 0, 0x2],
+  ];
+  for (const [bits, wantResult, wantFlags] of cases) {
+    const { sim } = runJsProgram(f2iProgram(bits));
+    assert.equal(sim.memory[0x300], wantResult, `f2i(${hex(bits)}) result`);
+    assert.equal(sim.memory[0x301], wantFlags, `f2i(${hex(bits)}) flags`);
+  }
+});
+
+test('i2f -> f2i round-trips every 16-bit value and V stays clear', () => {
+  const source = `
+.org 0
+    LDI 0x1000
+    MVS DS, R0
+    LDI 0x2000
+    MVS ES, R0
+    LDI 0
+    MOV R4, R0
+loop:
+    LDI i2f
+    MOV R5, R0
+    MOV R0, R4
+    LINK
+    JMP R5
+    NOP
+    LDI f2i
+    MOV R5, R0
+    LINK
+    JMP R5
+    NOP
+    STS R0, DS, R4
+    STS R10, ES, R4
+    ADD R4, 1
+    CMP R4, 0
+    JNZ loop
+    NOP
+    HALT
+`;
+  const { sim } = runJsProgram(source, 12000000);
+  for (let word = 0; word <= 0xFFFF; word++) {
+    const wantFlags = ((word & 0x8000) ? 1 : 0) | (word === 0 ? 2 : 0);
+    assert.equal(sim.memory[0x10000 + word], word, `round trip ${word}`);
+    assert.equal(sim.memory[0x20000 + word], wantFlags, `round-trip flags ${word}`);
+  }
+});
+
+function compareReference(aBits, bBits) {
+  const view = new DataView(new ArrayBuffer(8));
+  view.setUint32(0, aBits >>> 0);
+  view.setUint32(4, bBits >>> 0);
+  const a = view.getFloat32(0);
+  const b = view.getFloat32(4);
+  if (Number.isNaN(a) || Number.isNaN(b)) return 0x4;
+  if (a === b) return 0x2;
+  if (a < b) return 0x1;
+  return 0;
+}
+
+test('fcmp32 orders signed floats, zeros and NaNs', async () => {
+  const cases = [
+    [f32(0x3F80, 0), f32(0x3F80, 0), 0x2],
+    [f32(0x3F80, 0), f32(0x4000, 0), 0x1],
+    [f32(0x4000, 0), f32(0x3F80, 0), 0x0],
+    [f32(0xBF80, 0), f32(0x3F80, 0), 0x1],
+    [f32(0x3F80, 0), f32(0xBF80, 0), 0x0],
+    [f32(0xBF80, 0), f32(0xC000, 0), 0x0],
+    [f32(0xC000, 0), f32(0xBF80, 0), 0x1],
+    [0x00000000, 0x80000000, 0x2],
+    [0x80000000, f32(0x3F80, 0), 0x1],
+    [0x00000000, f32(0xBF80, 0), 0x0],
+    [f32(0x7F80, 0), f32(0x3F80, 0), 0x0],
+    [f32(0x3F80, 0), f32(0x7F80, 0), 0x1],
+    [f32(0xFF80, 0), f32(0x3F80, 0), 0x1],
+    [f32(0x7F80, 0), f32(0x7F80, 0), 0x2],
+    [f32(0x7FC0, 0), f32(0x3F80, 0), 0x4],
+    [f32(0x3F80, 0), f32(0x7FC0, 0), 0x4],
+    [f32(0x7FC0, 0), f32(0x7FC0, 0), 0x4],
+    [0x00000001, 0x00000000, 0x2],
+    [f32(0x3F80, 0), f32(0x3F7F, 0xFFFF), 0x0],
+    [f32(0x3F7F, 0xFFFF), f32(0x3F80, 0), 0x1],
+  ];
+  for (const [a, b, want] of cases) {
+    const { sim } = runJsProgram(binaryProgram('fcmp32', a, b));
+    assert.equal(sim.memory[0x302], want, `fcmp32 ${hex(a)} ? ${hex(b)}`);
+
+    const rtl = await runRtlProgram(binaryProgram('fcmp32', a, b));
+    assert.equal(rtl.memoryAt(0x302, 1)[0], want, `RTL fcmp32 ${hex(a)} ? ${hex(b)}`);
+  }
+});
+
+test('fcmp32 matches JS ordering on random finite pairs', () => {
+  let seed = 0x5EED;
+  const rnd = () => {
+    seed = (Math.imul(seed, 1103515245) + 12345) >>> 0;
+    return seed;
+  };
+  for (let i = 0; i < 100; i++) {
+    const a = ((rnd() & 1) << 31) | ((1 + (rnd() % 254)) << 23) | (rnd() & 0x7FFFFF);
+    const b = ((rnd() & 1) << 31) | ((1 + (rnd() % 254)) << 23) | (rnd() & 0x7FFFFF);
+    const { sim } = runJsProgram(binaryProgram('fcmp32', a >>> 0, b >>> 0));
+    assert.equal(sim.memory[0x302], compareReference(a >>> 0, b >>> 0),
+                 `fcmp32 ${hex(a)} ? ${hex(b)}`);
   }
 });

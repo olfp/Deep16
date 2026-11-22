@@ -2,7 +2,7 @@
 
 Status: **P0-P2 implemented; P3 layer 1+2 slice implemented.** Written against
 `932815c` ("Snapshot: D16nano tile console, ILL trap, 720p DVI"). P3 still
-needs FDIV/FSQRT/FCMP and a placement decision; P4+ remain design.
+needs FDIV/FSQRT and a placement decision; P4+ remain design.
 
 ---
 
@@ -411,15 +411,19 @@ unit-tested by loading registers and calling it.
 ### 7.3 P3 slice implemented (2026-11)
 
 `asm/softfloat.asm` now contains the layer-1 helpers (`f_unpack`, `f_pack`),
-`i2f`/`u2f`, `fadd32`/`fsub32`, and `fmul24`/`fmul32`. `tests/softfloat.test.js`
-checks:
+`i2f`/`u2f`/`f2i`, `fadd32`/`fsub32`, `fmul24`/`fmul32`, and `fcmp32`.
+`tests/softfloat.test.js` checks:
 
-- `i2f` and `u2f` exhaustively over all 65,536 inputs;
+- `i2f` and `u2f` exhaustively over all 65,536 inputs, and `i2f -> f2i`
+  round-trips all 65,536 values;
+- the `f2i` clamp/truncation table, including NaN, infinities and both zeros;
 - 100 deterministic 24×24 mantissa products against a BigInt reference;
 - FADD/FSUB/FMUL vectors (including +/-Inf, NaN, signed zero, overflow,
-  underflow and the sub-ulp truncation cases) on the JS and RTL cores.
+  underflow and the sub-ulp truncation cases) on the JS and RTL cores;
+- FCMP vectors (signed order, infinities, zeros, NaN) plus 100 random finite
+  pairs against JS ordering.
 
-Measured size: **836 words** from `f_unpack` through `fmul_ret`. That is the
+Measured size: **1,065 words** from `f_unpack` through `fcmp_ret`. That is the
 placement problem the plan warned about: it does not fit the two BIOS holes
 P1 used (0x4E4C..0x4EAF and 0x5143..0x519F), and it is too big for the D16D
 BIOS copy. P4 must either place it in the flat image and reach it through a
@@ -512,7 +516,7 @@ kernel is loaded at `0x5000`, so it competes with the demo area there.
 | P0 | `SAPF` in assembler, disassembler, both RTL cores, JS, WASM; arch doc | Encoding tests + a shadow-bank test that `SAPF` sets the restored flags |
 | P1 | **Done.** General undefined-opcode trap in all four cores | A reserved word traps on every core; double fault is diagnosable |
 | P2 | **Done.** `SAPF` in the DIV/DIV32 handler (§4) | `tests/ill-trap.test.js` covers zero, negative and positive quotients for DIV and DIV32 |
-| P3 | **In progress.** Layer 1 + `i2f`/`u2f`/FADD/FSUB/FMUL in `asm/softfloat.asm` | `tests/softfloat.test.js` passes: exhaustive conversions, 100 random mantissa products, JS+RTL vectors. Remaining: FDIV/FSQRT/FCMP and f2i |
+| P3 | **In progress.** Layer 1 + `i2f`/`u2f`/`f2i`/FADD/FSUB/FMUL/FCMP in `asm/softfloat.asm` | `tests/softfloat.test.js` passes: exhaustive conversions and round trip, `f2i` boundaries, 100 random mantissa products, FADD/FSUB/FMUL and FCMP JS+RTL vectors. Remaining: FDIV/FSQRT |
 | P4 | FPU decode + dispatch in the ILL handler (FADD/FSUB/FMUL/FCMP) | `tests/ill-trap.test.js` covers the four ops |
 | P5 | FDIV, FSQRT | ditto |
 | P6 | FEXP, FLOG — or never | — |

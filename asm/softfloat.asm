@@ -213,6 +213,162 @@ u2f:
     JMP R0
     NOP
 
+; ---- f2i ---------------------------------------------------------------
+; F0 = R2:R3 -> R0, signed 16-bit, truncating toward zero.
+; Returns comparison/clamp flags in R10: N = bit 0, Z = bit 1, V = bit 2,
+; C = bit 3 (always 0). V means "not representable, clamped"; NaN gives 0
+; with V set. Clobbers R0, R1, R6, R7, R10, R11; preserves R2..R5, R8, R9,
+; R12.
+f2i:
+    MOV R12, LR
+    MOV R6, R2
+    MOV R7, R3
+    LDI f_unpack
+    LINK
+    JMP R0
+    NOP
+    MOV R7, R10                ; sign
+    LSI R10, 0                 ; flags
+    CMP R11, 0
+    JNZ f2i_exp_ok
+    NOP
+    CMP R0, R0
+    JZ f2i_zero
+    NOP
+f2i_exp_ok:
+    LSI R6, 15
+    SL R6, 4
+    ADD R6, 15                 ; 255
+    CMP R11, R6
+    JZ f2i_special
+    NOP
+    LSI R6, 8
+    SL R6, 4
+    SUB R6, 1                  ; 127
+    SUB R11, R6                ; u = exp - 127
+    CMP R11, 0
+    JN f2i_zero
+    NOP
+    LSI R6, 15
+    CMP R11, R6
+    JNC f2i_clamp
+    NOP
+    ; 0 <= u <= 14: V = mant[23:8], then shift right 15-u
+    MOV R6, R0
+    SL R6, 8
+    MOV R0, R1
+    SR R0, 8
+    OR R6, R0
+    LSI R0, 15
+    SUB R0, R11
+    MOV R11, R0                ; count = 15-u
+f2i_shift:
+    CMP R11, 0
+    JZ f2i_apply_sign
+    NOP
+    SR R6, 1
+    SUB R11, 1
+    CMP R0, R0
+    JZ f2i_shift
+    NOP
+f2i_apply_sign:
+    CMP R7, 0
+    JZ f2i_store
+    NOP
+    LDI 0
+    SUB R0, R6
+    MOV R6, R0
+f2i_store:
+    MOV R0, R6
+    CMP R0, 0
+    JNZ f2i_set_n
+    NOP
+    OR R10, 1                  ; Z
+    CMP R0, R0
+    JZ f2i_ret
+    NOP
+f2i_set_n:
+    MOV R6, R0
+    SR R6, 15
+    CMP R6, 0
+    JZ f2i_ret
+    NOP
+    OR R10, 0                  ; N
+    CMP R0, R0
+    JZ f2i_ret
+    NOP
+
+f2i_zero:
+    LSI R0, 0
+    OR R10, 1                  ; Z
+    CMP R0, R0
+    JZ f2i_ret
+    NOP
+
+f2i_special:
+    LSI R6, 8
+    SL R6, 4                   ; 0x80
+    CMP R0, R6
+    JNZ f2i_nan
+    NOP
+    CMP R1, 0
+    JNZ f2i_nan
+    NOP
+    CMP R0, R0
+    JZ f2i_clamp
+    NOP
+f2i_nan:
+    LSI R0, 0
+    OR R10, 1                  ; Z
+    OR R10, 2                  ; V
+    CMP R0, R0
+    JZ f2i_ret
+    NOP
+
+f2i_clamp:
+    CMP R7, 0
+    JZ f2i_clamp_pos
+    NOP
+    LSI R6, 15
+    CMP R11, R6
+    JNZ f2i_clamp_neg
+    NOP
+    LSI R6, 8
+    SL R6, 4
+    CMP R0, R6
+    JNZ f2i_clamp_neg
+    NOP
+    CMP R1, 0
+    JNZ f2i_clamp_neg
+    NOP
+    ; exact -32768.0
+    LSI R0, 1
+    SL R0, 15
+    OR R10, 0                  ; N
+    CMP R0, R0
+    JZ f2i_ret
+    NOP
+f2i_clamp_neg:
+    LSI R0, 1
+    SL R0, 15                  ; -32768
+    OR R10, 0                  ; N
+    OR R10, 2                  ; V
+    CMP R0, R0
+    JZ f2i_ret
+    NOP
+f2i_clamp_pos:
+    LDI 0
+    SUB R0, 1
+    SR R0, 1                   ; 32767
+    OR R10, 2                  ; V
+    CMP R0, R0
+    JZ f2i_ret
+    NOP
+f2i_ret:
+    MOV LR, R12
+    JMP LR
+    NOP
+
 ; ---- fadd32 / fsub32 ---------------------------------------------------
 ; A in R6:R7, B in R8:R9, result in R6:R7.
 ; Truncation policy: addition discards the aligned tail. Subtraction with
@@ -1046,6 +1202,124 @@ fmul_pack:
     JMP R7
     NOP
 fmul_ret:
+    MOV LR, R12
+    JMP LR
+    NOP
+
+; ---- fcmp32 ------------------------------------------------------------
+; A in R6:R7, B in R8:R9. Returns flags in R10:
+; N = bit 0 (A < B), Z = bit 1 (A == B; +0 == -0), V = bit 2 (unordered,
+; either operand is NaN), C = bit 3 (always 0).
+; Clobbers R0..R11; preserves R12 (restored), R13, R14, R15.
+fcmp32:
+    MOV R12, LR
+    LDI f_unpack
+    LINK
+    JMP R0
+    NOP
+    MOV R2, R10                ; signA
+    MOV R3, R11                ; expA
+    MOV R4, R0                 ; mantA high
+    MOV R5, R1                 ; mantA low
+    MOV R6, R8
+    MOV R7, R9
+    LDI f_unpack
+    LINK
+    JMP R0
+    NOP
+    MOV R8, R10                ; signB
+    MOV R9, R11                ; expB
+    ; mantB R0:R1
+    LSI R10, 0                 ; flags
+    LSI R6, 15
+    SL R6, 4
+    ADD R6, 15                 ; 255
+    LSI R7, 8
+    SL R7, 4                   ; 0x80
+    CMP R3, R6
+    JNZ fcmp_check_b
+    NOP
+    CMP R4, R7
+    JNZ fcmp_nan
+    NOP
+    CMP R5, 0
+    JNZ fcmp_nan
+    NOP
+fcmp_check_b:
+    CMP R9, R6
+    JNZ fcmp_finite
+    NOP
+    CMP R0, R7
+    JNZ fcmp_nan
+    NOP
+    CMP R1, 0
+    JNZ fcmp_nan
+    NOP
+fcmp_finite:
+    CMP R2, R8
+    JZ fcmp_same
+    NOP
+    ; signs differ: both zero is equal, otherwise N = signA
+    CMP R4, 0
+    JNZ fcmp_diff
+    NOP
+    CMP R5, 0
+    JNZ fcmp_diff
+    NOP
+    CMP R0, 0
+    JNZ fcmp_diff
+    NOP
+    CMP R1, 0
+    JZ fcmp_equal
+    NOP
+fcmp_diff:
+    CMP R2, 0
+    JZ fcmp_ret
+    NOP
+    OR R10, 0                  ; A negative -> A < B
+    CMP R0, R0
+    JZ fcmp_ret
+    NOP
+fcmp_same:
+    CMP R3, R9
+    JC fcmp_mag_b
+    NOP
+    JNZ fcmp_mag_a
+    NOP
+    CMP R4, R0
+    JC fcmp_mag_b
+    NOP
+    JNZ fcmp_mag_a
+    NOP
+    CMP R5, R1
+    JC fcmp_mag_b
+    NOP
+fcmp_equal:
+    OR R10, 1
+    CMP R0, R0
+    JZ fcmp_ret
+    NOP
+fcmp_mag_a:
+    ; |A| > |B|
+    CMP R2, 0
+    JZ fcmp_ret
+    NOP
+    OR R10, 0                  ; both negative -> A < B
+    CMP R0, R0
+    JZ fcmp_ret
+    NOP
+fcmp_mag_b:
+    ; |A| < |B|
+    CMP R2, 0
+    JNZ fcmp_ret
+    NOP
+    OR R10, 0                  ; both positive -> A < B
+    CMP R0, R0
+    JZ fcmp_ret
+    NOP
+fcmp_nan:
+    OR R10, 2                  ; unordered
+fcmp_ret:
     MOV LR, R12
     JMP LR
     NOP
