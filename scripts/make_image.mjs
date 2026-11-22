@@ -105,6 +105,10 @@ export function buildImage() {
   if (D16D && !D16SEG) {
     throw new Error('the D16D image needs D16SEG=1 (the segmented kernel)');
   }
+  if (FPU && BAKE_PACMAN) {
+    throw new Error('BAKE_PACMAN=1 is incompatible with the FPU float literal parser ' +
+                    '(the parser uses the 0x4330 pacman gap)');
+  }
   if (FPU && !NANO) {
     throw new Error('FPU=1 needs D16NANO=1 (the FPU trap lives in the nano ILL handler)');
   }
@@ -144,6 +148,18 @@ export function buildImage() {
     }
     if (sym.fpu_dot_end > WINDOW) {
       throw new Error(`f. ends at 0x${sym.fpu_dot_end.toString(16)}, over the window`);
+    }
+    if (sym.fpu_lit_end > 0x4400) {
+      throw new Error(`the float literal scanner ends at 0x${sym.fpu_lit_end.toString(16)}, ` +
+                      'over the 0x4330..0x43FF gap');
+    }
+    if (sym.fpu_lit_parse_end > sym.scan_float) {
+      throw new Error(`the float literal parser ends at 0x${sym.fpu_lit_parse_end.toString(16)}, ` +
+                      `over the scanner at 0x${sym.scan_float.toString(16)}`);
+    }
+    if (sym.fpu_lit_build_end > WINDOW) {
+      throw new Error(`the float literal build ends at 0x${sym.fpu_lit_build_end.toString(16)}, ` +
+                      'over the image window');
     }
   }
   const biosWords = (() => {

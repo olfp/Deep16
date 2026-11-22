@@ -170,13 +170,15 @@ and prints everything when they are not, so `123 s>d 8 d.r` is `     123` and
 
 FPU images (`D16D`, or a `D16SEG` build with `FPU=1`) append
 `asm/forth_float.asm`. A float is IEEE-754 single precision in **two cells,
-high half on top**, the same order as a double. There are no float literal
-tokens yet, so build one from integers or raw cells:
+high half on top**, the same order as a double. Float literals use the usual
+`[-]digits[.digits][e[+/-]digits]` form:
 
 ```text
-0 16320 0 16400 f+ f.      \ 1.5 + 2.25: prints 3.7500
+1.5 2.25 f+ f.             \ 3.7500
+1e3 f.                     \ 1000.0000
+1.5e-2 f.                  \ 0.0149 (four fixed fractional digits)
 3 s>f f>s .                \ 3
-0 16320 f.                 \ 1.5000
+: half 0.5 ; half f.       \ 0.5000
 ```
 
 | word | stack effect | meaning |
@@ -210,8 +212,14 @@ do not print a stack-underflow error.
 `f.` prints a sign, the integer part and exactly four fractional digits
 (`1.5000`). It covers values whose integer part fits a signed 16-bit cell;
 larger finite values print `ovf`, NaN prints `nan` and infinities print `inf`.
-`FEXP`/`FLOG` still return the canonical NaN (0x7FC00000), and float literals
-are not implemented yet.
+
+A float literal is recognized by the number scanner. The integer part may be
+up to five digits and the fraction up to four; extra fraction digits are
+validated but ignored. Interpreted, the literal pushes its two cells (high
+half on top); compiled, it emits `LIT low LIT high`. Anything that does not
+match the grammar (`1.`, `1e`, `1..5`) falls back to the ordinary word scan
+and is reported as an undefined word. `FEXP`/`FLOG` still return the canonical
+NaN (0x7FC00000).
 
 ## Stack
 

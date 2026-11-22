@@ -383,7 +383,9 @@ sign-extends.
 Build recipe: assemble `asm/forth_nano.asm`, `asm/softfloat.asm` and
 `asm/forth_float.asm` with `CONSOLE_UART`, `D16NANO`, `FPU_KERNEL` and
 `FPU_WORDS` defined. The library places itself at `0x5800`; the Forth words
-place themselves at `0x417D`. `scripts/make_image.mjs` does this whenever
+place themselves at `0x417D`, and the float-literal scanner uses the free
+`0x4330` gap, the `0x42EC` parse slot, the `0x48A9` probe slot and the tail
+after `f.` for its build half. `scripts/make_image.mjs` does this whenever
 `D16D` is set (or `D16NANO=1 D16SEG=1 FPU=1` for a test image), and
 `js/deep16_d16d_image.js` appends the same sources when they are passed as
 `softfloat` and `forthFloat`.
@@ -482,12 +484,21 @@ truncating reference.
 ### 7.4 Forth surface
 
 `asm/forth_float.asm` is appended after the library when `FPU_WORDS` is
-defined. Its headers and main code live in the free `0x417D..0x42EB` gap,
-below the `0x4330` BAKE_PACMAN block, and its headers link the oldest float
-word to `h_segbase`; `forth_wl` names `h_fdot`. The `f.` printer starts at
-`fpu_lib_end` (above the library at `0x5E5D`), and its CS-relative scratch
-cells sit in the free `0x1F3C..0x1F45` gap so an `LDI` address reaches them
-without sign-extending.
+defined. Its headers and main code live in the free `0x417D..0x42EB` gap, and
+its headers link the oldest float word to `h_segbase`; `forth_wl` names
+`h_fdot`. The `f.` printer starts at `fpu_lib_end` (above the library at
+`0x5E5D`), and its CS-relative scratch cells sit in the free `0x1F3C..0x1F45`
+gap so an `LDI` address reaches them without sign-extending.
+
+The float-literal scanner is split so it does not touch any D16D code block:
+the probe lives at `0x48A9` (below the BIOS/showcase), the scan/validate half
+uses `0x4330..0x43FF`, the parse half `0x42EC..0x432F`, the low trampolines
+`0x2D2F`, and the build half sits after `f.` in the tail. The scanner keeps
+its state in fifteen cells it allocates on the data stack, so it needs no
+fixed cell block, and it saves the caller's `R10` in the `0x18E7` cell. The
+BAKE_PACMAN block also starts at `0x4330`, so `FPU` and `BAKE_PACMAN` are
+mutually exclusive; the build says so instead of silently overwriting the
+scanner.
 
 A float is two cells with the high half on top, like the kernel's double-cell
 words. `f+` reads B from `SP+0/1` and A from `SP+2/3`, puts them in
@@ -508,9 +519,15 @@ uses `f2i`/`i2f` and the FADD/FMUL traps; the integer part is limited to the
 signed-16-bit range, so larger finite values print `ovf`. NaN and infinities
 print `nan`/`inf`.
 
-Deferred: float literals and `FEXP`/`FLOG` (still canonical NaN).
+Float literals use `[-]digits[.digits][e[+/-]digits]`. The integer part is
+limited to five digits and the fraction to four; extra fraction digits are
+validated and ignored. Interpreted, the literal pushes its two cells (high on
+top); compiled, it emits `LIT low LIT high`. Anything that does not match the
+grammar falls back to the ordinary word scanner.
+
+Deferred: `FEXP`/`FLOG` (still canonical NaN).
 `tests/forth-float.test.js` boots the D16SEG nano kernel and types real Forth
-lines for every implemented word, including `f.` and the shufflers.
+lines for every implemented word, including literals, `f.` and the shufflers.
 
 ---
 
@@ -645,5 +662,4 @@ and can proceed in parallel with them.
 4. **Assembler mnemonics**: implemented. `FADD`/`FMUL`/`FDIV`/`FSQRT`/`FEXP`/
    `FLOG`/`FCMP` assemble to their trap words and disassemble back.
 5. **Forth surface**: implemented for arithmetic, comparisons, conversions,
-   memory, the stack shufflers and `f.` printing. Float literal tokens are
-   still open.
+   memory, the stack shufflers, `f.` printing and float literal tokens.

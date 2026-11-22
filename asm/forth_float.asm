@@ -437,10 +437,343 @@ f_dot_divisors:
     .word 1
 fpu_dot_cells_end:
 
+; The float-literal scanner keeps its state in fifteen cells it allocates on
+; the data stack, so no fixed DS/CS cell block is needed. This one cell parks
+; the caller's R10 (the threaded-code W) across a scan.
+.org 0x18E7
+lit_save_r10:
+    .word 0
+fpu_lit_cells_end:
+
+
+
+; ---- float literal scanner ----------------------------------------------
+; The tokenizer calls scan_float for every token. The grammar is
+;   [-]digits[.digits][e[+/-]digits]
+; A token without a dot or an exponent is left to the ordinary integer/word
+; scanner. The first pass is register-only and validates the token; the
+; second pass parses the integer and fraction digits. The integer part is
+; limited to five digits and the fraction to four (extra fraction digits are
+; validated and ignored). Nothing is pushed or compiled until the whole token
+; has validated; on any error >IN goes back to the token start.
+.org 0x4330
+scan_float:
+    LDI 0x18E7
+    MOV R11, R0
+    STS R10, CS, R11           ; save the caller's W
+    SUB SP, 15
+    ST R5, SP, 0               ; token start
+    LSI R1, 0
+    ST R1, SP, 2               ; sign
+    ST R1, SP, 3               ; dot
+    ST R1, SP, 4               ; integer digit count
+    ST R1, SP, 5               ; fraction digit count
+    ST R1, SP, 6               ; exponent seen
+    ST R1, SP, 7               ; exponent value
+    ST R1, SP, 8               ; exponent sign
+
+    MOV R3, R6
+    ADD R3, R5
+    LD R2, R3, 0
+    LDI '-'
+    CMP R2, R0
+    JNZ sf_scan
+    NOP
+    LSI R1, 1
+    ST R1, SP, 2
+    ADD R3, 1
+
+sf_scan:
+    LD R2, R3, 0
+    LDI '0'
+    CMP R2, R0
+    JN sf_reject_tramp
+    NOP
+    LDI '9'
+    CMP R0, R2
+    JN sf_reject_tramp
+    NOP
+
+    LSI R4, 0
+sf_int_loop:
+    LD R2, R3, 0
+    LDI '0'
+    CMP R2, R0
+    JN sf_int_done
+    NOP
+    LDI '9'
+    CMP R0, R2
+    JN sf_int_done
+    NOP
+    ADD R3, 1
+    ADD R4, 1
+    CMP R0, R0
+    JZ sf_int_loop
+    NOP
+sf_int_done:
+    LDI 6
+    CMP R4, R0
+    JN sf_int_ok
+    NOP
+    CMP R0, R0
+    JZ sf_reject_tramp
+    NOP
+sf_int_ok:
+    ST R4, SP, 4
+
+    LD R2, R3, 0
+    LDI '.'
+    CMP R2, R0
+    JNZ sf_exp_scan
+    NOP
+    LSI R1, 1
+    ST R1, SP, 3
+    ADD R3, 1
+    LD R2, R3, 0
+    LDI '0'
+    CMP R2, R0
+    JN sf_reject_tramp
+    NOP
+    LDI '9'
+    CMP R0, R2
+    JN sf_reject_tramp
+    NOP
+    LSI R7, 0
+sf_frac_loop:
+    LD R2, R3, 0
+    LDI '0'
+    CMP R2, R0
+    JN sf_frac_done
+    NOP
+    LDI '9'
+    CMP R0, R2
+    JN sf_frac_done
+    NOP
+    ADD R3, 1
+    ADD R7, 1
+    CMP R0, R0
+    JZ sf_frac_loop
+    NOP
+sf_frac_done:
+    LDI 4
+    CMP R7, R0
+    JN sf_frac_store
+    NOP
+    MOV R7, R0
+sf_frac_store:
+    ST R7, SP, 5
+    CMP R0, R0
+    JZ sf_exp_scan
+    NOP
+sf_exp_scan:
+    CMP R0, R0
+    JZ sf_exp_scan_go
+    NOP
+sf_reject_tramp:
+    LDI sf_reject
+    MOV PC, R0
+    NOP
+sf_exp_scan_go:
+    LD R2, R3, 0
+    LDI 'e'
+    CMP R2, R0
+    JZ sf_exp
+    NOP
+    LDI 'E'
+    CMP R2, R0
+    JZ sf_exp
+    NOP
+    CMP R0, R0
+    JZ sf_scan_end
+    NOP
+sf_exp:
+    LSI R1, 1
+    ST R1, SP, 6
+    ADD R3, 1
+    LD R2, R3, 0
+    LDI '+'
+    CMP R2, R0
+    JZ sf_exp_skip
+    NOP
+    LDI '-'
+    CMP R2, R0
+    JNZ sf_exp_digits
+    NOP
+    LSI R1, 1
+    ST R1, SP, 8
+sf_exp_skip:
+    ADD R3, 1
+sf_exp_digits:
+    LD R2, R3, 0
+    LDI '0'
+    CMP R2, R0
+    JN sf_reject_tramp
+    NOP
+    LDI '9'
+    CMP R0, R2
+    JN sf_reject_tramp
+    NOP
+    LSI R7, 0
+sf_exp_loop:
+    LD R2, R3, 0
+    LDI '0'
+    CMP R2, R0
+    JN sf_exp_done
+    NOP
+    LDI '9'
+    CMP R0, R2
+    JN sf_exp_done
+    NOP
+    LDI '0'
+    SUB R2, R0
+    MOV R4, R7
+    LDI 10
+    MUL R4, R0
+    ADD R4, R2
+    LDI 99
+    CMP R4, R0
+    JN sf_exp_ok
+    NOP
+    MOV R4, R0
+sf_exp_ok:
+    MOV R7, R4
+    ADD R3, 1
+    CMP R0, R0
+    JZ sf_exp_loop
+    NOP
+sf_exp_done:
+    ST R7, SP, 7
+    CMP R0, R0
+    JZ sf_scan_end
+    NOP
+sf_scan_end:
+    LD R2, R3, 0
+    LDI 0
+    CMP R2, R0
+    JZ sf_token_end
+    NOP
+    LDI ' '
+    CMP R2, R0
+    JZ sf_token_end
+    NOP
+    CMP R0, R0
+    JZ sf_reject_tramp
+    NOP
+
+sf_token_end:
+    MOV R1, R3
+    SUB R1, R6
+    ST R1, SP, 1
+    LD R1, SP, 4
+    CMP R1, 0
+    JZ sf_reject_tramp
+    NOP
+    LD R1, SP, 3
+    CMP R1, 0
+    JZ sf_kind
+    NOP
+    LD R1, SP, 5
+    CMP R1, 0
+    JZ sf_reject_tramp
+    NOP
+sf_kind:
+    LD R1, SP, 3
+    CMP R1, 0
+    JNZ sf_parse_jump
+    NOP
+    LD R1, SP, 6
+    CMP R1, 0
+    JZ sf_reject_tramp
+    NOP
+sf_parse_jump:
+    LDI sf_parse_tramp
+    MOV PC, R0
+    NOP
+fpu_lit_end:
+
+; The build half lives below 0x4000 so its LDI cell accesses and local jumps
+; stay short. It still reaches the library/traps above 0x4000 with PC-relative
+; calls.
+
+
 .org fpu_lib_end
-; f. ( f -- ) prints a fixed-point decimal: sign, integer part and four
-; fractional digits. Values whose integer part does not fit f2i's signed
-; 16-bit result print "ovf"; the special values print "nan"/"inf".
+; lit_scale: R1 is a signed count. While it is positive, multiply the value
+; at SP+13/14 by 10.0; while it is negative, divide by 10.0. The trap
+; preserves SP and R6/R8.
+lit_scale:
+    CMP R1, 0
+    JZ lit_scale_done
+    NOP
+    JN lit_scale_neg
+    NOP
+    SUB R1, 1
+    LD R2, SP, 13
+    LD R3, SP, 14
+    LDI 0x2090
+    MOV R4, R0
+    SL R4, 1                   ; 0x4120 = 10.0 high
+    LSI R5, 0
+    FMUL
+    CMP R0, R0
+    JZ lit_scale_save
+    NOP
+    CMP R0, R0
+    JZ lit_scale
+    NOP
+lit_scale_neg:
+    ADD R1, 1
+    LD R2, SP, 13
+    LD R3, SP, 14
+    LDI 0x2090
+    MOV R4, R0
+    SL R4, 1
+    LSI R5, 0
+    FDIV
+lit_scale_save:
+    ST R2, SP, 13
+    ST R3, SP, 14
+    CMP R0, R0
+    JZ lit_scale
+    NOP
+lit_scale_done:
+    JMP LR
+    NOP
+
+; lit_commit: R2 = high, R3 = low. Push the two cells or compile LIT low /
+; LIT high, then return to the caller.
+lit_commit:
+    MOV R7, R3
+    MOV R9, R2
+    LDI state_var
+    MOV R2, R0
+    LD R2, R2, 0
+    CMP R2, 0
+    JNZ lit_commit_compile
+    NOP
+    SUB SP, 1
+    ST R7, SP, 0
+    SUB SP, 1
+    ST R9, SP, 0
+    JMP LR
+    NOP
+lit_commit_compile:
+    LDI dp_var
+    MOV R2, R0
+    LD R3, R2, 0
+    LDI xt_lit
+    MOV R4, R0
+    ST R4, R3, 0
+    ADD R3, 1
+    ST R7, R3, 0
+    ADD R3, 1
+    ST R4, R3, 0
+    ADD R3, 1
+    ST R9, R3, 0
+    ADD R3, 1
+    ST R3, R2, 0
+    JMP LR
+    NOP
+
 word_fdot:
     LD R2, SP, 0
     LD R3, SP, 1
@@ -713,4 +1046,284 @@ fd_done:
     MOV PC, R0
     NOP
 fpu_dot_end:
+
+.org 0x2D2F
+sf_parse_tramp:
+    MOV R11, PC
+sf_parse_tramp_l:
+    LDI sf_parse - sf_parse_tramp_l
+    ADD R11, R0
+    MOV PC, R11
+    NOP
+sf_build_tramp:
+    MOV R11, PC
+sf_build_tramp_l:
+    LDI sf_build - sf_build_tramp_l
+    ADD R11, R0
+    MOV PC, R11
+    NOP
+fpu_lit_tramp_end:
+
+.org 0x42EC
+sf_parse:
+    LD R1, SP, 0
+    MOV R3, R6
+    ADD R3, R1
+    LD R2, R3, 0
+    LDI '-'
+    CMP R2, R0
+    JNZ sf_p_int
+    NOP
+    ADD R3, 1
+sf_p_int:
+    LSI R7, 0
+sf_p_int_loop:
+    LD R2, R3, 0
+    LDI '0'
+    CMP R2, R0
+    JN sf_p_int_done
+    NOP
+    LDI '9'
+    CMP R0, R2
+    JN sf_p_int_done
+    NOP
+    LDI '0'
+    SUB R2, R0
+    MOV R4, R7
+    LDI 10
+    MUL R4, R0
+    ADD R4, R2
+    MOV R7, R4
+    ADD R3, 1
+    CMP R0, R0
+    JZ sf_p_int_loop
+    NOP
+sf_p_int_done:
+    ST R7, SP, 9
+    LD R2, R3, 0
+    LDI '.'
+    CMP R2, R0
+    JNZ sf_p_go
+    NOP
+    ADD R3, 1
+    LD R1, SP, 5
+    LSI R7, 0
+sf_p_frac_loop:
+    CMP R1, 0
+    JZ sf_p_frac_done
+    NOP
+    LD R2, R3, 0
+    LDI '0'
+    CMP R2, R0
+    JN sf_p_frac_done
+    NOP
+    LDI '9'
+    CMP R0, R2
+    JN sf_p_frac_done
+    NOP
+    LDI '0'
+    SUB R2, R0
+    MOV R4, R7
+    LDI 10
+    MUL R4, R0
+    ADD R4, R2
+    MOV R7, R4
+    ADD R3, 1
+    SUB R1, 1
+    CMP R0, R0
+    JZ sf_p_frac_loop
+    NOP
+sf_p_frac_done:
+    ST R7, SP, 10
+sf_p_go:
+    LDI sf_build_tramp
+    MOV PC, R0
+    NOP
+fpu_lit_parse_end:
+
+.org fpu_dot_end
+sf_build:
+    ; Integer float -> SP+11/12.
+    LD R10, SP, 9
+    MOV R9, R6
+    MOV R11, PC
+sf_i2f_int:
+    LDI i2f - sf_i2f_int
+    ADD R11, R0
+    MOV R0, R10
+    LINK
+    JMP R11
+    NOP
+    MOV R6, R9
+    ST R2, SP, 11
+    ST R3, SP, 12
+
+    LD R1, SP, 5
+    CMP R1, 0
+    JZ sf_build_nofrac
+    NOP
+    LD R10, SP, 10
+    MOV R9, R6
+    MOV R11, PC
+sf_i2f_frac:
+    LDI i2f - sf_i2f_frac
+    ADD R11, R0
+    MOV R0, R10
+    LINK
+    JMP R11
+    NOP
+    MOV R6, R9
+    ST R2, SP, 13
+    ST R3, SP, 14
+    LD R1, SP, 5
+    NEG R1                     ; divide by 10^frac_count
+    MOV R11, PC
+sf_scale1:
+    LDI lit_scale - sf_scale1
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    LD R2, SP, 11
+    LD R3, SP, 12
+    LD R4, SP, 13
+    LD R5, SP, 14
+    FADD
+    ST R2, SP, 13
+    ST R3, SP, 14
+    CMP R0, R0
+    JZ sf_build_exp
+    NOP
+sf_build_nofrac:
+    LD R2, SP, 11
+    LD R3, SP, 12
+    ST R2, SP, 13
+    ST R3, SP, 14
+
+sf_build_exp:
+    LD R1, SP, 7
+    CMP R1, 0
+    JZ sf_build_sign
+    NOP
+    LD R2, SP, 8
+    CMP R2, 0
+    JZ sf_build_scale
+    NOP
+    NEG R1
+sf_build_scale:
+    MOV R11, PC
+sf_scale2:
+    LDI lit_scale - sf_scale2
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+
+sf_build_sign:
+    LD R1, SP, 2
+    CMP R1, 0
+    JZ sf_build_commit
+    NOP
+    LD R2, SP, 13
+    LDI 1
+    MOV R1, R0
+    SL R1, 15
+    XOR R2, R1
+    ST R2, SP, 13
+
+sf_build_commit:
+    LD R2, SP, 13
+    LD R3, SP, 14
+    LD R5, SP, 1
+    ADD SP, 15
+    LDI lit_restore_r10
+    LINK
+    JMP R0
+    NOP
+    MOV R11, PC
+sf_commit_call:
+    LDI lit_commit - sf_commit_call
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    LDI interpret_loop
+    MOV PC, R0
+    NOP
+fpu_lit_build_end:
+
+.org 0x48A9
+scan_float_probe:
+    MOV R3, R6
+    ADD R3, R5
+    LD R2, R3, 0
+    LDI '-'
+    CMP R2, R0
+    JZ probe_scan
+    NOP
+    LDI '0'
+    CMP R2, R0
+    JN probe_no
+    NOP
+    LDI '9'
+    CMP R0, R2
+    JN probe_no
+    NOP
+probe_scan:
+    LD R2, R3, 0
+    LDI 0
+    CMP R2, R0
+    JZ probe_no
+    NOP
+    LDI ' '
+    CMP R2, R0
+    JZ probe_no
+    NOP
+    LDI '.'
+    CMP R2, R0
+    JZ probe_yes
+    NOP
+    LDI 'e'
+    CMP R2, R0
+    JZ probe_yes
+    NOP
+    LDI 'E'
+    CMP R2, R0
+    JZ probe_yes
+    NOP
+    ADD R3, 1
+    CMP R0, R0
+    JZ probe_scan
+    NOP
+probe_yes:
+    MOV R11, PC
+probe_yes_l:
+    LDI scan_float - probe_yes_l
+    ADD R11, R0
+    MOV PC, R11
+    NOP
+probe_no:
+    LDI scan_number_normal
+    MOV PC, R0
+    NOP
+fpu_lit_probe_end:
+
+
 .endif
+.org 0x18E8
+lit_restore_r10:
+    LDI 0x18E7
+    MOV R11, R0
+    LDS R10, CS, R11
+    JMP LR
+    NOP
+sf_reject:
+    LD R5, SP, 0
+    ADD SP, 15
+    LDI lit_restore_r10
+    LINK
+    JMP R0
+    NOP
+    LDI scan_number_normal
+    MOV PC, R0
+    NOP

@@ -10722,6 +10722,18 @@ wtb_ok:
 ; -, and also -$10 and -0x10, because the sign is not allowed to combine with a
 ; hex prefix.
 scan_number:
+.ifdef FPU_WORDS
+    ; A float literal is recognized before the integer/word scanner. The hook
+    ; jumps to asm/forth_float.asm; on a non-float it comes back to
+    ; scan_number_normal with >IN unchanged.
+    MOV R11, PC
+sn_float_lr:
+    LDI scan_float_probe - sn_float_lr
+    ADD R11, R0
+    MOV PC, R11
+    NOP
+scan_number_normal:
+.endif
     MOV R3, TIB
     ADD R3, >IN
     LD R4, R3, 0

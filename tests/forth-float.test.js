@@ -35,8 +35,21 @@ for (let a = image.symbols.fpu_words_base; a < image.symbols.fpu_words_end; a++)
 for (let a = image.symbols.fpu_dot_base; a < image.symbols.fpu_dot_cells_end; a++) {
   assert.ok(!occupied.has(a), `the f. scratch cells overwrite 0x${a.toString(16)}`);
 }
-assert.equal(image.symbols.word_fdot, image.symbols.fpu_lib_end,
-             'f. starts where the library ends');
+for (const [lo, hi, what] of [
+  ['lit_save_r10', 'lit_save_r10', 'the R10 save cell'],
+  ['scan_float_probe', 'fpu_lit_probe_end', 'the literal probe'],
+  ['scan_float', 'fpu_lit_end', 'the literal scanner'],
+  ['sf_parse', 'fpu_lit_parse_end', 'the literal parser'],
+  ['sf_build', 'fpu_lit_build_end', 'the literal build'],
+  ['sf_parse_tramp', 'fpu_lit_tramp_end', 'the literal trampolines'],
+  ['sf_reject', 'sf_reject', 'the literal reject path'],
+]) {
+  for (let a = image.symbols[lo]; a <= image.symbols[hi]; a++) {
+    assert.ok(!occupied.has(a), `${what} overwrites 0x${a.toString(16)}`);
+  }
+}
+assert.ok(image.symbols.word_fdot > image.symbols.fpu_lib_end,
+          'f. follows the library and its helpers');
 assert.ok(image.symbols.fpu_dot_end <= 0x6000, 'f. fits the image window');
 
 function boot() {
@@ -123,6 +136,24 @@ test('f. prints fixed-point decimals, ovf and the special values', () => {
   assert.match(line(ctx, '0 32640 f.'), /f\. inf  ok/);
   // Two floats on one line prove f. leaves >IN and TIB intact.
   assert.match(line(ctx, '0 16320 f. 0 16400 f.'), /1\.5000 2\.2500  ok/);
+});
+
+test('float literal tokens push two cells or compile two LIT cells', () => {
+  const ctx = boot();
+  assert.match(line(ctx, '1.5 u. u.'), /1\.5 u\. u\. 16320 0  ok/);
+  assert.match(line(ctx, '2.25 u. u.'), /2\.25 u\. u\. 16400 0  ok/);
+  assert.match(line(ctx, '1e3 u. u.'), /1e3 u\. u\. 17530 0  ok/);
+  assert.match(line(ctx, '1.5e2 f.'), /f\. 150\.0000  ok/);
+  assert.match(line(ctx, '1.5e-2 f.'), /f\. 0\.0149  ok/);
+  assert.match(line(ctx, '1.23456 f.'), /f\. 1\.2344  ok/);
+  assert.match(line(ctx, '12345.6789 f.'), /f\. 12345\.6787  ok/);
+  assert.match(line(ctx, ': t1 1.5 ; t1 f.'), /t1 f\. 1\.5000  ok/);
+  assert.match(line(ctx, ': t2 2.25 ; t2 f.'), /t2 f\. 2\.2500  ok/);
+  // Invalid forms fall back to the ordinary word scanner.
+  assert.match(line(ctx, '1.5x .'), /undefined word: 1\.5x/);
+  assert.match(line(ctx, '1..5 .'), /undefined word: 1\.\.5/);
+  assert.match(line(ctx, '1e .'), /undefined word: 1e/);
+  assert.match(line(ctx, '1. .'), /undefined word: 1\./);
 });
 
 test('fdup, fdrop, fswap and fover shuffle whole floats', () => {

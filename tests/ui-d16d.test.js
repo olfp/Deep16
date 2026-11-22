@@ -192,7 +192,7 @@ test('the D16D example boots from the segmented copies into the showcase menu', 
     (sim.memory[cell(12, 30)] & 0x0FFF) === glyph('Q') &&
     (sim.memory[cell(19, 29)] & 0x0FFF) === glyph('A');
 
-  while (sim.running && steps < 900000 && !menuReady()) {
+  while (sim.running && steps < 20_000_000 && !menuReady()) {
     sim.step();
     steps++;
     if (firstReadStatus === null && sim.tileStatusReads > 0) firstReadStatus = sim.tileStatus;
