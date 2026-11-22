@@ -1,9 +1,9 @@
 # FPU Emulation via ILL — Design Plan
 
-Status: **P0-P3 implemented at the layer-2 level.** Written against
+Status: **P0-P4 implemented for the non-D16D nano kernel.** Written against
 `932815c` ("Snapshot: D16nano tile console, ILL trap, 720p DVI"). The
-soft-float library is complete and tested; wiring it into the ILL handler and
-choosing its image placement are P4.
+soft-float library and the ILL FPU dispatch are complete and tested. The
+D16D BIOS-copy placement and the board image-size decision remain.
 
 ---
 
@@ -367,6 +367,20 @@ The existing scaffolding is directly reusable: opcode fetch through the
 caller's CS (`SMV R1, ACS` / `MVS DS`), the save/restore block, and the
 "restore shared registers before writing a shared result" ordering.
 
+**Implemented (P4).** `ill_handler` checks `0xFFF8..0xFFFE` before the normal
+extended decode and jumps to `ill_fpu`. That routine reads `F0` with
+`SMV R6, AR2` / `SMV R7, AR3`, reads the still-live `F1` from `R4:R5`, calls
+`fadd32`/`fmul32`/`fdiv32`/`fsqrt32`/`fcmp32`, and writes the result with
+`SMV AR2, R6` / `SMV AR3, R7`. FCMP leaves F0 alone and delivers its nibble
+through `SAPF`. FEXP/FLOG return the canonical NaN until P6. The routines and
+the dispatch are position-independent: all internal calls and tail jumps use
+PC-relative deltas, so the library can live above `0x4000` where `LDI`
+sign-extends.
+
+Build recipe: assemble `asm/forth_nano.asm` followed by `asm/softfloat.asm`
+with `CONSOLE_UART`, `D16NANO` and `FPU_KERNEL` defined. The library places
+itself at `0x5800`. This is what `tests/ill-fpu.test.js` does.
+
 ### 6.3 Register window
 
 - `F0 = R2:R3`, `F1 = R4:R5` (IEEE single, R2 = high half).
@@ -428,12 +442,17 @@ and `fcmp32`. `tests/softfloat.test.js` checks:
 - FSQRT vectors (including truncation at 10, 1.5, 1e9), 100 random positive
   normals, NaN/Inf/signed-zero cases, on JS and RTL.
 
-Measured size: **1,498 words** from `f_unpack` through `fsqrt_ret`. That is the
-placement problem the plan warned about: it does not fit the two BIOS holes
-P1 used (0x4E4C..0x4EAF and 0x5143..0x519F), and it is too big for the D16D
-BIOS copy. P4 must either place it in the flat image and reach it through a
-trampoline, shrink it, or accept a D16MINI-only FPU. This is now the first
-decision of P4.
+Measured size: **1,498 words** from `f_unpack` through `fsqrt_ret`, or
+**1,629 words** including the P4 dispatch, occupying `0x5800..0x5E5C`. The
+non-D16D nano data-stack top is `0x5FF0`, so the library leaves about 403
+words of headroom: usable for tests and shallow Forth code, but tight for a
+deep stack. The D16SEG profile puts the data stack in SS=0x2000, which avoids
+the collision but needs the slice loader.
+
+D16D is not wired yet: its handler runs at CS=0x3000 and the BIOS copy ends
+at 0x57FF, so the flat library at 0x5800 is unreachable. The remaining P4
+placement work is to extend the BIOS copy to 0x5FFF and relocate the library
+(or route it through a flat trampoline).
 
 Subtraction is exact on both sides of the guard-bit boundary. The `d >= 24`
 case returns the previous float below |A| directly; the `d < 24` case aligns A
@@ -523,9 +542,9 @@ kernel is loaded at `0x5000`, so it competes with the demo area there.
 | P1 | **Done.** General undefined-opcode trap in all four cores | A reserved word traps on every core; double fault is diagnosable |
 | P2 | **Done.** `SAPF` in the DIV/DIV32 handler (§4) | `tests/ill-trap.test.js` covers zero, negative and positive quotients for DIV and DIV32 |
 | P3 | **Done.** Layer 1 + `i2f`/`u2f`/`f2i`/FADD/FSUB/FMUL/FDIV/FSQRT/FCMP in `asm/softfloat.asm` | `tests/softfloat.test.js` passes: exhaustive conversions and round trip, `f2i` boundaries, randomized FSUB/FDIV/FSQRT/FMUL references, and JS+RTL vectors for every arithmetic operation |
-| P4 | FPU decode + dispatch in the ILL handler (FADD/FMUL/FCMP; FSUB by sign flip) and the library placement decision | `tests/ill-trap.test.js` covers the trapped ops |
-| P5 | FDIV/FSQRT dispatch in the handler (the subroutines are done) | ditto |
-| P6 | FEXP, FLOG — or never | — |
+| P4 | **Done for non-D16D.** FPU decode + dispatch in the ILL handler (FADD/FMUL/FDIV/FSQRT/FCMP; FSUB by sign flip) | `tests/ill-fpu.test.js` covers the trapped ops, F1/shared preservation and repeated traps. D16D BIOS-copy placement remains |
+| P5 | **Done.** FDIV/FSQRT dispatch (same handler) | `tests/ill-fpu.test.js` covers both |
+| P6 | FEXP, FLOG — or never; the handler currently returns NaN | — |
 
 P0–P2 are independent of the FPU and fix real defects. P3 is the long pole
 and can proceed in parallel with them.
@@ -573,7 +592,7 @@ and can proceed in parallel with them.
    NOPs there — the exact bug we are fixing.
 3. **Numeric policy** (§8): flush-to-zero denormals, canonical NaN,
    truncating rounding — accept, or amend?
-4. **Assembler mnemonics**: `FADD` etc. as real encodings (D2), or also
-   offered as macros so the same source runs on a core without the trap?
+4. **Assembler mnemonics**: implemented. `FADD`/`FMUL`/`FDIV`/`FSQRT`/`FEXP`/
+   `FLOG`/`FCMP` assemble to their trap words and disassemble back.
 5. **Forth surface**: does the FPU get words (`f+`, `f@`, `f!`, `f.`), or is
    it assembler-only for now?

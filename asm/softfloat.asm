@@ -20,6 +20,12 @@
 ; R7 = mant[15:0]. An unpacked mantissa is R0 = bits 23..16 (low 8 bits used),
 ; R1 = bits 15..0, with bit 23 = 1 for a normal number.
 
+.ifdef FPU_KERNEL
+; In the kernel image the library lives above the BIOS/return-stack area.
+; This is the flat origin; D16D relocation is a separate placement step.
+.org 0x5800
+.endif
+
 ; ---- f_unpack ----------------------------------------------------------
 ; Input:  R6:R7 = float pair
 ; Output: R10 = sign (0/1), R11 = biased exponent (0..255),
@@ -209,8 +215,8 @@ i2f_nosign:
 u2f:
     MOV R1, R0
     LSI R6, 0
-    LDI i2f_abs
-    JMP R0
+    CMP R0, R0
+    JZ i2f_abs
     NOP
 
 ; ---- f2i ---------------------------------------------------------------
@@ -223,9 +229,12 @@ f2i:
     MOV R12, LR
     MOV R6, R2
     MOV R7, R3
-    LDI f_unpack
+    MOV R11, PC
+fpu_call_1:
+    LDI f_unpack - fpu_call_1
+    ADD R11, R0
     LINK
-    JMP R0
+    JMP R11
     NOP
     MOV R7, R10                ; sign
     LSI R10, 0                 ; flags
@@ -377,15 +386,17 @@ f2i_ret:
 ; Clobbers R0..R12; preserves R13, R14 (restored), R15.
 fsub32:
     XOR R8, 15                 ; flip B's sign
-    LDI fadd32
-    JMP R0
+    CMP R0, R0
+    JZ fadd32
     NOP
 
 fadd32:
     MOV R12, LR                ; save the public return address
     ; ---- unpack A ----
-    LDI f_unpack
-    MOV R11, R0
+    MOV R11, PC
+fpu_pc_0:
+    LDI f_unpack - fpu_pc_0
+    ADD R11, R0
     LINK
     JMP R11
     NOP
@@ -396,8 +407,10 @@ fadd32:
     ; ---- unpack B ----
     MOV R6, R8
     MOV R7, R9
-    LDI f_unpack
-    MOV R11, R0
+    MOV R11, PC
+fpu_pc_1:
+    LDI f_unpack - fpu_pc_1
+    ADD R11, R0
     LINK
     JMP R11
     NOP
@@ -460,30 +473,40 @@ fadd_special_b:
 
 fadd_ret_a_inf:
     MOV R10, R2
-    LDI f_pack
-    MOV R7, R0
+    MOV R7, PC
+fpu_pc_2:
+    LDI f_pack - fpu_pc_2
+    ADD R7, R0
     LSI R0, 8
     SL R0, 4                   ; 0x80
     LSI R1, 0
     LINK
     JMP R7
     NOP
-    LDI fadd_ret
-    JMP R0
+    MOV R4, PC
+fadd_ret_jmp_1:
+    LDI fadd_ret - fadd_ret_jmp_1
+    ADD R4, R0
+    MOV PC, R4
     NOP
 
 fadd_ret_b_inf:
     MOV R10, R8
-    LDI f_pack
-    MOV R7, R0
+    MOV R7, PC
+fpu_pc_3:
+    LDI f_pack - fpu_pc_3
+    ADD R7, R0
     LSI R0, 8
     SL R0, 4
     LSI R1, 0
     LINK
     JMP R7
     NOP
-    LDI fadd_ret
-    JMP R0
+    MOV R4, PC
+fadd_ret_jmp_2:
+    LDI fadd_ret - fadd_ret_jmp_2
+    ADD R4, R0
+    MOV PC, R4
     NOP
 
 fadd_nan:
@@ -493,8 +516,11 @@ fadd_nan:
     LDI 0xC0
     OR R6, R0
     LSI R7, 0
-    LDI fadd_ret
-    JMP R0
+    MOV R4, PC
+fadd_ret_jmp_3:
+    LDI fadd_ret - fadd_ret_jmp_3
+    ADD R4, R0
+    MOV PC, R4
     NOP
 
 fadd_finite:
@@ -511,21 +537,29 @@ fadd_finite:
     CMP R1, 0
     JNZ fadd_pack_b
     NOP
-    LDI fadd_zero              ; +0 + +0 (and the -0 convention)
-    JMP R0
+    MOV R4, PC
+fadd_zero_jmp:
+    LDI fadd_zero - fadd_zero_jmp
+    ADD R4, R0
+    MOV PC, R4
     NOP
 fadd_pack_b:
     MOV R10, R8
     MOV R11, R9
     MOV R6, R0                 ; keep mantB high across the LDI
-    LDI f_pack
-    MOV R7, R0
+    MOV R7, PC
+fpu_pc_4:
+    LDI f_pack - fpu_pc_4
+    ADD R7, R0
     MOV R0, R6
     LINK
     JMP R7
     NOP
-    LDI fadd_ret
-    JMP R0
+    MOV R4, PC
+fadd_ret_jmp_4:
+    LDI fadd_ret - fadd_ret_jmp_4
+    ADD R4, R0
+    MOV PC, R4
     NOP
 fadd_a_nonzero:
     CMP R0, 0
@@ -537,15 +571,20 @@ fadd_a_nonzero:
     ; B is zero -> pack A
     MOV R10, R2
     MOV R11, R3
-    LDI f_pack
-    MOV R7, R0
+    MOV R7, PC
+fpu_pc_5:
+    LDI f_pack - fpu_pc_5
+    ADD R7, R0
     MOV R0, R4
     MOV R1, R5
     LINK
     JMP R7
     NOP
-    LDI fadd_ret
-    JMP R0
+    MOV R4, PC
+fadd_ret_jmp_5:
+    LDI fadd_ret - fadd_ret_jmp_5
+    ADD R4, R0
+    MOV PC, R4
     NOP
 
 fadd_order:
@@ -618,8 +657,8 @@ fadd_add_carry:
 fadd_add_store:
     MOV R5, R6
     MOV R4, R7
-    LDI fadd_normalize
-    JMP R0
+    CMP R0, R0
+    JZ fadd_normalize
     NOP
 
 fadd_sub_tiny:
@@ -639,8 +678,8 @@ fadd_sub_tiny:
     ADD R4, 15                 ; 0xFF
     LSI R5, 0
     SUB R5, 1                  ; 0xFFFF
-    LDI fadd_pack
-    JMP R0
+    CMP R0, R0
+    JZ fadd_pack
     NOP
 fadd_sub_tiny_dec:
     MOV R6, R5
@@ -648,16 +687,16 @@ fadd_sub_tiny_dec:
     JC fadd_sub_tiny_borrow
     NOP
     MOV R5, R6
-    LDI fadd_pack
-    JMP R0
+    CMP R0, R0
+    JZ fadd_pack
     NOP
 fadd_sub_tiny_borrow:
     MOV R5, R6
     MOV R6, R4
     SUB R6, 1
     MOV R4, R6
-    LDI fadd_pack
-    JMP R0
+    CMP R0, R0
+    JZ fadd_pack
     NOP
 
 ; ---- exact subtraction for d < 24 --------------------------------------
@@ -820,15 +859,18 @@ fadd_exact_norm_done:
     SL R0, 1                   ; 24
     ADD R3, R0
     SUB R3, R10
-    LDI fadd_pack
-    JMP R0
+    CMP R0, R0
+    JZ fadd_pack
     NOP
 
 fadd_zero:
     LSI R6, 0
     LSI R7, 0
-    LDI fadd_ret
-    JMP R0
+    MOV R4, PC
+fadd_ret_jmp_6:
+    LDI fadd_ret - fadd_ret_jmp_6
+    ADD R4, R0
+    MOV PC, R4
     NOP
 
 fadd_normalize:
@@ -878,8 +920,10 @@ fadd_norm_right:
 fadd_pack:
     MOV R10, R2
     MOV R11, R3
-    LDI f_pack
-    MOV R7, R0
+    MOV R7, PC
+fpu_pc_6:
+    LDI f_pack - fpu_pc_6
+    ADD R7, R0
     MOV R0, R4
     MOV R1, R5
     LINK
@@ -1038,8 +1082,10 @@ fmul24_out:
 fmul32:
     MOV R12, LR
     ; ---- unpack A ----
-    LDI f_unpack
-    MOV R11, R0
+    MOV R11, PC
+fpu_pc_7:
+    LDI f_unpack - fpu_pc_7
+    ADD R11, R0
     LINK
     JMP R11
     NOP
@@ -1050,8 +1096,10 @@ fmul32:
     ; ---- unpack B ----
     MOV R6, R8
     MOV R7, R9
-    LDI f_unpack
-    MOV R11, R0
+    MOV R11, PC
+fpu_pc_8:
+    LDI f_unpack - fpu_pc_8
+    ADD R11, R0
     LINK
     JMP R11
     NOP
@@ -1103,8 +1151,10 @@ fmul_check_b:
 fmul_do:
     ; fmul24(A=R4:R5, B=R0:R1) -> R4:R5, exponent increment R10
     MOV R7, R0                 ; keep mantB high across the LDI
-    LDI fmul24
-    MOV R6, R0
+    MOV R6, PC
+fpu_pc_9:
+    LDI fmul24 - fpu_pc_9
+    ADD R6, R0
     MOV R0, R7
     LINK
     JMP R6
@@ -1122,8 +1172,8 @@ fmul_zero:
     OR R6, 15
 fmul_zero_done:
     LSI R7, 0
-    LDI fmul_ret
-    JMP R0
+    CMP R0, R0
+    JZ fmul_ret
     NOP
 
 fmul_special_a:
@@ -1187,15 +1237,17 @@ fmul_nan:
     LDI 0xC0
     OR R6, R0
     LSI R7, 0
-    LDI fmul_ret
-    JMP R0
+    CMP R0, R0
+    JZ fmul_ret
     NOP
 
 fmul_pack:
     MOV R10, R2
     MOV R11, R3
-    LDI f_pack
-    MOV R7, R0
+    MOV R7, PC
+fpu_pc_10:
+    LDI f_pack - fpu_pc_10
+    ADD R7, R0
     MOV R0, R4
     MOV R1, R5
     LINK
@@ -1213,9 +1265,12 @@ fmul_ret:
 ; Clobbers R0..R11; preserves R12 (restored), R13, R14, R15.
 fcmp32:
     MOV R12, LR
-    LDI f_unpack
+    MOV R11, PC
+fpu_call_2:
+    LDI f_unpack - fpu_call_2
+    ADD R11, R0
     LINK
-    JMP R0
+    JMP R11
     NOP
     MOV R2, R10                ; signA
     MOV R3, R11                ; expA
@@ -1223,9 +1278,12 @@ fcmp32:
     MOV R5, R1                 ; mantA low
     MOV R6, R8
     MOV R7, R9
-    LDI f_unpack
+    MOV R11, PC
+fpu_call_3:
+    LDI f_unpack - fpu_call_3
+    ADD R11, R0
     LINK
-    JMP R0
+    JMP R11
     NOP
     MOV R8, R10                ; signB
     MOV R9, R11                ; expB
@@ -1332,9 +1390,12 @@ fcmp_ret:
 fdiv32:
     MOV R12, LR
     ; ---- unpack A ----
-    LDI f_unpack
+    MOV R11, PC
+fpu_call_4:
+    LDI f_unpack - fpu_call_4
+    ADD R11, R0
     LINK
-    JMP R0
+    JMP R11
     NOP
     MOV R2, R10                ; signA
     MOV R3, R11                ; expA
@@ -1343,9 +1404,12 @@ fdiv32:
     ; ---- unpack B ----
     MOV R6, R8
     MOV R7, R9
-    LDI f_unpack
+    MOV R11, PC
+fpu_call_5:
+    LDI f_unpack - fpu_call_5
+    ADD R11, R0
     LINK
-    JMP R0
+    JMP R11
     NOP
     MOV R8, R10                ; signB
     MOV R9, R11                ; expB
@@ -1544,8 +1608,10 @@ fdiv_norm:
     SL R11, 1
     SUB R3, 1
 fdiv_pack:
-    LDI f_pack
-    MOV R7, R0
+    MOV R7, PC
+fpu_pc_11:
+    LDI f_pack - fpu_pc_11
+    ADD R7, R0
     MOV R0, R10
     MOV R1, R11
     MOV R10, R2
@@ -1553,13 +1619,15 @@ fdiv_pack:
     LINK
     JMP R7
     NOP
-    LDI fdiv_ret
-    JMP R0
+    CMP R0, R0
+    JZ fdiv_ret
     NOP
 
 fdiv_inf:
-    LDI f_pack
-    MOV R7, R0
+    MOV R7, PC
+fpu_pc_12:
+    LDI f_pack - fpu_pc_12
+    ADD R7, R0
     MOV R10, R2
     LSI R11, 15
     SL R11, 4
@@ -1570,8 +1638,8 @@ fdiv_inf:
     LINK
     JMP R7
     NOP
-    LDI fdiv_ret
-    JMP R0
+    CMP R0, R0
+    JZ fdiv_ret
     NOP
 
 fdiv_zero:
@@ -1582,8 +1650,8 @@ fdiv_zero:
     OR R6, 15
 fdiv_zero_done:
     LSI R7, 0
-    LDI fdiv_ret
-    JMP R0
+    CMP R0, R0
+    JZ fdiv_ret
     NOP
 
 fdiv_nan:
@@ -1593,8 +1661,8 @@ fdiv_nan:
     LDI 0xC0
     OR R6, R0
     LSI R7, 0
-    LDI fdiv_ret
-    JMP R0
+    CMP R0, R0
+    JZ fdiv_ret
     NOP
 
 fdiv_ret:
@@ -1609,9 +1677,12 @@ fdiv_ret:
 ; root, producing the 24-bit significand q = floor(sqrt(m')*2^23).
 fsqrt32:
     MOV R12, LR
-    LDI f_unpack
+    MOV R11, PC
+fpu_call_6:
+    LDI f_unpack - fpu_call_6
+    ADD R11, R0
     LINK
-    JMP R0
+    JMP R11
     NOP
     MOV R2, R10                ; sign
     MOV R3, R11                ; exp
@@ -1786,8 +1857,10 @@ fsqrt_next:
     SL R11, 1
     SUB R3, 1
 fsqrt_pack:
-    LDI f_pack
-    MOV R7, R0
+    MOV R7, PC
+fpu_pc_13:
+    LDI f_pack - fpu_pc_13
+    ADD R7, R0
     MOV R0, R10
     MOV R1, R11
     LSI R10, 0                 ; sqrt is non-negative
@@ -1795,13 +1868,15 @@ fsqrt_pack:
     LINK
     JMP R7
     NOP
-    LDI fsqrt_ret
-    JMP R0
+    CMP R0, R0
+    JZ fsqrt_ret
     NOP
 
 fsqrt_inf:
-    LDI f_pack
-    MOV R7, R0
+    MOV R7, PC
+fpu_pc_14:
+    LDI f_pack - fpu_pc_14
+    ADD R7, R0
     LSI R10, 0
     LSI R11, 15
     SL R11, 4
@@ -1812,8 +1887,8 @@ fsqrt_inf:
     LINK
     JMP R7
     NOP
-    LDI fsqrt_ret
-    JMP R0
+    CMP R0, R0
+    JZ fsqrt_ret
     NOP
 
 fsqrt_zero:
@@ -1824,8 +1899,8 @@ fsqrt_zero:
     OR R6, 15
 fsqrt_zero_done:
     LSI R7, 0
-    LDI fsqrt_ret
-    JMP R0
+    CMP R0, R0
+    JZ fsqrt_ret
     NOP
 
 fsqrt_nan:
@@ -1835,11 +1910,122 @@ fsqrt_nan:
     LDI 0xC0
     OR R6, R0
     LSI R7, 0
-    LDI fsqrt_ret
-    JMP R0
+    CMP R0, R0
+    JZ fsqrt_ret
     NOP
 
 fsqrt_ret:
     MOV LR, R12
     JMP LR
     NOP
+
+; ---- ILL FPU dispatch (kernel build only) ------------------------------
+; Entered from the ILL decoder with SP = caller C - 9 (R4..R12 saved),
+; R2 = the trapped word, and DS already set for the handler. F0 = R2:R3
+; is the caller bank (SMV), F1 = R4:R5 is shared and still live. The result
+; is written back to F0; FCMP delivers its flags through SAPF.
+.ifdef FPU_KERNEL
+ill_fpu:
+    MOV R10, R2                 ; opcode
+    SMV R6, AR2                 ; A high
+    SMV R7, AR3                 ; A low
+    MOV R8, R4                  ; B high (F1)
+    MOV R9, R5                  ; B low
+    LDI -8                      ; 0xFFF8 FADD
+    CMP R10, R0
+    JZ ill_fpu_add
+    NOP
+    LDI -7                      ; 0xFFF9 FMUL
+    CMP R10, R0
+    JZ ill_fpu_mul
+    NOP
+    LDI -6                      ; 0xFFFA FDIV
+    CMP R10, R0
+    JZ ill_fpu_div
+    NOP
+    LDI -5                      ; 0xFFFB FSQRT
+    CMP R10, R0
+    JZ ill_fpu_sqrt
+    NOP
+    LDI -2                      ; 0xFFFE FCMP
+    CMP R10, R0
+    JZ ill_fpu_cmp
+    NOP
+    ; FEXP/FLOG are not implemented: return canonical NaN in F0.
+    LDI 0x7F
+    MOV R6, R0
+    SL R6, 8
+    LDI 0xC0
+    OR R6, R0
+    LSI R7, 0
+    CMP R0, R0
+    JZ ill_fpu_write
+    NOP
+ill_fpu_add:
+    MOV R11, PC
+fpu_call_7:
+    LDI fadd32 - fpu_call_7
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    CMP R0, R0
+    JZ ill_fpu_write
+    NOP
+ill_fpu_mul:
+    MOV R11, PC
+fpu_call_8:
+    LDI fmul32 - fpu_call_8
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    CMP R0, R0
+    JZ ill_fpu_write
+    NOP
+ill_fpu_div:
+    MOV R11, PC
+fpu_call_9:
+    LDI fdiv32 - fpu_call_9
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    CMP R0, R0
+    JZ ill_fpu_write
+    NOP
+ill_fpu_sqrt:
+    MOV R11, PC
+fpu_call_10:
+    LDI fsqrt32 - fpu_call_10
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    CMP R0, R0
+    JZ ill_fpu_write
+    NOP
+ill_fpu_cmp:
+    MOV R11, PC
+fpu_call_11:
+    LDI fcmp32 - fpu_call_11
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    MOV R0, R10
+    SAPF
+    CMP R0, R0
+    JZ ill_fpu_restore
+    NOP
+ill_fpu_write:
+    SMV AR2, R6
+    SMV AR3, R7
+ill_fpu_restore:
+    MOV R1, PC
+ill_fpu_ret_lr:
+    LDI ill_restore_shared - ill_fpu_ret_lr
+    ADD R1, R0
+    MOV PC, R1
+    NOP
+.endif

@@ -815,6 +815,14 @@ class Deep16Assembler {
                 case 'NOP':  return this.encodeSystem(0b000);
                 case 'HALT': 
                 case 'HLT': return 0xFFFF;
+                // FPU trap words (doc/Deep16-FPU.md §3.1)
+                case 'FADD':  return 0xFFF8;
+                case 'FMUL':  return 0xFFF9;
+                case 'FDIV':  return 0xFFFA;
+                case 'FSQRT': return 0xFFFB;
+                case 'FEXP':  return 0xFFFC;
+                case 'FLOG':  return 0xFFFD;
+                case 'FCMP':  return 0xFFFE;
                 
                 case 'LDI':  return this.encodeLDIFromLine(cleanLine, address, lineNumber);
                 case 'LWI':  return this.encodeLWIFromLine(cleanLine, address, lineNumber);

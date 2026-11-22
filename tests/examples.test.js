@@ -23,6 +23,9 @@ const LEGACY = new Set([
   // A slice program: it expects CS=0x0800/DS=0x0900 and polls the keyboard,
   // so tests/editor.test.js boots it with its own segments instead.
   'editor.asm',
+  // A library included by the FPU kernel, not a standalone example. It has
+  // no entry point or HALT; tests/softfloat.test.js exercises every routine.
+  'softfloat.asm',
 ]);
 
 const EXAMPLES = fs.readdirSync(ASM_DIR)

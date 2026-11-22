@@ -116,3 +116,13 @@ useful than a single "illegal instruction" for debugging a half-finished build.
   divide loop.
 - A Forth-level loop (for example 1,000 `/` or `/mod` operations) on the nano
   vs the full build, to show the practical compatibility cost.
+
+## FPU dispatch (P4)
+
+`ill_handler` checks `0xFFF8..0xFFFE` before the extended decode and jumps to
+`ill_fpu`. The dispatch reads the caller's F0 through `SMV AR2`/`AR3`, takes
+F1 from the live shared R4:R5, calls the soft-float routine, and writes the
+result back through `SMV`. FCMP uses `SAPF` for its N/Z/V nibble; FEXP/FLOG
+return the canonical NaN until they are implemented. The library and dispatch
+are appended at flat 0x5800 under `FPU_KERNEL`; all internal calls are
+PC-relative because `LDI` sign-extends addresses at or above 0x4000.

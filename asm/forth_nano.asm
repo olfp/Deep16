@@ -18890,6 +18890,27 @@ ill_save_addr_lr:
     LSI R0, 0
     MVS DS, R0                  ; DS = 0 for the handler's data stack/code
 .endif
+.ifdef FPU_KERNEL
+    ; FPU words 0xFFF8..0xFFFE go to the soft-float library. NIO (0xFFF7)
+    ; and the SYS words still fall through to the normal decoder.
+    MOV R3, R2
+    SR R3, 8
+    LDI 0xFF
+    CMP R3, R0
+    JNZ ill_decode
+    NOP
+    LDI -8
+    CMP R2, R0
+    JC ill_decode
+    NOP
+    MOV R3, PC
+ill_fpu_jmp_lr:
+    LDI ill_fpu - ill_fpu_jmp_lr
+    ADD R3, R0
+    MOV PC, R3
+    NOP
+ill_decode:
+.endif
     ; ---- decode Rd and Rs -----------------------------------------------
     MOV R0, R2
     SR R0, 4
@@ -19195,6 +19216,7 @@ ill_d32_ret_lr:
 ; ---- unknown trapped word: skip it ------------------------------------
 ill_unknown:
     ADD SP, 2
+ill_restore_shared:
     LD R12, SP, 0
     ADD SP, 1
     LD R11, SP, 0
@@ -19218,34 +19240,6 @@ ill_unk_ret_lr:
     LDI ill_return - ill_unk_ret_lr
     ADD R1, R0
     MOV PC, R1
-    NOP
-
-ill_return:
-    ; Restore R0'..R3' and SP' from the entry save, then return.
-.ifdef D16D
-    MVS R1, CS
-    MVS DS, R1                   ; the save area is in the BIOS copy
-.else
-    LDI 0
-    MVS DS, R0
-.endif
-    MVS SS, R0
-    MOV R1, PC
-ill_ret_addr_lr:
-    LDI ill_save_sp - ill_ret_addr_lr
-    ADD R1, R0
-    LD R13, R1, 0               ; SP' = S-5
-    LD R0, SP, 0                ; R0 = the old SP' (S)
-    ADD SP, 1
-    LD R3, SP, 0
-    ADD SP, 1
-    LD R2, SP, 0
-    ADD SP, 1
-    LD R1, SP, 0
-    ADD SP, 1
-    LD R0, SP, 0                ; the caller's R0'
-    ADD SP, 1                   ; SP' = S
-    RETI
     NOP
 
 ; ---- table dispatch helpers -------------------------------------------
@@ -19345,6 +19339,34 @@ ill_get_r15:
 .endif
     LD R2, R0, 0
     JMP LR
+    NOP
+
+ill_return:
+    ; Restore R0'..R3' and SP' from the entry save, then return.
+.ifdef D16D
+    MVS R1, CS
+    MVS DS, R1                   ; the save area is in the BIOS copy
+.else
+    LDI 0
+    MVS DS, R0
+.endif
+    MVS SS, R0
+    MOV R1, PC
+ill_ret_addr_lr:
+    LDI ill_save_sp - ill_ret_addr_lr
+    ADD R1, R0
+    LD R13, R1, 0               ; SP' = S-5
+    LD R0, SP, 0                ; R0 = the old SP' (S)
+    ADD SP, 1
+    LD R3, SP, 0
+    ADD SP, 1
+    LD R2, SP, 0
+    ADD SP, 1
+    LD R1, SP, 0
+    ADD SP, 1
+    LD R0, SP, 0                ; the caller's R0'
+    ADD SP, 1                   ; SP' = S
+    RETI
     NOP
 
 ; ---- put stubs ---------------------------------------------------------

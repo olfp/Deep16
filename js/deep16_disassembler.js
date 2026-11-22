@@ -95,7 +95,13 @@ disassembleControlFlow(instruction) {
     if ((instruction >>> 3) === 0b1111111111110) {
         return this.disassembleSystem(instruction);
     }
-    
+
+    // FPU trap words 0xFFF8..0xFFFE (0xFFFF is HLT above)
+    if ((instruction >>> 3) === 0b1111111111111) {
+        const fpuOps = ['FADD', 'FMUL', 'FDIV', 'FSQRT', 'FEXP', 'FLOG', 'FCMP'];
+        return fpuOps[instruction & 0x7];
+    }
+
     return `??? (0x${instruction.toString(16).padStart(4, '0').toUpperCase()})`;
 }
 // In deep16_disassembler.js - Fix disassembleSOP method
