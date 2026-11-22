@@ -1,8 +1,9 @@
 # FPU Emulation via ILL — Design Plan
 
-Status: **P0-P2 implemented; P3 layer 1+2 slice implemented.** Written against
-`932815c` ("Snapshot: D16nano tile console, ILL trap, 720p DVI"). P3 still
-needs FDIV/FSQRT and a placement decision; P4+ remain design.
+Status: **P0-P3 implemented at the layer-2 level.** Written against
+`932815c` ("Snapshot: D16nano tile console, ILL trap, 720p DVI"). The
+soft-float library is complete and tested; wiring it into the ILL handler and
+choosing its image placement are P4.
 
 ---
 
@@ -408,11 +409,11 @@ unit-tested by loading registers and calling it.
 - **No integer↔float conversion.** `i2f`/`f2i` are the first things real
   code needs; they must be in the library even though they have no opcode.
 
-### 7.3 P3 slice implemented (2026-11)
+### 7.3 P3 implemented (2026-11)
 
 `asm/softfloat.asm` now contains the layer-1 helpers (`f_unpack`, `f_pack`),
-`i2f`/`u2f`/`f2i`, `fadd32`/`fsub32`, `fmul24`/`fmul32`, and `fcmp32`.
-`tests/softfloat.test.js` checks:
+`i2f`/`u2f`/`f2i`, `fadd32`/`fsub32`, `fmul24`/`fmul32`, `fdiv32`, `fsqrt32`
+and `fcmp32`. `tests/softfloat.test.js` checks:
 
 - `i2f` and `u2f` exhaustively over all 65,536 inputs, and `i2f -> f2i`
   round-trips all 65,536 values;
@@ -421,13 +422,18 @@ unit-tested by loading registers and calling it.
 - FADD/FSUB/FMUL vectors (including +/-Inf, NaN, signed zero, overflow,
   underflow and the sub-ulp truncation cases) on the JS and RTL cores;
 - FCMP vectors (signed order, infinities, zeros, NaN) plus 100 random finite
-  pairs against JS ordering.
+  pairs against JS ordering;
+- FDIV vectors and 100 random finite pairs against an exact BigInt division
+  reference, on JS and RTL;
+- FSQRT vectors (including truncation at 10, 1.5, 1e9), 100 random positive
+  normals, NaN/Inf/signed-zero cases, on JS and RTL.
 
-Measured size: **1,065 words** from `f_unpack` through `fcmp_ret`. That is the
+Measured size: **1,498 words** from `f_unpack` through `fsqrt_ret`. That is the
 placement problem the plan warned about: it does not fit the two BIOS holes
 P1 used (0x4E4C..0x4EAF and 0x5143..0x519F), and it is too big for the D16D
 BIOS copy. P4 must either place it in the flat image and reach it through a
-trampoline, shrink it, or accept a D16MINI-only FPU.
+trampoline, shrink it, or accept a D16MINI-only FPU. This is now the first
+decision of P4.
 
 Subtraction is exact on both sides of the guard-bit boundary. The `d >= 24`
 case returns the previous float below |A| directly; the `d < 24` case aligns A
@@ -516,9 +522,9 @@ kernel is loaded at `0x5000`, so it competes with the demo area there.
 | P0 | `SAPF` in assembler, disassembler, both RTL cores, JS, WASM; arch doc | Encoding tests + a shadow-bank test that `SAPF` sets the restored flags |
 | P1 | **Done.** General undefined-opcode trap in all four cores | A reserved word traps on every core; double fault is diagnosable |
 | P2 | **Done.** `SAPF` in the DIV/DIV32 handler (§4) | `tests/ill-trap.test.js` covers zero, negative and positive quotients for DIV and DIV32 |
-| P3 | **In progress.** Layer 1 + `i2f`/`u2f`/`f2i`/FADD/FSUB/FMUL/FCMP in `asm/softfloat.asm` | `tests/softfloat.test.js` passes: exhaustive conversions and round trip, `f2i` boundaries, 100 random mantissa products, FADD/FSUB/FMUL and FCMP JS+RTL vectors. Remaining: FDIV/FSQRT |
-| P4 | FPU decode + dispatch in the ILL handler (FADD/FSUB/FMUL/FCMP) | `tests/ill-trap.test.js` covers the four ops |
-| P5 | FDIV, FSQRT | ditto |
+| P3 | **Done.** Layer 1 + `i2f`/`u2f`/`f2i`/FADD/FSUB/FMUL/FDIV/FSQRT/FCMP in `asm/softfloat.asm` | `tests/softfloat.test.js` passes: exhaustive conversions and round trip, `f2i` boundaries, randomized FSUB/FDIV/FSQRT/FMUL references, and JS+RTL vectors for every arithmetic operation |
+| P4 | FPU decode + dispatch in the ILL handler (FADD/FMUL/FCMP; FSUB by sign flip) and the library placement decision | `tests/ill-trap.test.js` covers the trapped ops |
+| P5 | FDIV/FSQRT dispatch in the handler (the subroutines are done) | ditto |
 | P6 | FEXP, FLOG — or never | — |
 
 P0–P2 are independent of the FPU and fix real defects. P3 is the long pole

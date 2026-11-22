@@ -1,12 +1,13 @@
 # Integer ↔ float conversion
 
-Status: **C0/C1/C2 implemented; C3/C4 pending.** `FPUEMUPLAN.md` §7.2 records that
+Status: **C0/C1/C2 implemented; C3 is covered by the FPU vector harness; C4
+(Forth words) pending.** `FPUEMUPLAN.md` §7.2 records that
 the FPU specification has no conversions at all. This note fixed the ABI, the
 algorithms, the edge cases and the test strategy before arithmetic was
 written. `asm/softfloat.asm` now has `f_unpack`/`f_pack`, `i2f` and `u2f`;
 `tests/softfloat.test.js` checks the conversions exhaustively (including an
-exhaustive `i2f -> f2i` round trip). The Forth words and the variable-shift
-`mulshift` remain.
+exhaustive `i2f -> f2i` round trip) and the arithmetic golden vectors. The
+Forth words and the variable-shift `mulshift` remain.
 
 Companion documents: `FPUEMUPLAN.md` (FPU trap, `SAPF`, phases),
 `archive/ILLTRAP.md` (trap mechanics, `NIO`), `doc/Deep16-FPU.md` (the specification
@@ -293,7 +294,7 @@ encoding before the first FPU opcode is wired.
 | C0 | **`f_unpack` / `f_pack` done;** `mulshift`+`p2` / `clz24` pending | unit tests against JS bit operations |
 | C1 | **`i2f`, `u2f` done** | exhaustive against `Math.fround` on JS (RTL sampled through the FPU vector harness) |
 | C2 | **`f2i` done** | boundary table + invariant + exhaustive round trip |
-| C3 | wire into `fadd32` golden vectors | FADD vectors readable, no hand-built patterns |
+| C3 | **Covered** by the FPU vector harness | FADD/FSUB/FMUL/FDIV/FSQRT vectors readable |
 | C4 | Forth words `s>f`, `f>s`, `u>f` | dictionary test |
 
 C1 is also the cheapest way to find out whether the `SL` ladder and the

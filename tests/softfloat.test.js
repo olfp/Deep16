@@ -42,6 +42,7 @@ const bitsOf = (value) => {
   return view.getUint32(0);
 };
 const f32 = (hi, lo) => (((hi & 0xFFFF) << 16) | (lo & 0xFFFF)) >>> 0;
+const V = (value) => bitsOf(value);
 const hex = (value) => '0x' + (value >>> 0).toString(16).padStart(8, '0');
 
 // i2f/u2f are exact for every 16-bit input, so the test is exhaustive. The
@@ -442,5 +443,173 @@ test('fcmp32 matches JS ordering on random finite pairs', () => {
     const { sim } = runJsProgram(binaryProgram('fcmp32', a >>> 0, b >>> 0));
     assert.equal(sim.memory[0x302], compareReference(a >>> 0, b >>> 0),
                  `fcmp32 ${hex(a)} ? ${hex(b)}`);
+  }
+});
+
+function truncDivide(aBits, bBits) {
+  const decode = (bits) => ({
+    sign: bits >>> 31,
+    exp: (bits >>> 23) & 0xFF,
+    mant: bits & 0x7FFFFF,
+  });
+  const a = decode(aBits);
+  const b = decode(bBits);
+  const aNaN = a.exp === 255 && a.mant !== 0;
+  const bNaN = b.exp === 255 && b.mant !== 0;
+  if (aNaN || bNaN) return 0x7FC00000;
+  const sign = (a.sign ^ b.sign) >>> 0;
+  const aInf = a.exp === 255;
+  const bInf = b.exp === 255;
+  if (aInf && bInf) return 0x7FC00000;
+  if (aInf) return ((sign << 31) | 0x7F800000) >>> 0;
+  if (bInf) return (sign << 31) >>> 0;
+  const aZero = a.exp === 0;
+  const bZero = b.exp === 0;
+  if (bZero) return aZero ? 0x7FC00000 : ((sign << 31) | 0x7F800000) >>> 0;
+  if (aZero) return (sign << 31) >>> 0;
+  const mA = BigInt(0x800000 | a.mant);
+  const mB = BigInt(0x800000 | b.mant);
+  let q = (mA << 23n) / mB;
+  let exponent = a.exp - b.exp + 127;
+  if ((q & 0x800000n) === 0n) {
+    q <<= 1n;
+    exponent -= 1;
+  }
+  if (exponent <= 0) return (sign << 31) >>> 0;
+  if (exponent >= 255) return ((sign << 31) | 0x7F800000) >>> 0;
+  return ((sign << 31) | (exponent << 23) | Number(q & 0x7FFFFFn)) >>> 0;
+}
+
+test('fdiv32 matches an exact BigInt reference', async () => {
+  const specials = [
+    [V(6), V(2)], [V(1), V(1)], [V(1), V(2)], [V(2), V(1)],
+    [V(1), V(4)], [V(-6), V(2)], [V(1), V(3)], [V(2), V(3)],
+    [V(10), V(4)], [V(3), V(7)], [V(1), V(0)], [V(-1), V(0)],
+    [V(0), V(0)], [0x7F800000, V(2)], [V(2), 0x7F800000],
+    [0x7F800000, 0x7F800000], [0x7FC00000, V(2)], [V(1), 0x7F800000],
+    [V(0), V(2)], [0x80000000, V(2)], [V(1), V(-2)],
+  ];
+  for (const [a, b] of specials) {
+    const source = binaryProgram('fdiv32', a, b);
+    const { sim } = runJsProgram(source);
+    const want = truncDivide(a, b);
+    assert.equal(binaryResult(sim), want, `fdiv32 ${hex(a)} / ${hex(b)}`);
+
+    const rtl = await runRtlProgram(source);
+    assert.equal(((rtl.memoryAt(0x300, 1)[0] << 16) | rtl.memoryAt(0x301, 1)[0]) >>> 0,
+                 want, `RTL fdiv32 ${hex(a)} / ${hex(b)}`);
+  }
+
+  let seed = 0xD1F1DE;
+  const rnd = () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed;
+  };
+  for (let i = 0; i < 100; i++) {
+    const a = ((rnd() & 1) << 31) | ((1 + (rnd() % 254)) << 23) | (rnd() & 0x7FFFFF);
+    const b = ((rnd() & 1) << 31) | ((1 + (rnd() % 254)) << 23) | (rnd() & 0x7FFFFF);
+    const { sim } = runJsProgram(binaryProgram('fdiv32', a >>> 0, b >>> 0));
+    assert.equal(binaryResult(sim), truncDivide(a >>> 0, b >>> 0),
+                 `fdiv32 ${hex(a)} / ${hex(b)}`);
+  }
+});
+
+function sqrtProgram(valueBits) {
+  return `
+.org 0
+    LDI fsqrt32
+    MOV R5, R0
+    LDI 0x0200
+    MOV R4, R0
+    LD R6, R4, 0
+    LD R7, R4, 1
+    LINK
+    JMP R5
+    NOP
+    LDI 0x0300
+    MOV R4, R0
+    ST R6, R4, 0
+    ADD R4, 1
+    ST R7, R4, 0
+    HALT
+.org 0x0200
+    .word 0x${((valueBits >>> 16) & 0xFFFF).toString(16)}
+    .word 0x${(valueBits & 0xFFFF).toString(16)}
+`;
+}
+
+function truncSqrt(bits) {
+  const sign = bits >>> 31;
+  const exp = (bits >>> 23) & 0xFF;
+  const mant = bits & 0x7FFFFF;
+  if (exp === 255) {
+    if (mant !== 0) return 0x7FC00000;
+    return sign ? 0x7FC00000 : 0x7F800000;
+  }
+  if (exp === 0 || sign) return sign ? 0x80000000 : 0x7FC00000;
+  const view = new DataView(new ArrayBuffer(4));
+  view.setUint32(0, bits >>> 0);
+  const root = Math.sqrt(view.getFloat32(0));
+  let exponent = Math.floor(Math.log2(root));
+  let scaled = root / Math.pow(2, exponent);
+  if (scaled < 1) {
+    exponent -= 1;
+    scaled *= 2;
+  } else if (scaled >= 2) {
+    exponent += 1;
+    scaled /= 2;
+  }
+  const significand = Math.floor(scaled * 0x800000);
+  const biased = exponent + 127;
+  if (biased <= 0) return 0;
+  if (biased >= 255) return 0x7F800000;
+  return ((biased << 23) | (significand - 0x800000)) >>> 0;
+}
+
+test('fsqrt32 matches a truncating reference on JS and RTL', async () => {
+  const vectors = [
+    [bitsOf(1), 0x3F800000],
+    [bitsOf(2), 0x3FB504F3],
+    [bitsOf(3), 0x3FDDB3D7],
+    [bitsOf(4), 0x40000000],
+    [bitsOf(9), 0x40400000],
+    [bitsOf(0.25), 0x3F000000],
+    [bitsOf(0.5), 0x3F3504F3],
+    [bitsOf(10), 0x404A62C1],
+    [bitsOf(0.1), 0x3EA1E89B],
+    [bitsOf(100), 0x41200000],
+    [bitsOf(1.5), 0x3F9CC470],
+    [bitsOf(2.25), 0x3FC00000],
+    [bitsOf(4.41), 0x40066666],
+    [bitsOf(1e-3), 0x3D0186E2],
+    [bitsOf(1e9), 0x46F70D8D],
+    [f32(0x5F00, 0), 0x4F3504F3],
+    [0x00000000, 0x00000000],
+    [0x80000000, 0x80000000],
+    [bitsOf(-1), 0x7FC00000],
+    [0x7FC00000, 0x7FC00000],
+    [0x7F800000, 0x7F800000],
+    [0xFF800000, 0x7FC00000],
+    [0x00000001, 0x00000000],
+  ];
+  for (const [value, want] of vectors) {
+    const source = sqrtProgram(value);
+    const { sim } = runJsProgram(source);
+    assert.equal(binaryResult(sim), want, `JS fsqrt32 ${hex(value)}`);
+
+    const rtl = await runRtlProgram(source);
+    assert.equal(((rtl.memoryAt(0x300, 1)[0] << 16) | rtl.memoryAt(0x301, 1)[0]) >>> 0,
+                 want, `RTL fsqrt32 ${hex(value)}`);
+  }
+
+  let seed = 0x5A7E;
+  const rnd = () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed;
+  };
+  for (let i = 0; i < 100; i++) {
+    const value = ((1 + (rnd() % 254)) << 23) | (rnd() & 0x7FFFFF);
+    const { sim } = runJsProgram(sqrtProgram(value));
+    assert.equal(binaryResult(sim), truncSqrt(value >>> 0), `fsqrt32 ${hex(value)}`);
   }
 });
