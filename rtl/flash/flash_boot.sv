@@ -1,7 +1,7 @@
 // flash_boot - copy the flat boot image from the config flash (1 MB) into PSRAM.
 //
 // The config flash holds the image at 1 MB: a 64-word header (magic, format,
-// image words, CRC16), then the flat 24,576-word image packed two words per
+// image words, CRC16), then the flat 28,672-word image packed two words per
 // 32-bit flash word (and, with D16SEG, the copies that go to DS and to the BIOS
 // segment). It copies while computing the same CRC-16/CCITT-FALSE as the
 // generator, compares the result with the header, and hands the entry word to
@@ -37,9 +37,9 @@ module flash_boot (
 );
   localparam logic [31:0] MAGIC  = 32'h44313646;   // 'D16F'
   localparam logic [31:0] FORMAT = 32'd1;
-  localparam int IMG_WORDS = 24576;                 // 16-bit words
+  localparam int IMG_WORDS = 28672;                 // 16-bit words (0x7000)
   localparam int FLASH_IMG = 64;                    // first 32-bit word of image
-  localparam int IMG_PAIRS = IMG_WORDS / 2;         // 12,288
+  localparam int IMG_PAIRS = IMG_WORDS / 2;         // 14,336
 
   localparam logic [5:0]
     S_IDLE = 6'd0,
@@ -182,7 +182,7 @@ module flash_boot (
         S_WR1W: if (bbusy) begin
 `ifdef D16SEG
           if (img_i >= 14'h1800 && img_i <= 14'h2BEE) st <= S_WR_D0;
-          else if (img_i >= 14'h2500 && img_i < 14'h3000) st <= S_WR_B0;
+          else if (img_i >= 14'h2500 && img_i < 14'h3800) st <= S_WR_B0;
           else
 `endif
           if (img_i == 14'(IMG_PAIRS - 1)) st <= S_CRC_CHK;
@@ -207,16 +207,17 @@ module flash_boot (
           st <= S_WR_D1W;
         end
         S_WR_D1W: if (bbusy) begin
-          if (img_i >= 14'h2500 && img_i < 14'h3000) st <= S_WR_B0;
+          if (img_i >= 14'h2500 && img_i < 14'h3800) st <= S_WR_B0;
           else if (img_i == 14'(IMG_PAIRS - 1)) st <= S_CRC_CHK;
           else begin img_i <= img_i + 14'd1; st <= S_CP_REQ; end
         end
 
         // The BIOS/demo block also gets a copy in segment 0x3000. The source
-        // offset is 0x4A00..0x5FFF; the BIOS segment starts at 0x30000, so the
+        // offset is 0x4A00..0x6FFF; the BIOS segment starts at 0x30000, so the
         // destination is 0x30000 + (source - 0x4A00) = 0x2B600 + source. The
-        // last 0x800 words are the soft-float library at 0x5800 (BIOS offset
-        // 0x0E00), so an FPU trap can run it in the BIOS segment.
+        // soft-float library at 0x5800 lands at BIOS offset 0x0E00 and the
+        // transcendental routines at 0x6000 land at 0x1600, so an FPU trap can
+        // run both in the BIOS segment.
         S_WR_B0: if (!bbusy) begin
           breq <= 1'b1; bwe <= 1'b1;
           baddr <= 20'h2B600 + {5'd0, img_i, 1'b0};

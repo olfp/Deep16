@@ -179,6 +179,8 @@ high half on top**, the same order as a double. Float literals use the usual
 1.5e-2 f.                  \ 0.0149 (four fixed fractional digits)
 3 s>f f>s .                \ 3
 : half 0.5 ; half f.       \ 0.5000
+1.0 fexp f.                \ 2.7182
+2.0 flog f.                \ 0.6931
 ```
 
 | word | stack effect | meaning |
@@ -188,6 +190,8 @@ high half on top**, the same order as a double. Float literals use the usual
 | `f*` | `( f1 f2 -- f3 )` | multiply |
 | `f/` | `( f1 f2 -- f3 )` | divide |
 | `fsqrt` | `( f -- f' )` | square root |
+| `fexp` | `( f -- f' )` | e raised to f |
+| `flog` | `( f -- f' )` | natural logarithm |
 | `fnegate` | `( f -- -f )` | flip the sign bit |
 | `fabs` | `( f -- \|f\| )` | clear the sign bit |
 | `f<` | `( f1 f2 -- flag )` | signed less-than; false if unordered |
@@ -218,8 +222,12 @@ up to five digits and the fraction up to four; extra fraction digits are
 validated but ignored. Interpreted, the literal pushes its two cells (high
 half on top); compiled, it emits `LIT low LIT high`. Anything that does not
 match the grammar (`1.`, `1e`, `1..5`) falls back to the ordinary word scan
-and is reported as an undefined word. `FEXP`/`FLOG` still return the canonical
-NaN (0x7FC00000).
+and is reported as an undefined word.
+
+`fexp` and `flog` use the FPU trap and are accurate to a few ulps for
+ordinary arguments. They follow the same special-value policy: `exp(+inf)` is
+`+inf`, `exp(-inf)` is `+0`, `log(0)` is `-inf`, `log(x<0)` and `log(NaN)` are
+the canonical NaN, and denormals flush to zero.
 
 ## Stack
 

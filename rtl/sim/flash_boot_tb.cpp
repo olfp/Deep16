@@ -44,6 +44,7 @@ int main(int argc, char** argv) {
   expect("DS copy of 0x3000", top->got_ds3000, top->exp_3000);
   expect("BIOS copy of 0x4A00", top->got_bios4a00, top->exp_bios4a00);
   expect("BIOS copy of 0x5800 (FPU)", top->got_bios5800, top->exp_bios5800);
+  expect("BIOS copy of 0x6000 (FEXP)", top->got_bios6000, top->exp_bios6000);
   std::printf("cycles: %d\n", cycles);
 
   delete top;

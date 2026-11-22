@@ -55,7 +55,8 @@ class Deep16D16DImage {
     const result = new Deep16Assembler().assemble(source, { defines: defs });
     if (!result.success) throw new Error('kernel does not assemble: ' + result.errors.join('; '));
 
-    const WINDOW = 0x6000;
+    // The FPU image carries fexp32/flog32 at 0x6000, so it needs 0x7000 words.
+    const WINDOW = softfloat !== null ? 0x7000 : 0x6000;
     const words = new Uint16Array(WINDOW).fill(0xFFFF);
     const outOfWindow = new Set();
     for (const change of result.memoryChanges) {
@@ -95,9 +96,9 @@ class Deep16D16DImage {
   // Scatter a flat D16SEG image into the physical map used by the board and
   // the JS core (rtl/flash/flash_boot.sv):
   //
-  //   0x00000..0x05FFF  flat code/image copy
+  //   0x00000..last     flat code/image copy
   //   0x10000 + offset  DS=0x1000 copy of image 0x3000..0x57DC
-  //   0x30000 + offset  BIOS segment copy of image 0x4A00..0x5FFF
+  //   0x30000 + offset  BIOS segment copy of image 0x4A00..last
   //
   // bootPtr is cleared in the flat and DS copies when supplied. That disables
   // the baked Forth boot script, so the IDE starts at the interactive prompt
@@ -113,13 +114,13 @@ class Deep16D16DImage {
 
     const writes = new Map();
     const put = (address, value) => writes.set(address >>> 0, value & 0xFFFF);
-    const last = Math.min(words.length, 0x6000) - 1;
+    const last = words.length - 1;
 
     for (let offset = 0; offset <= last; offset++) put(offset, words[offset]);
     for (let offset = 0x3000; offset <= Math.min(0x57DC, last); offset++) {
       put(0x10000 + offset, words[offset]);
     }
-    for (let offset = 0x4A00; offset <= Math.min(0x5FFF, last); offset++) {
+    for (let offset = 0x4A00; offset <= last; offset++) {
       put(0x30000 + (offset - 0x4A00), words[offset]);
     }
 
@@ -177,7 +178,7 @@ class Deep16D16DImage {
       if (!gres.success) throw new Error('frogger does not assemble: ' + gres.errors.join('; '));
     }
 
-    const WINDOW = 0x6000;
+    const WINDOW = words.length;
     const SHOWCASE_BASE = 0x4A00;
     const PACMAN_BASE = 0x4330;
     const collisions = [];

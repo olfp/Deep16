@@ -52,13 +52,13 @@ test('browser builder matches the Node D16D image word for word', () => {
   assert.notEqual(node.words[0x5800], 0xFFFF, 'the soft-float library is in the image');
   assert.equal(browser.words[0x5800], node.words[0x5800], 'library word matches');
   assert.equal(browser.symbols.h_fdot, 0x417D, 'the Forth header block starts at 0x417D');
-  assert.equal(browser.words[browser.symbols.forth_wl], 0x417D,
+  assert.equal(browser.symbols.h_fexp, 0x42EB, 'fexp/flog headers end the 0x417D block');
+  assert.equal(browser.words[browser.symbols.forth_wl], 0x42EB,
                'forth_wl names the newest float header');
   assert.notEqual(node.words[0x417D], 0xFFFF, 'the Forth float headers are in the image');
-  // The games are slices: the gap below the BIOS and the game area are empty.
-  assert.equal(node.words[0x5FF0], 0xffff, 'frogger is not baked into the image');
-  // 0x5F00 now holds the f. printer and 0x5F80 its code; 0x5FF0 is unused.
-  assert.equal(node.words[0x5FF8], 0xffff, 'flappy is not baked into the image');
+  // The games are slices: the words above the FPU image stay empty.
+  assert.equal(node.words[0x6FFF], 0xffff, 'frogger is not baked into the image');
+  assert.equal(node.words[0x6FFE], 0xffff, 'flappy is not baked into the image');
   assert.notEqual(node.words[0x4330], 0xffff, 'the literal parser is in the image');
   assert.equal(browser.symbols.scan_float, 0x4330, 'the literal scanner starts at 0x4330');
   // The block (code, map, tables and tile pack) now runs past the BIOS, so
@@ -89,7 +89,7 @@ test('the slice blocks are built with their load segments', () => {
 
 test('the image is code plus the showcase, not graphics', () => {
   const browser = Deep16D16DImage.build(sources);
-  assert.equal(browser.words.length, 0x6000);
+  assert.equal(browser.words.length, 0x7000);
   assert.equal(browser.outOfWindow.includes(0xF0064), true, 'echo cell is outside the window');
   for (let a = 0xF3000; a <= 0xF3000 + 32; a++) {
     assert.equal(browser.words[a], undefined);
@@ -102,8 +102,12 @@ test('the BIOS scatter carries the FPU library to segment 0x3000', () => {
   Deep16D16DImage.scatterD16SEG(image.words, { memory });
   // 0x5800 - 0x4A00 = 0x0E00, and 0x30000 + 0x0E00 = 0x30E00.
   assert.equal(memory[0x30E00], image.words[0x5800], 'f_unpack reached the BIOS copy');
-  assert.equal(memory[0x30E00 + 0x65C], image.words[0x5E5C], 'the last library word too');
-  assert.equal(memory[0x315FF], 0xFFFF, 'the FILL tail below 0x6000 is copied as the loader does');
+  // fexp32 sits at 0x6000: 0x6000 - 0x4A00 = 0x1600, so 0x31600.
+  assert.equal(memory[0x31600], image.words[0x6000], 'fexp32 reached the BIOS copy');
+  const libEnd = image.symbols.fpu_lib_end;
+  assert.equal(memory[0x30E00 + (libEnd - 0x5800 - 1)], image.words[libEnd - 1],
+               'the last library word too');
+  assert.equal(memory[0x325FF], 0xFFFF, 'the FILL tail below 0x7000 is copied as the loader does');
 });
 
 test('a broken kernel reports the assembler error', () => {

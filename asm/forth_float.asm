@@ -1064,7 +1064,7 @@ sf_build_tramp_l:
     NOP
 fpu_lit_tramp_end:
 
-.org 0x42EC
+.org 0x6500
 sf_parse:
     LD R1, SP, 0
     MOV R3, R6
@@ -1307,6 +1307,43 @@ probe_no:
     MOV PC, R0
     NOP
 fpu_lit_probe_end:
+
+; The two transcendental headers are newest-first in the chain. They live at
+; the end of the 0x417D block, which is still inside the DS copy, so FIND can
+; read them; the literal parser moved to the 0x6500 tail to make room.
+.org fpu_words_end
+fpu_trans_base:
+h_fexp:
+    .word h_flog
+    .word 4
+    .text "fexp"
+    .word word_fexp
+h_flog:
+    .word h_fdot
+    .word 4
+    .text "flog"
+    .word word_flog
+
+word_fexp:
+    LD R2, SP, 0
+    LD R3, SP, 1
+    FEXP
+    ST R2, SP, 0
+    ST R3, SP, 1
+    LDI next
+    MOV PC, R0
+    NOP
+
+word_flog:
+    LD R2, SP, 0
+    LD R3, SP, 1
+    FLOG
+    ST R2, SP, 0
+    ST R3, SP, 1
+    LDI next
+    MOV PC, R0
+    NOP
+fpu_trans_end:
 
 
 .endif

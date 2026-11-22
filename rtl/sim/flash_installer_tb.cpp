@@ -19,7 +19,7 @@ int main(int argc, char** argv) {
   for (int i = 0; i < 20; i++) tick();
   top->rst_n = 1;
 
-  // 25 page erases at 120 ms + 12,352 programs = ~3.3 s at 27 MHz.
+  // 29 page erases at 120 ms + 14,400 programs = ~4.5 s at 27 MHz.
   bool pass = false, fail = false;
   for (long i = 0; i < 200000000 && !pass && !fail; i++) {
     tick();

@@ -30,6 +30,26 @@ function boot() {
   return sim;
 }
 
+function bootNoRepl() {
+  // The flat non-D16SEG dictionary grows from 0x6000, exactly where fexp32
+  // lives. The D16D board never runs this map, but the flat library test can
+  // still avoid the REPL: install the vector, point SP below the dictionary
+  // and start at the test program. That proves the flat copy of the
+  // transcendentals without compiling a single word over them.
+  const sim = new globalThis.Deep16Simulator();
+  sim.loadProgram(buildMemory(kernel));
+  sim.memory[0] = kernel.symbols.ill_handler;
+  sim.segmentRegisters.CS = 0x0000;
+  sim.segmentRegisters.DS = 0x0000;
+  sim.segmentRegisters.SS = 0x0000;
+  sim.segmentRegisters.ES = 0x0000;
+  sim.registers[13] = 0x5FF0;
+  sim.shadowRegisters.R13 = 0x5200;
+  sim.d16nano = true;
+  sim.running = true;
+  return sim;
+}
+
 function runProgram(sim, source) {
   const program = assemble(source);
   assert.equal(program.success, true, program.errors.join('; '));
@@ -147,13 +167,22 @@ test('FCMP delivers N/Z/V through SAPF and writes no register', () => {
   assert.equal(stored(unordered).psw, 0x4, 'NaN is unordered (V)');
 });
 
-test('FEXP and FLOG return the canonical NaN until implemented', () => {
-  for (const opcode of ['FEXP', 'FLOG']) {
-    const sim = boot();
-    runProgram(sim, program(opcode, 0x3F80, 0, 0x3F80, 0));
-    assert.equal(stored(sim).f0High, 0x7FC0, `${opcode} -> NaN`);
-    assert.equal(stored(sim).f0Low, 0);
-  }
+function f32(high, low) {
+  const view = new DataView(new ArrayBuffer(4));
+  view.setUint32(0, (((high & 0xFFFF) << 16) | (low & 0xFFFF)) >>> 0, false);
+  return view.getFloat32(0);
+}
+
+test('FEXP and FLOG compute from the flat library', () => {
+  const exp = bootNoRepl();
+  runProgram(exp, program('FEXP', 0x3F80, 0, 0, 0));
+  const expValue = f32(stored(exp).f0High, stored(exp).f0Low);
+  assert.ok(Math.abs(expValue - Math.E) / Math.E < 1e-5, `exp(1) = ${expValue}`);
+
+  const log = bootNoRepl();
+  runProgram(log, program('FLOG', 0x4000, 0, 0, 0));
+  const logValue = f32(stored(log).f0High, stored(log).f0Low);
+  assert.ok(Math.abs(logValue - Math.LN2) / Math.LN2 < 1e-5, `log(2) = ${logValue}`);
 });
 
 test('a second FPU trap re-enters the handler with the updated F0', () => {

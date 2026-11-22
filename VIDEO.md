@@ -82,11 +82,12 @@ sprite rows are an 8x8x16 register file selected by the scan (no shift mux),
 and Hflip/Vflip are read/loader transformations. Details and the OAM format are
 in `rtl/dvi/README.md`.
 
-The D16D demo is a separate block at PSRAM 0x4E00 in the 24K user-flash image:
+The D16D demo is a separate block at PSRAM 0x4E00 in the user-flash image:
 eight 32x32 sprites over a scrolling '#' field, started by typing `gfx` at the
 Forth prompt. It lives in the BIOS segment (CS=DS=0x04A0), between the BIOS code
-and the Forth stacks, so the dictionary stays at 0x6000 and the plain 24K image
-and standard 25-page installer are unchanged. A BIOS SWI (function 6) parks the
+and the Forth stacks, so the dictionary stays at PSRAM 0x6000. The D16D image
+is 28K (the FPU transcendentals and the literal parser) and its installer is
+14,400 words / 29 pages. A BIOS SWI (function 6) parks the
 Forth's R5/R6, jumps to entry 0x404, and on return clears the tilemap/scroll/OAM
 and resets the kernel cursor cells. The packed BSRAM console is built without
 the gfx additions (they take the tile kernel over the 16-block budget); the demo
@@ -95,7 +96,7 @@ only exists in the flash image.
 The tested persistent flash writes both halves and survives a power cycle:
 
 ```sh
-npm run synth:tile   # 24K D16D image + tile .fs + image.flash.bin
+npm run synth:tile   # 28K D16D image + tile .fs + image.flash.bin
 npm run flash:tile   # openFPGALoader -f <tile.fs> --user-flash <image.flash.bin>
 # power-cycle
 ```

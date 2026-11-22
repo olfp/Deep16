@@ -1954,7 +1954,15 @@ ill_fpu:
     CMP R10, R0
     JZ ill_fpu_cmp
     NOP
-    ; FEXP/FLOG are not implemented: return canonical NaN in F0.
+    LDI -4                      ; 0xFFFC FEXP
+    CMP R10, R0
+    JZ ill_fpu_exp
+    NOP
+    LDI -3                      ; 0xFFFD FLOG
+    CMP R10, R0
+    JZ ill_fpu_log
+    NOP
+    ; An unknown 0xFFF8..0xFFFE word returns canonical NaN in F0.
     LDI 0x7F
     MOV R6, R0
     SL R6, 8
@@ -2008,6 +2016,28 @@ fpu_call_10:
     CMP R0, R0
     JZ ill_fpu_write
     NOP
+ill_fpu_exp:
+    MOV R11, PC
+fpu_call_12:
+    LDI fexp32 - fpu_call_12
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    CMP R0, R0
+    JZ ill_fpu_write
+    NOP
+ill_fpu_log:
+    MOV R11, PC
+fpu_call_13:
+    LDI flog32 - fpu_call_13
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    CMP R0, R0
+    JZ ill_fpu_write
+    NOP
 ill_fpu_cmp:
     MOV R11, PC
 fpu_call_11:
@@ -2031,5 +2061,833 @@ ill_fpu_ret_lr:
     ADD R1, R0
     MOV PC, R1
     NOP
+
+; ---- fexp32 / flog32 ---------------------------------------------------
+; FEXP/FLOG live above the rest of the library because they are large. The
+; flat image carries them at 0x6000 and the D16D loader copies the same words
+; to the BIOS segment at offset 0x1600, so every PC-relative call below keeps
+; working in both copies.
+;
+; Both routines use a 16-cell frame on the caller's data stack. The library
+; calls preserve SP; LR is saved in cell 0 because f_unpack/f_pack are leaf
+; routines that return through LR. Results use the usual R6:R7 pair.
+;
+; exp: k = round(x / ln2), r = x - k*ln2, exp(r) by a degree-5 Horner
+; polynomial, then 2^k by adding k to the exponent field. log: normalise to
+; m in [0.75, 1.5), z = (m-1)/(m+1), and the atanh series through z^9.
+
+.org 0x6000
+fexp32:
+    SUB SP, 8
+    SUB SP, 8
+    ST LR, SP, 0
+    ST R6, SP, 1               ; x
+    ST R7, SP, 2
+    MOV R11, PC
+fe_u1:
+    LDI f_unpack - fe_u1
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    ST R10, SP, 14             ; sign
+    ST R11, SP, 15             ; exponent
+    ST R0, SP, 10              ; significand high
+    ST R1, SP, 11
+    LDI 255
+    MOV R2, R0
+    CMP R11, R2
+    JZ fe_special
+    NOP
+    CMP R11, 0
+    JNZ fe_range
+    NOP
+    ; +-0 -> 1.0
+    LDI 0x3F80
+    MOV R6, R0
+    LSI R7, 0
+    CMP R0, R0
+    JNZ fe_one_done
+    NOP
+    MOV R11, PC
+fe_j_ret1:
+    LDI fe_ret - fe_j_ret1
+    ADD R11, R0
+    MOV PC, R11
+    NOP
+fe_one_done:
+
+fe_special:
+    LD R0, SP, 10
+    LD R1, SP, 11
+    LDI 0x80
+    MOV R2, R0
+    CMP R0, R2
+    JNZ fe_nan
+    NOP
+    CMP R1, 0
+    JNZ fe_nan
+    NOP
+    LD R10, SP, 14
+    CMP R10, 0
+    JNZ fe_zero
+    NOP
+    CMP R0, R0
+    JZ fe_inf
+    NOP
+
+fe_nan:
+    LDI 0x7F
+    MOV R6, R0
+    SL R6, 8
+    LDI 0xC0
+    OR R6, R0
+    LSI R7, 0
+    MOV R11, PC
+fe_j_ret2:
+    LDI fe_ret - fe_j_ret2
+    ADD R11, R0
+    MOV PC, R11
+    NOP
+
+fe_zero:
+    LSI R6, 0
+    LSI R7, 0
+    MOV R11, PC
+fe_j_ret3:
+    LDI fe_ret - fe_j_ret3
+    ADD R11, R0
+    MOV PC, R11
+    NOP
+
+fe_inf:
+    LDI 0x7F
+    MOV R6, R0
+    SL R6, 8
+    LDI 0x80
+    OR R6, R0
+    LSI R7, 0
+    MOV R11, PC
+fe_j_ret4:
+    LDI fe_ret - fe_j_ret4
+    ADD R11, R0
+    MOV PC, R11
+    NOP
+
+fe_range:
+    ; |x| >= 128 overflows or underflows regardless of the reduction.
+    LDI 134
+    MOV R2, R0
+    LD R11, SP, 15
+    CMP R11, R2
+    JNC fe_range_big
+    NOP
+    ; y = x * log2(e)
+    LD R6, SP, 1
+    LD R7, SP, 2
+    LDI 0x3FB8
+    MOV R8, R0
+    LDI 0xAA
+    MOV R9, R0
+    SL R9, 8
+    LDI 0x3B
+    OR R9, R0
+    MOV R11, PC
+fe_c1:
+    LDI fmul32 - fe_c1
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    ST R6, SP, 3
+    ST R7, SP, 4
+    ; k = round(y): add +-0.5 before the truncating f2i.
+    MOV R2, R6
+    SR R2, 15
+    CMP R2, 0
+    JNZ fe_yneg
+    NOP
+    LDI 0x3F00
+    MOV R8, R0
+    LSI R9, 0
+    CMP R0, R0
+    JZ fe_round
+    NOP
+fe_yneg:
+    LDI 0xBF
+    MOV R8, R0
+    SL R8, 8
+    LSI R9, 0
+fe_round:
+    MOV R11, PC
+fe_c2:
+    LDI fadd32 - fe_c2
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    MOV R2, R6
+    MOV R3, R7
+    MOV R11, PC
+fe_c3:
+    LDI f2i - fe_c3
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    ST R0, SP, 7               ; k
+    ; kf = i2f(k)
+    MOV R11, PC
+fe_c4:
+    LDI i2f - fe_c4
+    ADD R11, R0
+    LD R0, SP, 7
+    LINK
+    JMP R11
+    NOP
+    ; kmul = kf * ln2
+    MOV R6, R2
+    MOV R7, R3
+    LDI 0x3F31
+    MOV R8, R0
+    LDI 0x72
+    MOV R9, R0
+    SL R9, 8
+    LDI 0x18
+    OR R9, R0
+    MOV R11, PC
+fe_c5:
+    LDI fmul32 - fe_c5
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    ; r = x - kmul
+    MOV R8, R6
+    MOV R9, R7
+    LD R6, SP, 1
+    LD R7, SP, 2
+    MOV R11, PC
+fe_c6:
+    LDI fsub32 - fe_c6
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    ST R6, SP, 8               ; r
+    ST R7, SP, 9
+    ; p = 1/120
+    LDI 0x3C08
+    MOV R6, R0
+    LDI 0x88
+    MOV R7, R0
+    SL R7, 8
+    LDI 0x89
+    OR R7, R0
+    ST R6, SP, 5
+    ST R7, SP, 6
+    ; p = 1/24 + r*p
+    LD R6, SP, 8
+    LD R7, SP, 9
+    LD R8, SP, 5
+    LD R9, SP, 6
+    MOV R11, PC
+fe_c7:
+    LDI fmul32 - fe_c7
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    LDI 0x3D2A
+    MOV R8, R0
+    LDI 0xAA
+    MOV R9, R0
+    SL R9, 8
+    LDI 0xAB
+    OR R9, R0
+    MOV R11, PC
+fe_c8:
+    LDI fadd32 - fe_c8
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    ST R6, SP, 5
+    ST R7, SP, 6
+    ; p = 1/6 + r*p
+    LD R6, SP, 8
+    LD R7, SP, 9
+    LD R8, SP, 5
+    LD R9, SP, 6
+    MOV R11, PC
+fe_c9:
+    LDI fmul32 - fe_c9
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    LDI 0x3E2A
+    MOV R8, R0
+    LDI 0xAA
+    MOV R9, R0
+    SL R9, 8
+    LDI 0xAB
+    OR R9, R0
+    MOV R11, PC
+fe_c10:
+    LDI fadd32 - fe_c10
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    ST R6, SP, 5
+    ST R7, SP, 6
+    ; p = 1/2 + r*p
+    LD R6, SP, 8
+    LD R7, SP, 9
+    LD R8, SP, 5
+    LD R9, SP, 6
+    MOV R11, PC
+fe_c11:
+    LDI fmul32 - fe_c11
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    LDI 0x3F00
+    MOV R8, R0
+    LSI R9, 0
+    MOV R11, PC
+fe_c12:
+    LDI fadd32 - fe_c12
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    ST R6, SP, 5
+    ST R7, SP, 6
+    ; p = 1 + r*p
+    LD R6, SP, 8
+    LD R7, SP, 9
+    LD R8, SP, 5
+    LD R9, SP, 6
+    MOV R11, PC
+fe_c13:
+    LDI fmul32 - fe_c13
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    LDI 0x3F80
+    MOV R8, R0
+    LSI R9, 0
+    MOV R11, PC
+fe_c14:
+    LDI fadd32 - fe_c14
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    ST R6, SP, 5
+    ST R7, SP, 6
+    ; p = 1 + r*p
+    LD R6, SP, 8
+    LD R7, SP, 9
+    LD R8, SP, 5
+    LD R9, SP, 6
+    MOV R11, PC
+fe_c15:
+    LDI fmul32 - fe_c15
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    LDI 0x3F80
+    MOV R8, R0
+    LSI R9, 0
+    MOV R11, PC
+fe_c16:
+    LDI fadd32 - fe_c16
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    ; p *= 2^k by adding k to the biased exponent.
+    MOV R2, R6
+    SR R2, 7
+    LDI 0xFF
+    MOV R3, R0
+    AND R2, R3                 ; biased exponent
+    LD R1, SP, 7               ; k
+    ADD R2, R1
+    CMP R2, 0
+    JNN fe_exp_nonneg
+    NOP
+    MOV R11, PC
+fe_j_zero1:
+    LDI fe_zero - fe_j_zero1
+    ADD R11, R0
+    MOV PC, R11
+    NOP
+fe_exp_nonneg:
+    CMP R2, 0
+    JNZ fe_exp_pos
+    NOP
+    MOV R11, PC
+fe_j_zero2:
+    LDI fe_zero - fe_j_zero2
+    ADD R11, R0
+    MOV PC, R11
+    NOP
+fe_exp_pos:
+    LDI 255
+    MOV R3, R0
+    CMP R2, R3
+    JC fe_exp_ok
+    NOP
+    MOV R11, PC
+fe_j_inf1:
+    LDI fe_inf - fe_j_inf1
+    ADD R11, R0
+    MOV PC, R11
+    NOP
+fe_exp_ok:
+    LDI 0x7F
+    MOV R4, R0
+    MOV R3, R6
+    AND R3, R4                 ; low mantissa bits
+    MOV R4, R2
+    SL R4, 7
+    OR R3, R4
+    MOV R4, R6
+    SR R4, 15
+    SL R4, 15                  ; sign
+    OR R3, R4
+    MOV R6, R3
+    CMP R0, R0
+    JZ fe_ret
+    NOP
+
+fe_range_big:
+    LD R10, SP, 14
+    CMP R10, 0
+    JZ fe_rb_pos
+    NOP
+    MOV R11, PC
+fe_j_zero3:
+    LDI fe_zero - fe_j_zero3
+    ADD R11, R0
+    MOV PC, R11
+    NOP
+fe_rb_pos:
+    MOV R11, PC
+fe_j_inf2:
+    LDI fe_inf - fe_j_inf2
+    ADD R11, R0
+    MOV PC, R11
+    NOP
+
+fe_ret:
+    LD LR, SP, 0
+    ADD SP, 8
+    ADD SP, 8
+    JMP LR
+    NOP
+
+; ---- flog32 ------------------------------------------------------------
+; Input R6:R7, output R6:R7. Negative and NaN inputs give canonical NaN;
+; +-0 and denormals give -inf; +inf gives +inf.
+flog32:
+    SUB SP, 8
+    SUB SP, 8
+    ST LR, SP, 0
+    ST R6, SP, 1
+    ST R7, SP, 2
+    MOV R11, PC
+fl_u1:
+    LDI f_unpack - fl_u1
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    ST R10, SP, 14
+    ST R11, SP, 15
+    ST R0, SP, 3
+    ST R1, SP, 4
+    LDI 255
+    MOV R2, R0
+    CMP R11, R2
+    JNZ fl_not_special
+    NOP
+    MOV R11, PC
+fl_j_special:
+    LDI fl_special - fl_j_special
+    ADD R11, R0
+    MOV PC, R11
+    NOP
+fl_not_special:
+    CMP R11, 0
+    JNZ fl_not_zero
+    NOP
+    MOV R11, PC
+fl_j_ninf:
+    LDI fl_ninf - fl_j_ninf
+    ADD R11, R0
+    MOV PC, R11
+    NOP
+fl_not_zero:
+    LD R10, SP, 14
+    CMP R10, 0
+    JZ fl_positive
+    NOP
+    MOV R11, PC
+fl_j_nan:
+    LDI fl_nan - fl_j_nan
+    ADD R11, R0
+    MOV PC, R11
+    NOP
+fl_positive:
+    ; e = exp - 127
+    LDI 127
+    MOV R2, R0
+    LD R11, SP, 15
+    SUB R11, R2
+    ST R11, SP, 7
+    ; m is in [1,2); if it is >= 1.5, halve it and bump e.
+    LDI 0xC0
+    MOV R2, R0
+    LD R0, SP, 3
+    CMP R0, R2
+    JNC fl_big
+    NOP
+    LSI R10, 0
+    LDI 127
+    MOV R11, R0
+    CMP R0, R0
+    JZ fl_pack
+    NOP
+fl_big:
+    LSI R10, 0
+    LDI 126
+    MOV R11, R0
+    LD R2, SP, 7
+    ADD R2, 1
+    ST R2, SP, 7
+fl_pack:
+    MOV R12, PC
+fl_c1:
+    LDI f_pack - fl_c1
+    ADD R12, R0
+    LD R0, SP, 3
+    LD R1, SP, 4
+    LINK
+    JMP R12
+    NOP
+    ST R6, SP, 3               ; m
+    ST R7, SP, 4
+    ; m - 1
+    LD R6, SP, 3
+    LD R7, SP, 4
+    LDI 0xBF
+    MOV R8, R0
+    SL R8, 8
+    LDI 0x80
+    OR R8, R0
+    LSI R9, 0
+    MOV R11, PC
+fl_c2:
+    LDI fadd32 - fl_c2
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    ST R6, SP, 10
+    ST R7, SP, 11
+    ; m + 1
+    LD R6, SP, 3
+    LD R7, SP, 4
+    LDI 0x3F80
+    MOV R8, R0
+    LSI R9, 0
+    MOV R11, PC
+fl_c3:
+    LDI fadd32 - fl_c3
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    ; z = (m-1)/(m+1)
+    MOV R8, R6
+    MOV R9, R7
+    LD R6, SP, 10
+    LD R7, SP, 11
+    MOV R11, PC
+fl_c4:
+    LDI fdiv32 - fl_c4
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    ST R6, SP, 5               ; z
+    ST R7, SP, 6
+    ; z2 = z*z
+    MOV R8, R6
+    MOV R9, R7
+    MOV R11, PC
+fl_c5:
+    LDI fmul32 - fl_c5
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    ST R6, SP, 8
+    ST R7, SP, 9
+    ; p = 1/9
+    LDI 0x3DE3
+    MOV R6, R0
+    LDI 0x8E
+    MOV R7, R0
+    SL R7, 8
+    LDI 0x39
+    OR R7, R0
+    ST R6, SP, 10
+    ST R7, SP, 11
+    ; p = 1/7 + z2*p
+    LD R6, SP, 8
+    LD R7, SP, 9
+    LD R8, SP, 10
+    LD R9, SP, 11
+    MOV R11, PC
+fl_c6:
+    LDI fmul32 - fl_c6
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    LDI 0x3E12
+    MOV R8, R0
+    LDI 0x49
+    MOV R9, R0
+    SL R9, 8
+    LDI 0x25
+    OR R9, R0
+    MOV R11, PC
+fl_c7:
+    LDI fadd32 - fl_c7
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    ST R6, SP, 10
+    ST R7, SP, 11
+    ; p = 1/5 + z2*p
+    LD R6, SP, 8
+    LD R7, SP, 9
+    LD R8, SP, 10
+    LD R9, SP, 11
+    MOV R11, PC
+fl_c8:
+    LDI fmul32 - fl_c8
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    LDI 0x3E4C
+    MOV R8, R0
+    LDI 0xCC
+    MOV R9, R0
+    SL R9, 8
+    LDI 0xCD
+    OR R9, R0
+    MOV R11, PC
+fl_c9:
+    LDI fadd32 - fl_c9
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    ST R6, SP, 10
+    ST R7, SP, 11
+    ; p = 1/3 + z2*p
+    LD R6, SP, 8
+    LD R7, SP, 9
+    LD R8, SP, 10
+    LD R9, SP, 11
+    MOV R11, PC
+fl_c10:
+    LDI fmul32 - fl_c10
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    LDI 0x3EAA
+    MOV R8, R0
+    LDI 0xAA
+    MOV R9, R0
+    SL R9, 8
+    LDI 0xAB
+    OR R9, R0
+    MOV R11, PC
+fl_c11:
+    LDI fadd32 - fl_c11
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    ST R6, SP, 10
+    ST R7, SP, 11
+    ; p = 1 + z2*p
+    LD R6, SP, 8
+    LD R7, SP, 9
+    LD R8, SP, 10
+    LD R9, SP, 11
+    MOV R11, PC
+fl_c12:
+    LDI fmul32 - fl_c12
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    LDI 0x3F80
+    MOV R8, R0
+    LSI R9, 0
+    MOV R11, PC
+fl_c13:
+    LDI fadd32 - fl_c13
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    ST R6, SP, 10
+    ST R7, SP, 11
+    ; series = 2*z*p
+    LD R6, SP, 5
+    LD R7, SP, 6
+    LD R8, SP, 10
+    LD R9, SP, 11
+    MOV R11, PC
+fl_c14:
+    LDI fmul32 - fl_c14
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    LDI 0x40
+    MOV R8, R0
+    SL R8, 8
+    LSI R9, 0
+    MOV R11, PC
+fl_c15:
+    LDI fmul32 - fl_c15
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    ST R6, SP, 12
+    ST R7, SP, 13
+    ; e*ln2
+    MOV R11, PC
+fl_c16:
+    LDI i2f - fl_c16
+    ADD R11, R0
+    LD R0, SP, 7
+    LINK
+    JMP R11
+    NOP
+    MOV R6, R2
+    MOV R7, R3
+    LDI 0x3F31
+    MOV R8, R0
+    LDI 0x72
+    MOV R9, R0
+    SL R9, 8
+    LDI 0x18
+    OR R9, R0
+    MOV R11, PC
+fl_c17:
+    LDI fmul32 - fl_c17
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    ; e*ln2 + series
+    MOV R8, R6
+    MOV R9, R7
+    LD R6, SP, 12
+    LD R7, SP, 13
+    MOV R11, PC
+fl_c18:
+    LDI fadd32 - fl_c18
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    CMP R0, R0
+    JZ fl_ret
+    NOP
+
+fl_special:
+    LD R0, SP, 3
+    LD R1, SP, 4
+    LDI 0x80
+    MOV R2, R0
+    CMP R0, R2
+    JNZ fl_nan
+    NOP
+    CMP R1, 0
+    JNZ fl_nan
+    NOP
+    LD R10, SP, 14
+    CMP R10, 0
+    JNZ fl_nan
+    NOP
+    CMP R0, R0
+    JZ fl_inf
+    NOP
+
+fl_ninf:
+    LDI 0x7F
+    MOV R6, R0
+    SL R6, 8
+    LDI 0x80
+    OR R6, R0
+    LSI R7, 0
+    LDI 0x80
+    MOV R2, R0
+    SL R2, 8
+    OR R6, R2
+    CMP R0, R0
+    JZ fl_ret
+    NOP
+
+fl_inf:
+    LDI 0x7F
+    MOV R6, R0
+    SL R6, 8
+    LDI 0x80
+    OR R6, R0
+    LSI R7, 0
+    CMP R0, R0
+    JZ fl_ret
+    NOP
+
+fl_nan:
+    LDI 0x7F
+    MOV R6, R0
+    SL R6, 8
+    LDI 0xC0
+    OR R6, R0
+    LSI R7, 0
+    CMP R0, R0
+    JZ fl_ret
+    NOP
+
+fl_ret:
+    LD LR, SP, 0
+    ADD SP, 8
+    ADD SP, 8
+    JMP LR
+    NOP
+
 fpu_lib_end:
 .endif

@@ -3,7 +3,7 @@
 #
 # The FLASH608K has no initial value and is not reachable from the Gowin
 # programmer, so this bitstream is the only way to put the image into it. It
-# loads image.flash.hex, erases the 25 pages it needs, programs the 12,352
+# loads image.flash.hex, erases the 29 pages it needs, programs the 14,400
 # words, and verifies. With D16D=1 the image contains the D16D showcase in the
 # BIOS segment, but the size and the installer are the same. LED1 steady = PASS;
 # LED2 = FAIL.
@@ -15,8 +15,8 @@ GOWIN_EDA="$GOWIN_APP/Contents/Resources/Gowin_EDA/IDE"
 GW_SH="$GOWIN_EDA/bin/gw_sh"
 [ -x "$GW_SH" ] || { echo "gw_sh not found: $GW_SH" >&2; exit 1; }
 if [ "${D16D:-0}" = "1" ]; then
-  # The D16D showcase is part of the 24K image (BIOS segment), so the plain
-  # 25-page / 12,352-word installer is the matching one; no 32K/33-page variant.
+  # The D16D showcase and the FPU transcendentals are part of the 28K image
+  # (BIOS segment), so the 29-page / 14,400-word installer is the matching one.
   D16NANO=1 D16D=1 D16SEG=1 node scripts/make_image.mjs
   TCL="$ROOT/fpga/gowin/build_installer.tcl"
   OUT="deep16_installer"

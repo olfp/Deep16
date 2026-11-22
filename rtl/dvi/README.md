@@ -262,7 +262,7 @@ The tested persistent flash writes both the FPGA configuration and the on-die
 user image in one command (see `USERFLASH.md`):
 
 ```sh
-npm run synth:tile       # 24K D16D image + tile .fs + image.flash.bin
+npm run synth:tile       # 28K D16D image + tile .fs + image.flash.bin
 npm run flash:tile       # openFPGALoader -f <tile.fs> --user-flash <image.flash.bin>
 # then power-cycle
 ```
@@ -293,19 +293,20 @@ tilemap, homes the scroll/cursor, disables all OAM slots, resets the kernel's
 then prints ` ok` at the top-left; the UART host sees the same output.
 
 The runtime dictionary stays at PSRAM `0x6000`; the demo at `0x4E00` is below
-it and does not move it. The 24K flat image and the proven 12,352-word /
-25-page installer are unchanged from the plain console; only the demo words
+it and does not move it. The D16D flat image is 28K (the FPU transcendentals
+and the literal parser use the extra words) and the installer is 14,400 words /
+29 pages; the non-FPU console keeps its 24K image.
 at `0x4E00` are added. The 16-block packed BSRAM image is built without D16D
 (the gfx additions take the tile kernel over the budget); the demo lives only
 in the user-flash image.
 
 ```
-npm run synth:tile   # 24K D16D image + tile .fs + 608 Kbit image.flash.bin
+npm run synth:tile   # 28K D16D image + tile .fs + 608 Kbit image.flash.bin
 npm run flash:tile   # openFPGALoader -f <tile.fs> --user-flash <image.flash.bin>
 # power-cycle
 ```
 
-The user image is the standard 12,352-word / 25-page image, unchanged from the
+The D16D user image is the 14,400-word / 29-page image.
 plain console; `npm run installer:tile` remains the fallback that writes it via
 `openFPGALoader -m fpga/gowin/impl/pnr/deep16_installer.fs` (LED1 steady =
 PASS). The `.fs` is the tile configuration (external SPI config flash); the

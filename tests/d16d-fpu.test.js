@@ -25,11 +25,14 @@ const image = Deep16D16DImage.assembleNano({
 });
 const sym = image.result.symbols;
 const LIB = 0x5800;
+const FEXP = 0x6000;
 const BIOS_LIB = 0x30000 + (LIB - 0x4A00);   // 0x30E00
+const BIOS_FEXP = 0x30000 + (FEXP - 0x4A00); // 0x31600
 const BIOS_HANDLER = 0x30000 + (0x5000 - 0x4A00);
 
 assert.equal(sym.ill_trampoline, 0x4D24, 'the D16D trap vector is the BIOS trampoline');
 assert.notEqual(image.words[LIB], 0xFFFF, 'the library is in the image');
+assert.notEqual(image.words[FEXP], 0xFFFF, 'fexp32 is in the image');
 
 function boot() {
   const sim = new globalThis.Deep16Simulator();
@@ -40,8 +43,9 @@ function boot() {
 
   // Prove the BIOS copy, not the flat copy, is what executes.
   assert.equal(sim.memory[BIOS_LIB], image.words[LIB], 'f_unpack copied to 0x30E00');
+  assert.equal(sim.memory[BIOS_FEXP], image.words[FEXP], 'fexp32 copied to 0x31600');
   assert.equal(sim.memory[BIOS_HANDLER], image.words[0x5000], 'the handler copied to 0x30600');
-  for (let a = 0x5000; a < 0x6000; a++) sim.memory[a] = 0xFFFF;
+  for (let a = 0x5000; a < 0x7000; a++) sim.memory[a] = 0xFFFF;
 
   sim.d16nano = true;
   sim.running = true;
@@ -50,7 +54,7 @@ function boot() {
   sim.segmentRegisters.SS = 0x0000;
   sim.segmentRegisters.ES = 0x0000;
   // The kernel's data stack top. The handler saves R4..R12 in the BIOS
-  // segment at this offset; 0xFFF0 is above the library at 0x0E00..0x145D.
+  // segment at this offset; 0xFFF0 is above the library at 0x0E00..0x18B5.
   sim.registers[13] = 0xFFF0;
   // The reserved save stack the boot sets for the shadow bank.
   sim.shadowRegisters.R13 = 0x5200;
@@ -163,9 +167,24 @@ ${loadHigh('R4', 0x4000)}
   assert.equal(sim.memory[0x201], 0);
 });
 
-test('FEXP and FLOG still return the canonical NaN on D16D', () => {
-  for (const opcode of ['FEXP', 'FLOG']) {
-    const out = run(opcode, 0x3F80, 0x3F80);
-    assert.deepEqual([out.f0High, out.f0Low], [0x7FC0, 0], `${opcode} -> NaN`);
-  }
+function f32(high, low) {
+  const view = new DataView(new ArrayBuffer(4));
+  view.setUint32(0, (((high & 0xFFFF) << 16) | (low & 0xFFFF)) >>> 0, false);
+  return view.getFloat32(0);
+}
+
+test('FEXP and FLOG run from the BIOS copy on D16D', () => {
+  const exp = run('FEXP', 0x3F80, 0x4000);
+  const expValue = f32(exp.f0High, exp.f0Low);
+  assert.ok(Math.abs(expValue - Math.E) / Math.E < 1e-5,
+            `exp(1) = ${expValue}`);
+  assert.deepEqual([exp.f1High, exp.f1Low], [0x4000, 0], 'FEXP preserves F1');
+
+  const log = run('FLOG', 0x4000, 0x4000);
+  const logValue = f32(log.f0High, log.f0Low);
+  assert.ok(Math.abs(logValue - Math.LN2) / Math.LN2 < 1e-5,
+            `log(2) = ${logValue}`);
+
+  const nan = run('FLOG', 0xBF80, 0x4000);
+  assert.deepEqual([nan.f0High, nan.f0Low], [0x7FC0, 0], 'log(-1) -> NaN');
 });

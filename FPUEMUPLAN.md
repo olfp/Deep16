@@ -4,7 +4,7 @@ Status: **P0-P4 implemented, including D16D, plus the Forth surface.** Written
 against `932815c` ("Snapshot: D16nano tile console, ILL trap, 720p DVI"). The
 soft-float library and the ILL FPU dispatch are complete and tested on both
 the non-D16D nano kernel and the D16D BIOS-segment path. The D16D BIOS copy
-now carries `0x4A00..0x5FFF`, so the library at flat `0x5800` is reachable at
+now carries `0x4A00..0x6FFF`, so the library at flat `0x5800` is reachable at
 BIOS offset `0x0E00`. `asm/forth_float.asm` adds `f+`, `f-`, `f*`, `f/`,
 `fsqrt`, `fnegate`, `fabs`, `f<`, `f=`, `f0<`, `s>f`, `f>s`, `f@` and `f!`.
 
@@ -375,7 +375,7 @@ extended decode and jumps to `ill_fpu`. That routine reads `F0` with
 `SMV R6, AR2` / `SMV R7, AR3`, reads the still-live `F1` from `R4:R5`, calls
 `fadd32`/`fmul32`/`fdiv32`/`fsqrt32`/`fcmp32`, and writes the result with
 `SMV AR2, R6` / `SMV AR3, R7`. FCMP leaves F0 alone and delivers its nibble
-through `SAPF`. FEXP/FLOG return the canonical NaN until P6. The routines and
+through `SAPF`. FEXP/FLOG call `fexp32`/`flog32` at `0x6000`. The routines and
 the dispatch are position-independent: all internal calls and tail jumps use
 PC-relative deltas, so the library can live above `0x4000` where `LDI`
 sign-extends.
@@ -390,7 +390,7 @@ after `f.` for its build half. `scripts/make_image.mjs` does this whenever
 `js/deep16_d16d_image.js` appends the same sources when they are passed as
 `softfloat` and `forthFloat`.
 
-D16D relocation: the flash loader now copies `0x4A00..0x5FFF`, not
+D16D relocation: the flash loader now copies `0x4A00..0x6FFF`, not
 `0x4A00..0x57FF`. Flat `0x5800` therefore lands at physical `0x30E00`
 (BIOS `CS=0x3000`, offset `0x0E00`). The library needs no per-label fixup:
 its internal calls and tail jumps are PC-relative deltas, which are the same
@@ -525,7 +525,10 @@ validated and ignored. Interpreted, the literal pushes its two cells (high on
 top); compiled, it emits `LIT low LIT high`. Anything that does not match the
 grammar falls back to the ordinary word scanner.
 
-Deferred: `FEXP`/`FLOG` (still canonical NaN).
+`FEXP`/`FLOG` are implemented by `fexp32`/`flog32` at `0x6000`: range
+reduction plus a degree-5 polynomial for exp, and the atanh series for log.
+The flash loader copies the same words to BIOS offset `0x1600`, so the ILL
+handler can run them. `fexp`/`flog` are Forth words in the `0x417D` block.
 `tests/forth-float.test.js` boots the D16SEG nano kernel and types real Forth
 lines for every implemented word, including literals, `f.` and the shufflers.
 
@@ -611,7 +614,7 @@ kernel is loaded at `0x5000`, so it competes with the demo area there.
 | P3 | **Done.** Layer 1 + `i2f`/`u2f`/`f2i`/FADD/FSUB/FMUL/FDIV/FSQRT/FCMP in `asm/softfloat.asm` | `tests/softfloat.test.js` passes: exhaustive conversions and round trip, `f2i` boundaries, randomized FSUB/FDIV/FSQRT/FMUL references, and JS+RTL vectors for every arithmetic operation |
 | P4 | **Done, including D16D.** FPU decode + dispatch in the ILL handler (FADD/FMUL/FDIV/FSQRT/FCMP; FSUB by sign flip) and the Forth surface | `tests/ill-fpu.test.js` covers the flat nano kernel; `tests/d16d-fpu.test.js` covers the BIOS-segment path with the flat copy poisoned; `tests/forth-float.test.js` types every Forth word; the flash boot bench checks the library copy |
 | P5 | **Done.** FDIV/FSQRT dispatch (same handler) | `tests/ill-fpu.test.js` covers both |
-| P6 | FEXP, FLOG — or never; the handler currently returns NaN | — |
+| P6 | FEXP, FLOG: `fexp32`/`flog32` at 0x6000 plus `fexp`/`flog` words | `tests/ill-fpu.test.js` and `tests/d16d-fpu.test.js` cover the trap; `tests/forth-float.test.js` types the words |
 
 P0–P2 are independent of the FPU and fix real defects. P3 is the long pole
 and can proceed in parallel with them.

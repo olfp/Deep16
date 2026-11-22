@@ -58,9 +58,11 @@ export const D16SEG = !!process.env.D16SEG;
 // A non-D16D nano image keeps its return stack at 0x5800, so FPU=1 there would
 // overwrite it; require the D16D map instead of silently corrupting the stack.
 export const FPU = process.env.FPU === '1' || D16D;
-// The flat image is the 24K window; the showcase sits in the BIOS segment
-// between the BIOS code and the Forth stacks, so both sizes stay 24K.
-export const WINDOW = 0x6000;
+// The flat image is the 24K window for the non-FPU build. The FPU image adds
+// the transcendental routines above the library at 0x6000, so it grows to 28K;
+// the extra words are PSRAM only and the D16D loader copies them into the BIOS
+// segment where the ILL handler can reach them.
+export const WINDOW = FPU ? 0x7000 : 0x6000;
 export const FILL   = 0xFFFF;      // the halt word, everywhere unused (§6.1)
 export const IMG_BLOCK_WORDS = 0x4000; // 16 BSRAM blocks: the packed-image budget
 export const BIOS_BASE  = process.env.D16NANO ? 0x4A00 : 0x5600;  // must match the kernel's .org
@@ -153,9 +155,13 @@ export function buildImage() {
       throw new Error(`the float literal scanner ends at 0x${sym.fpu_lit_end.toString(16)}, ` +
                       'over the 0x4330..0x43FF gap');
     }
-    if (sym.fpu_lit_parse_end > sym.scan_float) {
+    if (sym.fpu_lit_parse_end > WINDOW) {
       throw new Error(`the float literal parser ends at 0x${sym.fpu_lit_parse_end.toString(16)}, ` +
-                      `over the scanner at 0x${sym.scan_float.toString(16)}`);
+                      'over the image window');
+    }
+    if (sym.fpu_trans_end > PACMAN_SEG_BASE) {
+      throw new Error(`fexp/flog end at 0x${sym.fpu_trans_end.toString(16)}, ` +
+                      `over the pacman gap at 0x${PACMAN_SEG_BASE.toString(16)}`);
     }
     if (sym.fpu_lit_build_end > WINDOW) {
       throw new Error(`the float literal build ends at 0x${sym.fpu_lit_build_end.toString(16)}, ` +
@@ -171,7 +177,7 @@ export function buildImage() {
   })();
 
   // The D16D showcase block lives in the BIOS segment 0x04A0, in the free gap
-  // above the BIOS and below the stacks. It rides in the same 24K flat image,
+  // above the BIOS and below the stacks. It rides in the same flat image,
   // so the standard flash loader/installer copy and verify it.
   let showcase = null;
   let pacman = null;
@@ -369,10 +375,10 @@ export function flashImage(img) {
   return { words, crc };
 }
 
-// The installer ROM is sized at build time. The standard image fills it; the
-// D16nano image leaves room for the demo at 0x6000 and pads the tail with the
-// erased value, so the on-die flash beyond the programmed words stays FILL.
-export const INSTALLER_WORDS = 12352;
+// The installer ROM is sized at build time: 64 header words plus the 0x7000-word
+// image packed two words per entry. Shorter images are padded with the erased
+// value, so the on-die flash beyond the programmed words stays FILL.
+export const INSTALLER_WORDS = 14400;
 
 export function installerFlash(img) {
   const flash = flashImage(img);
@@ -460,9 +466,9 @@ if (isMain) {
   const check = argValue('--check', false);
   // The packed 16-block BSRAM image exists only for the packed console. The
   // D16D user-flash build does not load it (the kernel with the gfx additions is
-  // over the 16-block budget); its state is the flat 32K flash image.
+  // over the 16-block budget); its state is the flat 28K flash image.
   const kernel = { words: new Uint16Array(img.words.length).fill(FILL) };
-  kernel.words.set(img.words.subarray(0, 0x6000));
+  kernel.words.set(img.words);
   if (!check) {
     fs.mkdirSync(outDir, { recursive: true });
     fs.writeFileSync(path.join(outDir, 'image.hex'), imageHex(kernel));
@@ -493,7 +499,7 @@ if (isMain) {
     const installerWords = installerFlash(img);
     fs.writeFileSync(path.join(outDir, 'image.flash.hex'), flashHex(installerWords));
     // Full 76 KB boot image for config-flash 0x100000 (and the installer's
-    // User Flash Initialization): the installer's 12,352 words at 0, 0xFF
+    // User Flash Initialization): the installer's 14,400 words at 0, 0xFF
     // beyond, little-endian.
     const BOOT_BYTES = 0x13000;   // 608 Kbit
     const bootImage = Buffer.alloc(BOOT_BYTES, 0xFF);

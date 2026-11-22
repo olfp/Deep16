@@ -16,12 +16,14 @@ module flash_boot_tb (
   output logic [15:0] exp_3000,
   output logic [15:0] exp_bios4a00,
   output logic [15:0] exp_bios5800,
+  output logic [15:0] exp_bios6000,
   output logic [15:0] got_0100,
   output logic [15:0] got_0000,
   output logic [15:0] got_3000,
   output logic [15:0] got_ds3000,
   output logic [15:0] got_bios4a00,
-  output logic [15:0] got_bios5800
+  output logic [15:0] got_bios5800,
+  output logic [15:0] got_bios6000
 );
   logic        spi_we;
   logic [3:0]  spi_addr;
@@ -57,7 +59,7 @@ module flash_boot_tb (
   );
 
   // ---- the config flash bytes, from image.flash.hex -------------------
-  localparam int WORDS = 12352;
+  localparam int WORDS = 14400;
   logic [31:0] flash32 [0:WORDS-1];
   initial $readmemh("image.flash.hex", flash32);
 
@@ -110,9 +112,11 @@ module flash_boot_tb (
   assign got_ds3000 = psram[20'h13000];
   assign got_bios4a00 = psram[20'h2B600 + 20'h4A00];
   assign got_bios5800 = psram[20'h2B600 + 20'h5800];
+  assign got_bios6000 = psram[20'h2B600 + 20'h6000];
   assign exp_0000     = flash32[64] & 16'hFFFF;
   assign exp_0100     = flash32[64 + 128] & 16'hFFFF;
   assign exp_3000     = flash32[64 + 16'h1800] & 16'hFFFF;
   assign exp_bios4a00 = flash32[64 + 16'h2500] & 16'hFFFF;
   assign exp_bios5800 = flash32[64 + 16'h2C00] & 16'hFFFF;
+  assign exp_bios6000 = flash32[64 + 16'h3000] & 16'hFFFF;
 endmodule

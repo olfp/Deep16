@@ -49,11 +49,11 @@ function makeUi(tileBuild = 'd16d') {
   return ui;
 }
 
-test('the IDE builder fills the 24K code image and returns the kernel symbols', () => {
+test('the IDE builder fills the 28K code image and returns the kernel symbols', () => {
   const ui = makeUi();
   const result = ui.buildD16DImage(kernel);
   assert.equal(result.success, true, result.errors.join('; '));
-  assert.equal(result.image.words.length, 0x6000);
+  assert.equal(result.image.words.length, 0x7000);
   assert.equal(ui.simulator.memory[0x4A00], result.image.words[0x4A00]);
   assert.ok(result.symbols.bios_entry, 'kernel symbols survive for the panel');
   assert.equal(result.memoryChanges.length, 0, 'the window was already written');

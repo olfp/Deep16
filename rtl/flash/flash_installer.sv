@@ -3,7 +3,7 @@
 // The user flash has no initial value and cannot be written by the Gowin
 // programmer: only FPGA logic can reach it. This bitstream exists solely to
 // install the image. It loads image.flash.hex (header + flat image), erases the
-// 25 pages it needs, programs all 12,352 32-bit words, and reads them back.
+// 29 pages it needs, programs all 14,400 32-bit words, and reads them back.
 //
 // LEDs (active low): 0 blinks while working, 1 steady = PASS, 2 steady = FAIL.
 // After PASS, flash the normal USER_FLASH bitstream; the image stays in the
@@ -13,8 +13,8 @@ module flash_installer (
   input  logic       rst_n,
   output logic [5:0] led
 );
-  localparam int FLASH_WORDS = 12352;   // 64-word header + 12,288 image words
-  localparam int PAGES = 25;            // 25 x 2048 B = 50 KB (header + image)
+  localparam int FLASH_WORDS = 14400;   // 64-word header + 14,336 image words
+  localparam int PAGES = 29;            // 29 x 2048 B = 58 KB (header + image)
 
   logic [31:0] img [0:FLASH_WORDS-1];
   initial $readmemh("image.flash.hex", img);

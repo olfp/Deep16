@@ -21,6 +21,7 @@ const image = Deep16D16DImage.buildNano({ kernel, softfloat, forthFloat });
 assert.equal(image.fpu, true, 'the FPU library is included');
 assert.equal(image.fpuWords, true, 'the Forth words are included');
 assert.equal(image.symbols.h_fdot, 0x417D, 'the Forth headers start at 0x417D');
+assert.equal(image.symbols.h_fexp, 0x42EB, 'the transcendental headers end the 0x417D block');
 
 // `.org` rewinds silently, so prove the 0x417D block really was a free gap in
 // the kernel+library image before the words were appended.
@@ -43,6 +44,7 @@ for (const [lo, hi, what] of [
   ['sf_build', 'fpu_lit_build_end', 'the literal build'],
   ['sf_parse_tramp', 'fpu_lit_tramp_end', 'the literal trampolines'],
   ['sf_reject', 'sf_reject', 'the literal reject path'],
+  ['fpu_trans_base', 'fpu_trans_end', 'fexp/flog'],
 ]) {
   for (let a = image.symbols[lo]; a <= image.symbols[hi]; a++) {
     assert.ok(!occupied.has(a), `${what} overwrites 0x${a.toString(16)}`);
@@ -50,7 +52,7 @@ for (const [lo, hi, what] of [
 }
 assert.ok(image.symbols.word_fdot > image.symbols.fpu_lib_end,
           'f. follows the library and its helpers');
-assert.ok(image.symbols.fpu_dot_end <= 0x6000, 'f. fits the image window');
+assert.ok(image.symbols.fpu_dot_end <= 0x7000, 'f. fits the image window');
 
 function boot() {
   const sim = new globalThis.Deep16Simulator();
@@ -58,7 +60,7 @@ function boot() {
   sim.d16nano = true;
   sim.running = true;
   // The flat copy is the one holding the headers and code.
-  assert.equal(sim.memory[image.symbols.forth_wl], image.symbols.h_fdot,
+  assert.equal(sim.memory[image.symbols.forth_wl], image.symbols.h_fexp,
                'forth_wl names the newest float header');
 
   let out = '';
@@ -154,6 +156,16 @@ test('float literal tokens push two cells or compile two LIT cells', () => {
   assert.match(line(ctx, '1..5 .'), /undefined word: 1\.\.5/);
   assert.match(line(ctx, '1e .'), /undefined word: 1e/);
   assert.match(line(ctx, '1. .'), /undefined word: 1\./);
+});
+
+test('fexp and flog compute and print', () => {
+  const ctx = boot();
+  assert.match(line(ctx, '1.0 fexp f.'), /f\. 2\.7182  ok/);
+  assert.match(line(ctx, '2.0 flog f.'), /f\. 0\.6931  ok/);
+  assert.match(line(ctx, '0.0 fexp f.'), /f\. 1\.0000  ok/);
+  assert.match(line(ctx, '1.0 flog f.'), /f\. 0\.0000  ok/);
+  assert.match(line(ctx, '-1.0 flog f.'), /f\. nan  ok/);
+  assert.match(line(ctx, '100.0 fexp f.'), /f\. inf  ok/);
 });
 
 test('fdup, fdrop, fswap and fover shuffle whole floats', () => {
