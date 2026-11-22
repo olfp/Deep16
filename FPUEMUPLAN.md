@@ -1,11 +1,12 @@
 # FPU Emulation via ILL — Design Plan
 
-Status: **P0-P4 implemented, including D16D.** Written against `932815c`
-("Snapshot: D16nano tile console, ILL trap, 720p DVI"). The soft-float
-library and the ILL FPU dispatch are complete and tested on both the
-non-D16D nano kernel and the D16D BIOS-segment path. The D16D BIOS copy now
-carries `0x4A00..0x5FFF`, so the library at flat `0x5800` is reachable at
-BIOS offset `0x0E00`.
+Status: **P0-P4 implemented, including D16D, plus the Forth surface.** Written
+against `932815c` ("Snapshot: D16nano tile console, ILL trap, 720p DVI"). The
+soft-float library and the ILL FPU dispatch are complete and tested on both
+the non-D16D nano kernel and the D16D BIOS-segment path. The D16D BIOS copy
+now carries `0x4A00..0x5FFF`, so the library at flat `0x5800` is reachable at
+BIOS offset `0x0E00`. `asm/forth_float.asm` adds `f+`, `f-`, `f*`, `f/`,
+`fsqrt`, `fnegate`, `fabs`, `f<`, `f=`, `f0<`, `s>f`, `f>s`, `f@` and `f!`.
 
 ---
 
@@ -379,12 +380,13 @@ the dispatch are position-independent: all internal calls and tail jumps use
 PC-relative deltas, so the library can live above `0x4000` where `LDI`
 sign-extends.
 
-Build recipe: assemble `asm/forth_nano.asm` followed by `asm/softfloat.asm`
-with `CONSOLE_UART`, `D16NANO` and `FPU_KERNEL` defined. The library places
-itself at `0x5800`. `scripts/make_image.mjs` does this whenever `D16D` is
-set (or `D16NANO=1 D16SEG=1 FPU=1` for a test image), and
-`js/deep16_d16d_image.js` appends the same source when it is passed as
-`softfloat`.
+Build recipe: assemble `asm/forth_nano.asm`, `asm/softfloat.asm` and
+`asm/forth_float.asm` with `CONSOLE_UART`, `D16NANO`, `FPU_KERNEL` and
+`FPU_WORDS` defined. The library places itself at `0x5800`; the Forth words
+place themselves at `0x417D`. `scripts/make_image.mjs` does this whenever
+`D16D` is set (or `D16NANO=1 D16SEG=1 FPU=1` for a test image), and
+`js/deep16_d16d_image.js` appends the same sources when they are passed as
+`softfloat` and `forthFloat`.
 
 D16D relocation: the flash loader now copies `0x4A00..0x5FFF`, not
 `0x4A00..0x57FF`. Flat `0x5800` therefore lands at physical `0x30E00`
@@ -414,7 +416,7 @@ scatter, so a pass proves the BIOS copy executed.
 | 1 | Unpack/pack, add/sub magnitude, normalise, round | Direct unit tests |
 | 2 | `fadd32`, `fsub32`, `fmul32`, `fdiv32`, `fsqrt32`, `fcmp32` | Direct unit tests + golden vectors |
 | 3 | ILL handler dispatch | `tests/ill-trap.test.js` |
-| 4 | Forth words (`f+`, `f!`, …) | Forth tests |
+| 4 | Forth words: `f+ f- f* f/ fsqrt fnegate fabs f< f= f0< s>f f>s f@ f!` | `tests/forth-float.test.js` |
 
 Layer 2 convention (documented per routine, plain subroutines, no trap):
 
@@ -476,6 +478,31 @@ bits after normalisation. `tests/softfloat.test.js` includes close
 subtractions across powers of two (`1 - nextbelow(1)`, `2 - nextbelow(2)`,
 `3 - nextbelow(3)`, etc.) and 100 random finite pairs checked against a BigInt
 truncating reference.
+
+### 7.4 Forth surface
+
+`asm/forth_float.asm` is appended after the library when `FPU_WORDS` is
+defined. It lives in the free `0x417D..0x42A3` gap, below the `0x4330`
+BAKE_PACMAN block, and its headers link the oldest float word to `h_segbase`;
+`forth_wl` names `h_fplus`.
+
+A float is two cells with the high half on top, like the kernel's double-cell
+words. `f+` reads B from `SP+0/1` and A from `SP+2/3`, puts them in
+`F1`/`F0`, executes `FADD`, and leaves the result with its high half on top.
+`f-` flips B's sign and uses `FADD`; `fsqrt` uses the trap; `fnegate`/`fabs`
+just flip/clear the sign bit. The comparisons use `FCMP`, capture the PSW
+with `LPSW` immediately (a `MOV` would clobber the flags), and test N/Z/V with
+`AND` against a mask. `s>f`/`f>s` call `i2f`/`f2i` in the flat library
+directly, since there is no conversion trap word.
+
+`R5` is `>IN` and `R6` is `TIB`. Binary and comparison words park `>IN` in
+`R9` across the trap, and `s>f`/`f>s` park `TIB` there around the direct
+library call. `R8` (the cursor) is never touched. The words assume the
+operands are present; they do not duplicate the kernel's underflow checks.
+
+Deferred: float literals, `f.` printing, `fdup`/`fswap`/`fdrop`, and
+`FEXP`/`FLOG` (still canonical NaN). `tests/forth-float.test.js` boots the
+D16SEG nano kernel and types real Forth lines for every implemented word.
 
 ---
 
@@ -557,7 +584,7 @@ kernel is loaded at `0x5000`, so it competes with the demo area there.
 | P1 | **Done.** General undefined-opcode trap in all four cores | A reserved word traps on every core; double fault is diagnosable |
 | P2 | **Done.** `SAPF` in the DIV/DIV32 handler (§4) | `tests/ill-trap.test.js` covers zero, negative and positive quotients for DIV and DIV32 |
 | P3 | **Done.** Layer 1 + `i2f`/`u2f`/`f2i`/FADD/FSUB/FMUL/FDIV/FSQRT/FCMP in `asm/softfloat.asm` | `tests/softfloat.test.js` passes: exhaustive conversions and round trip, `f2i` boundaries, randomized FSUB/FDIV/FSQRT/FMUL references, and JS+RTL vectors for every arithmetic operation |
-| P4 | **Done, including D16D.** FPU decode + dispatch in the ILL handler (FADD/FMUL/FDIV/FSQRT/FCMP; FSUB by sign flip) | `tests/ill-fpu.test.js` covers the flat nano kernel; `tests/d16d-fpu.test.js` covers the BIOS-segment path with the flat copy poisoned; the flash boot bench checks the library copy |
+| P4 | **Done, including D16D.** FPU decode + dispatch in the ILL handler (FADD/FMUL/FDIV/FSQRT/FCMP; FSUB by sign flip) and the Forth surface | `tests/ill-fpu.test.js` covers the flat nano kernel; `tests/d16d-fpu.test.js` covers the BIOS-segment path with the flat copy poisoned; `tests/forth-float.test.js` types every Forth word; the flash boot bench checks the library copy |
 | P5 | **Done.** FDIV/FSQRT dispatch (same handler) | `tests/ill-fpu.test.js` covers both |
 | P6 | FEXP, FLOG — or never; the handler currently returns NaN | — |
 
@@ -609,5 +636,6 @@ and can proceed in parallel with them.
    truncating rounding — accept, or amend?
 4. **Assembler mnemonics**: implemented. `FADD`/`FMUL`/`FDIV`/`FSQRT`/`FEXP`/
    `FLOG`/`FCMP` assemble to their trap words and disassemble back.
-5. **Forth surface**: does the FPU get words (`f+`, `f@`, `f!`, `f.`), or is
-   it assembler-only for now?
+5. **Forth surface**: implemented for arithmetic, comparisons, conversions
+   and memory (`f+`…`f!`). Float literals, `f.` printing and the stack
+   shufflers are still open.

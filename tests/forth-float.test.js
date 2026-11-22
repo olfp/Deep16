@@ -1,0 +1,104 @@
+// The Forth surface for the soft-float library. A float is two cells, high
+// half on top; the arithmetic words go through the ILL trap, while s>f/f>s
+// call i2f/f2i directly. This boots the D16SEG nano kernel with the FPU words
+// and types real Forth lines, so it covers the dictionary chain, the stack
+// marshalling and the REPL, not just the raw routines.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import vm from 'node:vm';
+import { loadBrowserScripts, ROOT } from './helpers.js';
+
+loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js', 'js/deep16_d16d_image.js');
+const Deep16D16DImage = vm.runInThisContext('Deep16D16DImage');
+
+const kernel = fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8');
+const softfloat = fs.readFileSync(path.join(ROOT, 'asm', 'softfloat.asm'), 'utf8');
+const forthFloat = fs.readFileSync(path.join(ROOT, 'asm', 'forth_float.asm'), 'utf8');
+
+const image = Deep16D16DImage.buildNano({ kernel, softfloat, forthFloat });
+assert.equal(image.fpu, true, 'the FPU library is included');
+assert.equal(image.fpuWords, true, 'the Forth words are included');
+assert.equal(image.symbols.h_fplus, 0x417D, 'the Forth headers start at 0x417D');
+
+// `.org` rewinds silently, so prove the 0x417D block really was a free gap in
+// the kernel+library image before the words were appended.
+const plain = new globalThis.Deep16Assembler().assemble(`${kernel}\n${softfloat}`, {
+  defines: { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1, FPU_KERNEL: 1 },
+});
+assert.equal(plain.success, true, plain.errors.join('; '));
+const occupied = new Set(plain.memoryChanges.map((c) => c.address));
+for (let a = image.symbols.fpu_words_base; a < image.symbols.fpu_words_end; a++) {
+  assert.ok(!occupied.has(a), `the float block overwrites 0x${a.toString(16)}`);
+}
+
+function boot() {
+  const sim = new globalThis.Deep16Simulator();
+  Deep16D16DImage.scatterD16SEG(image.words, { memory: sim.memory });
+  sim.d16nano = true;
+  sim.running = true;
+  // The flat copy is the one holding the headers and code.
+  assert.equal(sim.memory[image.symbols.forth_wl], image.symbols.h_fplus,
+               'forth_wl names the newest float header');
+
+  let out = '';
+  const step = () => {
+    if (!sim.running) return false;
+    sim.step();
+    if (sim.uartTx.length) out += String.fromCharCode(...sim.uartTxTake());
+    return true;
+  };
+  for (let i = 0; i < 4_000_000 && sim.running && !out.includes('> '); i++) step();
+  assert.ok(sim.running, 'the kernel did not boot to the REPL');
+  return { sim, step, text: () => out };
+}
+
+function line(ctx, source, cap = 3_000_000) {
+  const from = ctx.text().length;
+  for (const ch of source) ctx.sim.kbdBuffer.push(ch.charCodeAt(0));
+  ctx.sim.kbdBuffer.push(10);
+  for (let i = 0; i < cap && ctx.sim.running; i++) {
+    ctx.step();
+    const seg = ctx.text().slice(from);
+    if ((seg.includes(' ok') || seg.includes('error')) && seg.includes('> ')) break;
+  }
+  return ctx.text().slice(from);
+}
+
+test('Forth arithmetic words use the trap and the two-cell float layout', () => {
+  const ctx = boot();
+  // 1.5 = 0x3FC0, 2.25 = 0x4010. The high cell is on top.
+  assert.match(line(ctx, '0 16320 0 16400 f+ . .'), /f\+ \. \. 16496 0  ok/);
+  assert.match(line(ctx, '0 16320 0 16400 f- . .'), /f- \. \. -16576 0  ok/);
+  assert.match(line(ctx, '0 16320 0 16400 f* . .'), /f\* \. \. 16472 0  ok/);
+  assert.match(line(ctx, '0 16448 0 16384 f/ . .'), /f\/ \. \. 16320 0  ok/);
+  assert.match(line(ctx, '0 16512 fsqrt . .'), /fsqrt \. \. 16384 0  ok/);
+  assert.match(line(ctx, '0 16320 fnegate u. u.'), /fnegate u\. u\. 49088 0  ok/);
+  assert.match(line(ctx, '0 49088 fabs u. u.'), /fabs u\. u\. 16320 0  ok/);
+});
+
+test('Forth comparisons read FCMP flags before they are clobbered', () => {
+  const ctx = boot();
+  assert.match(line(ctx, '0 16320 0 16400 f< .'), /f< \. 1  ok/);
+  assert.match(line(ctx, '0 16400 0 16320 f< .'), /f< \. 0  ok/);
+  assert.match(line(ctx, '0 16320 0 16320 f= .'), /f= \. 1  ok/);
+  assert.match(line(ctx, '0 16320 0 16400 f= .'), /f= \. 0  ok/);
+  assert.match(line(ctx, '0 49088 f0< .'), /f0< \. 1  ok/);
+  assert.match(line(ctx, '0 16320 f0< .'), /f0< \. 0  ok/);
+  // The canonical NaN is unordered, so both comparisons are false.
+  assert.match(line(ctx, '0 32704 0 16320 f< .'), /f< \. 0  ok/);
+  assert.match(line(ctx, '0 32704 0 16320 f= .'), /f= \. 0  ok/);
+});
+
+test('s>f, f>s and f@/f! move whole floats', () => {
+  const ctx = boot();
+  assert.match(line(ctx, '3 s>f u. u.'), /s>f u\. u\. 16448 0  ok/);
+  assert.match(line(ctx, '3 s>f f>s .'), /f>s \. 3  ok/);
+  assert.match(line(ctx, '0 16320 f>s .'), /f>s \. 1  ok/, '1.5 truncates to 1');
+  assert.match(line(ctx, '0 49088 f>s .'), /f>s \. -1  ok/, '-1.5 truncates to -1');
+
+  assert.match(line(ctx, 'variable fx'), /variable fx ok/);
+  assert.match(line(ctx, '0 16320 fx f!'), /fx f! ok/);
+  assert.match(line(ctx, 'fx f@ u. u.'), /fx f@ u\. u\. 16320 0  ok/);
+});

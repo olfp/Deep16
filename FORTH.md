@@ -166,6 +166,43 @@ right-aligned in a field of `n`: it pads with spaces when the digits are narrowe
 and prints everything when they are not, so `123 s>d 8 d.r` is `     123` and
 `1234 s>d 2 d.r` is `1234`.
 
+## Floating point
+
+FPU images (`D16D`, or a `D16SEG` build with `FPU=1`) append
+`asm/forth_float.asm`. A float is IEEE-754 single precision in **two cells,
+high half on top**, the same order as a double. There are no float literals or
+`f.` printer yet, so build one from integers or raw cells:
+
+```text
+0 16320 0 16400 f+ u. u.   \ 1.5 + 2.25: prints 16496 0 (0x4070 0)
+3 s>f f>s .                \ 3
+```
+
+| word | stack effect | meaning |
+|------|--------------|---------|
+| `f+` | `( f1 f2 -- f3 )` | add |
+| `f-` | `( f1 f2 -- f3 )` | subtract (flips the second sign and adds) |
+| `f*` | `( f1 f2 -- f3 )` | multiply |
+| `f/` | `( f1 f2 -- f3 )` | divide |
+| `fsqrt` | `( f -- f' )` | square root |
+| `fnegate` | `( f -- -f )` | flip the sign bit |
+| `fabs` | `( f -- \|f\| )` | clear the sign bit |
+| `f<` | `( f1 f2 -- flag )` | signed less-than; false if unordered |
+| `f=` | `( f1 f2 -- flag )` | equal; false if unordered |
+| `f0<` | `( f -- flag )` | less than +0.0 |
+| `s>f` | `( n -- f )` | signed integer to float |
+| `f>s` | `( f -- n )` | truncate toward zero |
+| `f@` | `( addr -- f )` | read two cells |
+| `f!` | `( f addr -- )` | write two cells |
+
+The arithmetic words go through the ILL trap, so they work the same way in
+the flat kernel and in D16D's BIOS segment. `s>f`/`f>s` call the conversion
+routines directly because the ISA has no conversion trap word. The float
+words assume their operands are present; unlike the integer primitives they
+do not print a stack-underflow error. `FEXP`/`FLOG` still return the canonical
+NaN (0x7FC00000), and `f.` printing, float literals and stack shufflers such
+as `fdup`/`fswap` are not implemented yet.
+
 ## Stack
 
 | word | stack effect | meaning |

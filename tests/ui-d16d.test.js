@@ -22,6 +22,7 @@ const Deep16Simulator = vm.runInThisContext('Deep16Simulator');
 
 const kernel = fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8');
 const softfloat = fs.readFileSync(path.join(ROOT, 'asm', 'softfloat.asm'), 'utf8');
+const forthFloat = fs.readFileSync(path.join(ROOT, 'asm', 'forth_float.asm'), 'utf8');
 const showcase = fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'showcase.asm'), 'utf8');
 const flappy = fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'flappy_game.asm'), 'utf8');
 const pacmanMap = fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'pacman_map.asm'), 'utf8');
@@ -38,7 +39,7 @@ function makeUi(tileBuild = 'd16d') {
   ui.simulator = new Deep16Simulator();
   ui.consoleView = 'tiles';
   ui.tileBuild = tileBuild;
-  ui.d16dSources = { softfloat, showcase, flappy, pacmanMap, pacmanGame, frogger };
+  ui.d16dSources = { softfloat, forthFloat, showcase, flappy, pacmanMap, pacmanGame, frogger };
   ui.tileStepsPerTick = 6000;
   ui.tileFrame = 0;
   ui.tileVblank = false;

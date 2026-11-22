@@ -21,6 +21,7 @@ const Deep16D16DImage = vm.runInThisContext('Deep16D16DImage');
 
 const kernel = fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8');
 const softfloat = fs.readFileSync(path.join(ROOT, 'asm', 'softfloat.asm'), 'utf8');
+const forthFloat = fs.readFileSync(path.join(ROOT, 'asm', 'forth_float.asm'), 'utf8');
 const showcase = fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'showcase.asm'), 'utf8');
 const flappy = fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'flappy_game.asm'), 'utf8');
 const flappyDefs = fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'flappy_defs.asm'), 'utf8');
@@ -29,7 +30,8 @@ const pacmanGame = fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'pacman_ga
 const frogger = fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'frogger_demo.asm'), 'utf8');
 
 const packs = { flappy: flappyArtPack(), pacman: pacmanArtPack(), frogger: froggerArtPack() };
-const sources = { kernel, softfloat, showcase, flappy, flappyDefs, pacmanMap, pacmanGame, frogger, packs };
+const sources = { kernel, softfloat, forthFloat, showcase, flappy, flappyDefs,
+                  pacmanMap, pacmanGame, frogger, packs };
 
 test('browser builder matches the Node D16D image word for word', () => {
   const node = buildImage();
@@ -44,9 +46,15 @@ test('browser builder matches the Node D16D image word for word', () => {
   assert.deepEqual(browser.pacman.words, node.pacman.words, 'pacman block matches');
   assert.equal(browser.fpu, true, 'the browser build carries the FPU library');
   assert.equal(node.fpu, true, 'the Node build carries the FPU library');
+  assert.equal(browser.fpuWords, true, 'the browser build carries the Forth words');
+  assert.equal(node.fpuWords, true, 'the Node build carries the Forth words');
   // f_unpack is the first library word at 0x5800 (BIOS offset 0x0E00).
   assert.notEqual(node.words[0x5800], 0xFFFF, 'the soft-float library is in the image');
   assert.equal(browser.words[0x5800], node.words[0x5800], 'library word matches');
+  assert.equal(browser.symbols.h_fplus, 0x417D, 'the Forth header block starts at 0x417D');
+  assert.equal(browser.words[browser.symbols.forth_wl], 0x417D,
+               'forth_wl names the newest float header');
+  assert.notEqual(node.words[0x417D], 0xFFFF, 'the Forth float headers are in the image');
   // The games are slices: the gap below the BIOS and the game area are empty.
   assert.equal(node.words[0x4350], 0xffff, 'frogger is not baked into the image');
   assert.equal(node.words[0x5F00], 0xffff, 'flappy is not baked into the image');

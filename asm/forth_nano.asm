@@ -3887,7 +3887,11 @@ h_tile_row:
     .word word_tile_row
 .endif
 forth_wl:
+.ifdef FPU_WORDS
+    .word h_fplus             ; asm/forth_float.asm is newer than h_segbase
+.else
     .word h_segbase           ; newest built-in header in the FORTH vocabulary
+.endif
 search_order:            ; wordlists searched by FIND, first one first, 0-ended
     .word forth_wl
     .word 0, 0, 0, 0, 0, 0, 0

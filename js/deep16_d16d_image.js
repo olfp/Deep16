@@ -9,6 +9,7 @@
  *   - kernel assembled with CONSOLE_UART, D16NANO and D16SEG; D16D adds D16D;
  *   - the soft-float library is appended at 0x5800 when an FPU image is asked
  *     for, so the ILL handler can reach it through the BIOS copy;
+ *   - the Forth words are appended at 0x417D when forthFloat is supplied;
  *   - menu words at physical 0x4A00 + their segment offset;
  *   - fill 0xFFFF; anything outside 0x0000..0x5FFF is reported, not written.
  *
@@ -20,12 +21,19 @@
 class Deep16D16DImage {
   // Assemble one nano kernel into the flat 24K image window. When softfloat is
   // supplied it is appended, at its own .org 0x5800, and FPU_KERNEL turns on
-  // the ILL dispatch that calls it.
-  static assembleNano({ kernel, softfloat = null, defines = {} } = {}) {
+  // the ILL dispatch that calls it. forthFloat adds the Forth surface at
+  // 0x417D and defines FPU_WORDS.
+  static assembleNano({ kernel, softfloat = null, forthFloat = null, defines = {} } = {}) {
     if (typeof Deep16Assembler !== 'function') throw new Error('Deep16Assembler is not loaded');
     if (typeof kernel !== 'string' || !kernel.trim()) throw new Error('nano image needs kernel source');
     if (softfloat !== null && (typeof softfloat !== 'string' || !softfloat.trim())) {
       throw new Error('softfloat source must be text');
+    }
+    if (forthFloat !== null && (typeof forthFloat !== 'string' || !forthFloat.trim())) {
+      throw new Error('forthFloat source must be text');
+    }
+    if (forthFloat !== null && softfloat === null) {
+      throw new Error('forthFloat needs the softfloat library');
     }
 
     const defs = {
@@ -38,6 +46,10 @@ class Deep16D16DImage {
     if (softfloat !== null) {
       defs.FPU_KERNEL = 1;
       source = `${kernel}\n${softfloat}`;
+    }
+    if (forthFloat !== null) {
+      defs.FPU_WORDS = 1;
+      source = `${source}\n${forthFloat}`;
     }
 
     const result = new Deep16Assembler().assemble(source, { defines: defs });
@@ -60,10 +72,11 @@ class Deep16D16DImage {
   // The generic D16nano console used by the IDE. CONSOLE_PS2 keeps the
   // CONSOLE_UART output path, but reads input from the D16nano keyboard FIFO
   // instead of the serial UART.
-  static buildNano({ kernel, softfloat = null, defines = {} } = {}) {
+  static buildNano({ kernel, softfloat = null, forthFloat = null, defines = {} } = {}) {
     const image = this.assembleNano({
       kernel,
       softfloat,
+      forthFloat,
       defines: { CONSOLE_MIRROR: 1, CONSOLE_PS2: 1, ...defines },
     });
     const result = image.result;
@@ -73,6 +86,8 @@ class Deep16D16DImage {
       collisions: [],
       dictFree: result.symbols.dict_free,
       biosEntry: result.symbols.bios_entry,
+      fpu: softfloat !== null,
+      fpuWords: forthFloat !== null,
       symbols: result.symbols,
     };
   }
@@ -120,8 +135,8 @@ class Deep16D16DImage {
     return changes;
   }
 
-  static build({ kernel, softfloat = null, showcase, flappy, flappyDefs, pacmanMap, pacmanGame,
-                 frogger, defines = {}, bakePacman = false, packs = {} } = {}) {
+  static build({ kernel, softfloat = null, forthFloat = null, showcase, flappy, flappyDefs,
+                 pacmanMap, pacmanGame, frogger, defines = {}, bakePacman = false, packs = {} } = {}) {
     if (typeof kernel !== 'string' || !kernel.trim()) throw new Error('D16D image needs kernel source');
     if (typeof showcase !== 'string') throw new Error('D16D image needs the showcase source');
 
@@ -131,6 +146,7 @@ class Deep16D16DImage {
     const kernelImage = this.assembleNano({
       kernel,
       softfloat,
+      forthFloat,
       defines: { D16D: 1, ...defines },
     });
     const kres = kernelImage.result;
@@ -210,6 +226,7 @@ class Deep16D16DImage {
       dictFree: kres.symbols.dict_free,
       biosEntry: kres.symbols.bios_entry,
       fpu: softfloat !== null,
+      fpuWords: forthFloat !== null,
       symbols: kres.symbols,
       showcase: { words: sres.memoryChanges.map((c) => [c.address, c.value & 0xFFFF]) },
       flappy: block(fres, 0x5000, packs.flappy, packs.flappySprites),

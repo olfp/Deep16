@@ -95,9 +95,11 @@ if (NANO) DEFINES.D16NANO = 1;                       // D16nano: software divide
 if (D16SEG) DEFINES.D16SEG = 1;                      // segmented data stack (tile build)
 if (D16D) DEFINES.D16D = 1;                          // gfx BIOS call + word
 if (FPU) DEFINES.FPU_KERNEL = 1;                     // ILL FPU dispatch + library
+if (FPU) DEFINES.FPU_WORDS = 1;                      // f+ f- f* ... f@ f!
 if (process.env.BOOT_DIAG) DEFINES.BOOT_DIAG = 1;     // boot diagnostic build
 
 export const SOFTFLOAT_PATH = path.join(ROOT, 'asm', 'softfloat.asm');
+export const FORTH_FLOAT_PATH = path.join(ROOT, 'asm', 'forth_float.asm');
 
 export function buildImage() {
   if (D16D && !D16SEG) {
@@ -112,8 +114,10 @@ export function buildImage() {
   const Deep16Assembler = loadAssembler();
   const source = fs.readFileSync(SOURCE_PATH, 'utf8');
   const library = FPU ? fs.readFileSync(SOFTFLOAT_PATH, 'utf8') : '';
-  const res = new Deep16Assembler().assemble(FPU ? `${source}\n${library}` : source,
-                                             { defines: DEFINES });
+  const forthFloat = FPU ? fs.readFileSync(FORTH_FLOAT_PATH, 'utf8') : '';
+  const res = new Deep16Assembler().assemble(
+    FPU ? `${source}\n${library}\n${forthFloat}` : source,
+    { defines: DEFINES });
   if (!res.success) throw new Error(`${SOURCE_LABEL} does not assemble: ` + res.errors.join('; '));
 
   const words = new Uint16Array(WINDOW).fill(FILL);
@@ -124,6 +128,21 @@ export function buildImage() {
   }
 
   const sym = res.symbols;
+  if (FPU) {
+    // The Forth float words live in the free 0x417D gap. They must stop
+    // before the BAKE_PACMAN block at 0x4330 and before the BIOS at 0x4A00.
+    if (!(sym.fpu_words_base >= 0x417D && sym.fpu_words_end > sym.fpu_words_base)) {
+      throw new Error('the float word block has no usable range');
+    }
+    if (sym.fpu_words_end > PACMAN_SEG_BASE) {
+      throw new Error(`the float words end at 0x${sym.fpu_words_end.toString(16)}, ` +
+                      `over the pacman gap at 0x${PACMAN_SEG_BASE.toString(16)}`);
+    }
+    if (sym.fpu_words_end > sym.bios_entry) {
+      throw new Error(`the float words end at 0x${sym.fpu_words_end.toString(16)}, ` +
+                      `over the BIOS at 0x${sym.bios_entry.toString(16)}`);
+    }
+  }
   const biosWords = (() => {
     let hi = 0;
     for (const c of res.memoryChanges) {
@@ -170,6 +189,7 @@ export function buildImage() {
   const build = crypto.createHash('sha256')
     .update(source)
     .update(library)
+    .update(forthFloat)
     .update(showcase?.build ?? '')
     .update(pacman?.build ?? '')
     .digest('hex').slice(0, 16);
@@ -177,7 +197,7 @@ export function buildImage() {
   return {
     words, outOfWindow: [...outOfWindow].sort((a, b) => a - b), collisions,
     dictFree: sym.dict_free, biosEntry: sym.bios_entry, biosWords, build,
-    fpu: FPU, showcase, pacman,
+    fpu: FPU, fpuWords: FPU, showcase, pacman,
   };
 }
 
@@ -362,6 +382,7 @@ export function manifest(img) {
     bios_words: img.biosWords,
     stack_base: `0x${STACK_BASE.toString(16)}`,
     fpu: img.fpu,
+    fpu_words: img.fpuWords,
     build: img.build,
     pack: pack ? {
       format: 'count, (start,end) pairs, payload ranges',
