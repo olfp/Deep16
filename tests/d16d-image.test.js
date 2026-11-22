@@ -56,6 +56,8 @@ test('browser builder matches the Node D16D image word for word', () => {
   assert.equal(browser.words[browser.symbols.forth_wl], 0x42EB,
                'forth_wl names the newest float header');
   assert.notEqual(node.words[0x417D], 0xFFFF, 'the Forth float headers are in the image');
+  assert.equal(browser.words[browser.symbols.d16d_exit], browser.symbols.d16d_menu_boot,
+               'the f. scratch cells do not overwrite the D16D exit block');
   // The games are slices: the words above the FPU image stay empty.
   assert.equal(node.words[0x6FFF], 0xffff, 'frogger is not baked into the image');
   assert.equal(node.words[0x6FFE], 0xffff, 'flappy is not baked into the image');

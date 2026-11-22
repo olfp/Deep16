@@ -413,10 +413,10 @@ fpu_words_end:
 ; ---- f. -----------------------------------------------------------------
 ; The printer code sits above the library, keeping the header/code gap below
 ; 0x4330 inside its pacman budget. It runs from the flat image at CS=0,
-; which is also where the direct i2f/f2i calls live. Its scratch cells sit
-; in a free gap below 0x4000 so an LDI address reaches them without
-; sign-extending.
-.org 0x1F3C
+; which is also where the direct i2f/f2i calls live. Its scratch cells sit in
+; the 0x6600 tail and are addressed PC-relatively, so they stay clear of the
+; D16D 0x1F3C/0x1F40 code and the low-memory data cells.
+.org 0x6600
 fpu_dot_base:
 f_dot_high:
     .word 0
@@ -429,6 +429,12 @@ f_dot_frac:
 f_dot_in:
     .word 0
 f_dot_count:
+    .word 0
+f_dot_sci:
+    .word 0
+f_dot_exp:
+    .word 0
+f_dot_tib:
     .word 0
 f_dot_divisors:
     .word 1000
@@ -794,11 +800,15 @@ word_fdot:
     NOP
     CLRB R2, 15
 fd_positive:
-    LDI f_dot_high
-    MOV R10, R0
+    MOV R10, PC
+fd_cell_1:
+    LDI f_dot_high - fd_cell_1
+    ADD R10, R0
     STS R2, CS, R10
-    LDI f_dot_low
-    MOV R10, R0
+    MOV R10, PC
+fd_cell_2:
+    LDI f_dot_low - fd_cell_2
+    ADD R10, R0
     STS R3, CS, R10
 
     ; ---- exponent 0xFF is inf or NaN ----
@@ -865,6 +875,36 @@ fd_nan:
     NOP
 
 fd_finite:
+    ; ---- choose fixed or scientific for large finite values ----
+    ; |x| >= 32768 has a biased exponent of 142 or more; f2i would clamp.
+    MOV R1, R2
+    SR R1, 7
+    LDI 0xFF
+    MOV R4, R0
+    AND R1, R4
+    LDI 142
+    MOV R4, R0
+    CMP R1, R4
+    JNC fd_sci_jump
+    NOP
+    LSI R1, 0
+    MOV R10, PC
+fd_cell_3:
+    LDI f_dot_sci - fd_cell_3
+    ADD R10, R0
+    STS R1, CS, R10
+    CMP R0, R0
+    JZ fd_print
+    NOP
+fd_sci_jump:
+    MOV R11, PC
+fd_sci_jl:
+    LDI fd_sci - fd_sci_jl
+    ADD R11, R0
+    MOV PC, R11
+    NOP
+
+fd_print:
     ; ---- integer part ----
     MOV R9, R6                 ; park TIB
     MOV R11, PC
@@ -881,8 +921,10 @@ fd_i2f:
     TBC R10, R1                ; V: clamped, too large for 16 bits
     JNZ fd_ovf
     NOP
-    LDI f_dot_int
-    MOV R10, R0
+    MOV R10, PC
+fd_cell_4:
+    LDI f_dot_int - fd_cell_4
+    ADD R10, R0
     STS R9, CS, R10
 
     ; ---- print the integer part, then '.' ----
@@ -890,8 +932,10 @@ fd_i2f:
     MOV R10, R0
     LSI R1, 0
     ST R1, R10, 0
-    LDI f_dot_int
-    MOV R10, R0
+    MOV R10, PC
+fd_cell_5:
+    LDI f_dot_int - fd_cell_5
+    ADD R10, R0
     LDS R2, CS, R10
     LDI print_number
     MOV R3, R0
@@ -906,11 +950,15 @@ fd_i2f:
     NOP
 
     ; ---- fraction = abs(f) - float(int) ----
-    LDI f_dot_in
-    MOV R10, R0
+    MOV R10, PC
+fd_cell_6:
+    LDI f_dot_in - fd_cell_6
+    ADD R10, R0
     STS R5, CS, R10            ; park >IN before F1 takes R5
-    LDI f_dot_int
-    MOV R10, R0
+    MOV R10, PC
+fd_cell_7:
+    LDI f_dot_int - fd_cell_7
+    ADD R10, R0
     LDS R0, CS, R10
     MOV R10, R0                ; the LDI below writes R0
     MOV R9, R6
@@ -925,21 +973,29 @@ fd_frac_i2f:
     MOV R6, R9
     MOV R4, R2                 ; F1 = integer part
     MOV R5, R3
-    LDI f_dot_high
-    MOV R10, R0
+    MOV R10, PC
+fd_cell_8:
+    LDI f_dot_high - fd_cell_8
+    ADD R10, R0
     LDS R2, CS, R10            ; F0 = abs value
-    LDI f_dot_low
-    MOV R10, R0
+    MOV R10, PC
+fd_cell_9:
+    LDI f_dot_low - fd_cell_9
+    ADD R10, R0
     LDS R3, CS, R10
     XOR R4, 15                 ; F0 + (-F1)
     FADD
-    LDI f_dot_in
-    MOV R10, R0
+    MOV R10, PC
+fd_cell_10:
+    LDI f_dot_in - fd_cell_10
+    ADD R10, R0
     LDS R5, CS, R10            ; restore >IN
 
     ; ---- fraction * 10000.0 ----
-    LDI f_dot_in
-    MOV R10, R0
+    MOV R10, PC
+fd_cell_11:
+    LDI f_dot_in - fd_cell_11
+    ADD R10, R0
     STS R5, CS, R10
     LDI 0x230E
     MOV R4, R0
@@ -948,8 +1004,10 @@ fd_frac_i2f:
     MOV R5, R0
     SL R5, 1                   ; 0x4000 low
     FMUL
-    LDI f_dot_in
-    MOV R10, R0
+    MOV R10, PC
+fd_cell_12:
+    LDI f_dot_in - fd_cell_12
+    ADD R10, R0
     LDS R5, CS, R10
 
     ; ---- fraction as an integer 0..9999 ----
@@ -963,19 +1021,27 @@ fd_frac_f2i:
     NOP
     MOV R6, R9
     MOV R9, R0                 ; keep the fraction while loading the cell address
-    LDI f_dot_frac
-    MOV R10, R0
+    MOV R10, PC
+fd_cell_13:
+    LDI f_dot_frac - fd_cell_13
+    ADD R10, R0
     STS R9, CS, R10
 
     ; ---- four digits, leading zeroes ----
-    LDI f_dot_frac
-    MOV R10, R0
+    MOV R10, PC
+fd_cell_14:
+    LDI f_dot_frac - fd_cell_14
+    ADD R10, R0
     LDS R2, CS, R10
-    LDI f_dot_divisors
-    MOV R3, R0
+    MOV R3, PC
+fd_div_l:
+    LDI f_dot_divisors - fd_div_l
+    ADD R3, R0
     LSI R1, 4
-    LDI f_dot_count
-    MOV R10, R0
+    MOV R10, PC
+fd_cell_15:
+    LDI f_dot_count - fd_cell_15
+    ADD R10, R0
     STS R1, CS, R10
 fd_frac_loop:
     LDS R1, CS, R3             ; divisor
@@ -999,13 +1065,45 @@ fd_frac_digit:
     JMP R11
     NOP
     ADD R3, 1
-    LDI f_dot_count
-    MOV R10, R0
+    MOV R10, PC
+fd_cell_16:
+    LDI f_dot_count - fd_cell_16
+    ADD R10, R0
     LDS R1, CS, R10
     SUB R1, 1
     STS R1, CS, R10
     CMP R1, 0
     JNZ fd_frac_loop
+    NOP
+    CMP R0, R0
+    JZ fd_exponent
+    NOP
+
+fd_exponent:
+    ; ---- scientific notation: append e and the decimal exponent ----
+    MOV R10, PC
+fd_cell_17:
+    LDI f_dot_sci - fd_cell_17
+    ADD R10, R0
+    LDS R1, CS, R10
+    CMP R1, 0
+    JZ fd_done
+    NOP
+    LDI put_char
+    MOV R4, R0
+    LDI 'e'
+    LINK
+    JMP R4
+    NOP
+    MOV R10, PC
+fd_cell_18:
+    LDI f_dot_exp - fd_cell_18
+    ADD R10, R0
+    LDS R2, CS, R10
+    LDI print_number
+    MOV R3, R0
+    LINK
+    JMP R3
     NOP
     CMP R0, R0
     JZ fd_done
@@ -1045,6 +1143,135 @@ fd_done:
     LDI next
     MOV PC, R0
     NOP
+
+fd_sci:
+    ; ---- normalise |x| to m in [1, 10), counting the decimal exponent ----
+    MOV R10, PC
+fd_cell_19:
+    LDI f_dot_in - fd_cell_19
+    ADD R10, R0
+    STS R5, CS, R10            ; park >IN across the library calls
+    MOV R10, PC
+fd_cell_20:
+    LDI f_dot_tib - fd_cell_20
+    ADD R10, R0
+    STS R6, CS, R10            ; park TIB too; fdiv32 clobbers R6 and R9
+    LSI R1, 0
+    MOV R10, PC
+fd_cell_21:
+    LDI f_dot_exp - fd_cell_21
+    ADD R10, R0
+    STS R1, CS, R10
+
+fd_sci_div_loop:
+    ; while m >= 10.0: m /= 10, d++
+    LDI 0x41
+    MOV R1, R0
+    SL R1, 8
+    LDI 0x20
+    OR R1, R0                  ; 0x4120 = 10.0 high
+    CMP R2, R1
+    JC fd_sci_mul_check
+    NOP
+    MOV R6, R2
+    MOV R7, R3
+    LDI 0x41
+    MOV R8, R0
+    SL R8, 8
+    LDI 0x20
+    OR R8, R0
+    LSI R9, 0
+    MOV R11, PC
+fd_sci_div:
+    LDI fdiv32 - fd_sci_div
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    MOV R2, R6
+    MOV R3, R7
+    MOV R10, PC
+fd_cell_22:
+    LDI f_dot_exp - fd_cell_22
+    ADD R10, R0
+    LDS R1, CS, R10
+    ADD R1, 1
+    STS R1, CS, R10
+    CMP R0, R0
+    JZ fd_sci_div_loop
+    NOP
+
+fd_sci_mul_check:
+    ; while m < 1.0: m *= 10, d--
+    LDI 0x3F
+    MOV R1, R0
+    SL R1, 8
+    LDI 0x80
+    OR R1, R0                  ; 0x3F80 = 1.0 high
+    CMP R2, R1
+    JNC fd_sci_done
+    NOP
+    MOV R6, R2
+    MOV R7, R3
+    LDI 0x41
+    MOV R8, R0
+    SL R8, 8
+    LDI 0x20
+    OR R8, R0
+    LSI R9, 0
+    MOV R11, PC
+fd_sci_mul:
+    LDI fmul32 - fd_sci_mul
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    MOV R2, R6
+    MOV R3, R7
+    MOV R10, PC
+fd_cell_23:
+    LDI f_dot_exp - fd_cell_23
+    ADD R10, R0
+    LDS R1, CS, R10
+    SUB R1, 1
+    STS R1, CS, R10
+    CMP R0, R0
+    JZ fd_sci_mul_check
+    NOP
+
+fd_sci_done:
+    MOV R10, PC
+fd_cell_24:
+    LDI f_dot_in - fd_cell_24
+    ADD R10, R0
+    LDS R5, CS, R10
+    MOV R10, PC
+fd_cell_25:
+    LDI f_dot_tib - fd_cell_25
+    ADD R10, R0
+    LDS R6, CS, R10
+    LSI R1, 1
+    MOV R10, PC
+fd_cell_26:
+    LDI f_dot_sci - fd_cell_26
+    ADD R10, R0
+    STS R1, CS, R10
+    MOV R10, PC
+fd_cell_27:
+    LDI f_dot_high - fd_cell_27
+    ADD R10, R0
+    STS R2, CS, R10
+    MOV R10, PC
+fd_cell_28:
+    LDI f_dot_low - fd_cell_28
+    ADD R10, R0
+    STS R3, CS, R10
+    MOV R11, PC
+fd_sci_back:
+    LDI fd_print - fd_sci_back
+    ADD R11, R0
+    MOV PC, R11
+    NOP
 fpu_dot_end:
 
 .org 0x2D2F
@@ -1064,7 +1291,7 @@ sf_build_tramp_l:
     NOP
 fpu_lit_tramp_end:
 
-.org 0x6500
+.org 0x6700
 sf_parse:
     LD R1, SP, 0
     MOV R3, R6
@@ -1093,6 +1320,9 @@ sf_p_int_loop:
     LDI 10
     MUL R4, R0
     ADD R4, R2
+    CMP R4, R7
+    JC sf_p_int_overflow
+    NOP
     MOV R7, R4
     ADD R3, 1
     CMP R0, R0
@@ -1139,6 +1369,13 @@ sf_p_go:
     LDI sf_build_tramp
     MOV PC, R0
     NOP
+
+sf_p_int_overflow:
+    ; The integer part no longer fits 16 bits; reject the token and let the
+    ; ordinary scanner report it instead of silently wrapping.
+    LDI sf_reject
+    MOV PC, R0
+    NOP
 fpu_lit_parse_end:
 
 .org fpu_dot_end
@@ -1148,7 +1385,7 @@ sf_build:
     MOV R9, R6
     MOV R11, PC
 sf_i2f_int:
-    LDI i2f - sf_i2f_int
+    LDI u2f - sf_i2f_int
     ADD R11, R0
     MOV R0, R10
     LINK

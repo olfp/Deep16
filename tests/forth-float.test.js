@@ -124,7 +124,7 @@ test('s>f, f>s and f@/f! move whole floats', () => {
   assert.match(line(ctx, 'fx f@ u. u.'), /fx f@ u\. u\. 16320 0  ok/);
 });
 
-test('f. prints fixed-point decimals, ovf and the special values', () => {
+test('f. prints fixed-point decimals, scientific notation and the special values', () => {
   const ctx = boot();
   assert.match(line(ctx, '0 16320 f.'), /f\. 1\.5000  ok/);
   assert.match(line(ctx, '0 16400 f.'), /f\. 2\.2500  ok/);
@@ -133,7 +133,11 @@ test('f. prints fixed-point decimals, ovf and the special values', () => {
   assert.match(line(ctx, '0 49088 f.'), /f\. -1\.5000  ok/);
   assert.match(line(ctx, '0 0 f.'), /f\. 0\.0000  ok/);
   assert.match(line(ctx, '0 32768 f.'), /f\. -0\.0000  ok/);
-  assert.match(line(ctx, '0 18176 f.'), /f\. ovf  ok/);
+  assert.match(line(ctx, '0 18176 f.'), /f\. 3\.2767e4  ok/);
+  assert.match(line(ctx, '1e10 f.'), /f\. 1\.0000e10  ok/);
+  assert.match(line(ctx, '1e5 f.'), /f\. 1\.0000e5  ok/);
+  assert.match(line(ctx, '-1e10 f.'), /f\. -1\.0000e10  ok/);
+  assert.match(line(ctx, '65535.0 f.'), /f\. 6\.5534e4  ok/);
   assert.match(line(ctx, '0 32704 f.'), /f\. nan  ok/);
   assert.match(line(ctx, '0 32640 f.'), /f\. inf  ok/);
   // Two floats on one line prove f. leaves >IN and TIB intact.

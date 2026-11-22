@@ -163,6 +163,10 @@ export function buildImage() {
       throw new Error(`fexp/flog end at 0x${sym.fpu_trans_end.toString(16)}, ` +
                       `over the pacman gap at 0x${PACMAN_SEG_BASE.toString(16)}`);
     }
+    if (sym.fpu_lit_build_end > sym.sf_parse) {
+      throw new Error(`the float literal build ends at 0x${sym.fpu_lit_build_end.toString(16)}, ` +
+                      `over the parser at 0x${sym.sf_parse.toString(16)}`);
+    }
     if (sym.fpu_lit_build_end > WINDOW) {
       throw new Error(`the float literal build ends at 0x${sym.fpu_lit_build_end.toString(16)}, ` +
                       'over the image window');

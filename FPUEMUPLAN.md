@@ -516,12 +516,13 @@ operands are present; they do not duplicate the kernel's underflow checks.
 
 `f.` prints a sign, the integer part and exactly four fractional digits. It
 uses `f2i`/`i2f` and the FADD/FMUL traps; the integer part is limited to the
-signed-16-bit range, so larger finite values print `ovf`. NaN and infinities
+signed-16-bit range; larger finite values print scientific notation
+(`3.2767e4`, `1.6516e38`). NaN and infinities
 print `nan`/`inf`.
 
 Float literals use `[-]digits[.digits][e[+/-]digits]`. The integer part is
-limited to five digits and the fraction to four; extra fraction digits are
-validated and ignored. Interpreted, the literal pushes its two cells (high on
+limited to five digits and must fit 16 bits; the fraction is limited to four,
+and extra fraction digits are validated and ignored. Interpreted, the literal pushes its two cells (high on
 top); compiled, it emits `LIT low LIT high`. Anything that does not match the
 grammar falls back to the ordinary word scanner.
 
