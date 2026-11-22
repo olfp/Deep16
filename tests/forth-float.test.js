@@ -20,7 +20,7 @@ const forthFloat = fs.readFileSync(path.join(ROOT, 'asm', 'forth_float.asm'), 'u
 const image = Deep16D16DImage.buildNano({ kernel, softfloat, forthFloat });
 assert.equal(image.fpu, true, 'the FPU library is included');
 assert.equal(image.fpuWords, true, 'the Forth words are included');
-assert.equal(image.symbols.h_fplus, 0x417D, 'the Forth headers start at 0x417D');
+assert.equal(image.symbols.h_fdot, 0x417D, 'the Forth headers start at 0x417D');
 
 // `.org` rewinds silently, so prove the 0x417D block really was a free gap in
 // the kernel+library image before the words were appended.
@@ -32,6 +32,12 @@ const occupied = new Set(plain.memoryChanges.map((c) => c.address));
 for (let a = image.symbols.fpu_words_base; a < image.symbols.fpu_words_end; a++) {
   assert.ok(!occupied.has(a), `the float block overwrites 0x${a.toString(16)}`);
 }
+for (let a = image.symbols.fpu_dot_base; a < image.symbols.fpu_dot_cells_end; a++) {
+  assert.ok(!occupied.has(a), `the f. scratch cells overwrite 0x${a.toString(16)}`);
+}
+assert.equal(image.symbols.word_fdot, image.symbols.fpu_lib_end,
+             'f. starts where the library ends');
+assert.ok(image.symbols.fpu_dot_end <= 0x6000, 'f. fits the image window');
 
 function boot() {
   const sim = new globalThis.Deep16Simulator();
@@ -39,7 +45,7 @@ function boot() {
   sim.d16nano = true;
   sim.running = true;
   // The flat copy is the one holding the headers and code.
-  assert.equal(sim.memory[image.symbols.forth_wl], image.symbols.h_fplus,
+  assert.equal(sim.memory[image.symbols.forth_wl], image.symbols.h_fdot,
                'forth_wl names the newest float header');
 
   let out = '';
@@ -101,4 +107,29 @@ test('s>f, f>s and f@/f! move whole floats', () => {
   assert.match(line(ctx, 'variable fx'), /variable fx ok/);
   assert.match(line(ctx, '0 16320 fx f!'), /fx f! ok/);
   assert.match(line(ctx, 'fx f@ u. u.'), /fx f@ u\. u\. 16320 0  ok/);
+});
+
+test('f. prints fixed-point decimals, ovf and the special values', () => {
+  const ctx = boot();
+  assert.match(line(ctx, '0 16320 f.'), /f\. 1\.5000  ok/);
+  assert.match(line(ctx, '0 16400 f.'), /f\. 2\.2500  ok/);
+  assert.match(line(ctx, '0 16128 f.'), /f\. 0\.5000  ok/);
+  assert.match(line(ctx, '0 16000 f.'), /f\. 0\.2500  ok/);
+  assert.match(line(ctx, '0 49088 f.'), /f\. -1\.5000  ok/);
+  assert.match(line(ctx, '0 0 f.'), /f\. 0\.0000  ok/);
+  assert.match(line(ctx, '0 32768 f.'), /f\. -0\.0000  ok/);
+  assert.match(line(ctx, '0 18176 f.'), /f\. ovf  ok/);
+  assert.match(line(ctx, '0 32704 f.'), /f\. nan  ok/);
+  assert.match(line(ctx, '0 32640 f.'), /f\. inf  ok/);
+  // Two floats on one line prove f. leaves >IN and TIB intact.
+  assert.match(line(ctx, '0 16320 f. 0 16400 f.'), /1\.5000 2\.2500  ok/);
+});
+
+test('fdup, fdrop, fswap and fover shuffle whole floats', () => {
+  const ctx = boot();
+  assert.match(line(ctx, '0 16320 fdup f+ f.'), /fdup f\+ f\. 3\.0000  ok/);
+  assert.match(line(ctx, '0 16320 0 16400 fdrop f.'), /fdrop f\. 1\.5000  ok/);
+  assert.match(line(ctx, '0 16320 0 16400 fswap f.'), /fswap f\. 1\.5000  ok/);
+  assert.match(line(ctx, '0 16320 0 16400 fover f. f. f.'),
+               /fover f\. f\. f\. 1\.5000 2\.2500 1\.5000  ok/);
 });

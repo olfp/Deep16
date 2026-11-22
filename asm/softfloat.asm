@@ -2031,4 +2031,5 @@ ill_fpu_ret_lr:
     ADD R1, R0
     MOV PC, R1
     NOP
+fpu_lib_end:
 .endif

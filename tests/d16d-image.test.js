@@ -51,13 +51,14 @@ test('browser builder matches the Node D16D image word for word', () => {
   // f_unpack is the first library word at 0x5800 (BIOS offset 0x0E00).
   assert.notEqual(node.words[0x5800], 0xFFFF, 'the soft-float library is in the image');
   assert.equal(browser.words[0x5800], node.words[0x5800], 'library word matches');
-  assert.equal(browser.symbols.h_fplus, 0x417D, 'the Forth header block starts at 0x417D');
+  assert.equal(browser.symbols.h_fdot, 0x417D, 'the Forth header block starts at 0x417D');
   assert.equal(browser.words[browser.symbols.forth_wl], 0x417D,
                'forth_wl names the newest float header');
   assert.notEqual(node.words[0x417D], 0xFFFF, 'the Forth float headers are in the image');
   // The games are slices: the gap below the BIOS and the game area are empty.
   assert.equal(node.words[0x4350], 0xffff, 'frogger is not baked into the image');
-  assert.equal(node.words[0x5F00], 0xffff, 'flappy is not baked into the image');
+  // 0x5F00 now holds the f. printer; 0x5F80 is still an unused image word.
+  assert.equal(node.words[0x5F80], 0xffff, 'flappy is not baked into the image');
   assert.equal(node.words[0x4330], 0xffff, 'the game block is not baked into the image');
   // The block (code, map, tables and tile pack) now runs past the BIOS, so
   // the old flat-image bake path is only a slice loader on the board.

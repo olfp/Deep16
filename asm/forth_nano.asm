@@ -3888,7 +3888,7 @@ h_tile_row:
 .endif
 forth_wl:
 .ifdef FPU_WORDS
-    .word h_fplus             ; asm/forth_float.asm is newer than h_segbase
+    .word h_fdot              ; asm/forth_float.asm is newer than h_segbase
 .else
     .word h_segbase           ; newest built-in header in the FORTH vocabulary
 .endif

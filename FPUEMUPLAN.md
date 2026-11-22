@@ -416,7 +416,7 @@ scatter, so a pass proves the BIOS copy executed.
 | 1 | Unpack/pack, add/sub magnitude, normalise, round | Direct unit tests |
 | 2 | `fadd32`, `fsub32`, `fmul32`, `fdiv32`, `fsqrt32`, `fcmp32` | Direct unit tests + golden vectors |
 | 3 | ILL handler dispatch | `tests/ill-trap.test.js` |
-| 4 | Forth words: `f+ f- f* f/ fsqrt fnegate fabs f< f= f0< s>f f>s f@ f!` | `tests/forth-float.test.js` |
+| 4 | Forth words: `f+ f- f* f/ fsqrt fnegate fabs f< f= f0< s>f f>s f@ f! fdup fdrop fswap fover f.` | `tests/forth-float.test.js` |
 
 Layer 2 convention (documented per routine, plain subroutines, no trap):
 
@@ -482,9 +482,12 @@ truncating reference.
 ### 7.4 Forth surface
 
 `asm/forth_float.asm` is appended after the library when `FPU_WORDS` is
-defined. It lives in the free `0x417D..0x42A3` gap, below the `0x4330`
-BAKE_PACMAN block, and its headers link the oldest float word to `h_segbase`;
-`forth_wl` names `h_fplus`.
+defined. Its headers and main code live in the free `0x417D..0x42EB` gap,
+below the `0x4330` BAKE_PACMAN block, and its headers link the oldest float
+word to `h_segbase`; `forth_wl` names `h_fdot`. The `f.` printer starts at
+`fpu_lib_end` (above the library at `0x5E5D`), and its CS-relative scratch
+cells sit in the free `0x1F3C..0x1F45` gap so an `LDI` address reaches them
+without sign-extending.
 
 A float is two cells with the high half on top, like the kernel's double-cell
 words. `f+` reads B from `SP+0/1` and A from `SP+2/3`, puts them in
@@ -500,9 +503,14 @@ directly, since there is no conversion trap word.
 library call. `R8` (the cursor) is never touched. The words assume the
 operands are present; they do not duplicate the kernel's underflow checks.
 
-Deferred: float literals, `f.` printing, `fdup`/`fswap`/`fdrop`, and
-`FEXP`/`FLOG` (still canonical NaN). `tests/forth-float.test.js` boots the
-D16SEG nano kernel and types real Forth lines for every implemented word.
+`f.` prints a sign, the integer part and exactly four fractional digits. It
+uses `f2i`/`i2f` and the FADD/FMUL traps; the integer part is limited to the
+signed-16-bit range, so larger finite values print `ovf`. NaN and infinities
+print `nan`/`inf`.
+
+Deferred: float literals and `FEXP`/`FLOG` (still canonical NaN).
+`tests/forth-float.test.js` boots the D16SEG nano kernel and types real Forth
+lines for every implemented word, including `f.` and the shufflers.
 
 ---
 
@@ -636,6 +644,6 @@ and can proceed in parallel with them.
    truncating rounding — accept, or amend?
 4. **Assembler mnemonics**: implemented. `FADD`/`FMUL`/`FDIV`/`FSQRT`/`FEXP`/
    `FLOG`/`FCMP` assemble to their trap words and disassemble back.
-5. **Forth surface**: implemented for arithmetic, comparisons, conversions
-   and memory (`f+`…`f!`). Float literals, `f.` printing and the stack
-   shufflers are still open.
+5. **Forth surface**: implemented for arithmetic, comparisons, conversions,
+   memory, the stack shufflers and `f.` printing. Float literal tokens are
+   still open.

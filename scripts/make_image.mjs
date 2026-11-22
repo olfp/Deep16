@@ -142,6 +142,9 @@ export function buildImage() {
       throw new Error(`the float words end at 0x${sym.fpu_words_end.toString(16)}, ` +
                       `over the BIOS at 0x${sym.bios_entry.toString(16)}`);
     }
+    if (sym.fpu_dot_end > WINDOW) {
+      throw new Error(`f. ends at 0x${sym.fpu_dot_end.toString(16)}, over the window`);
+    }
   }
   const biosWords = (() => {
     let hi = 0;
