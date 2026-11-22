@@ -302,7 +302,8 @@ in `d16tile_flash.sv`. The text and packed builds keep the old flat map.
   starting at `0x5800`; that left only ~300 calls of headroom, so
   `1000 deep` overwrote the word it was running and froze the machine.
 - **BIOS code:** `CS=0x3000`, copied by the loader from the flat image's
-  `0x4A00..0x57FF` to `0x30000..0x30DFF`; SWI target `0x3000:0`. BIOS/demo
+  `0x4A00..0x5FFF` to `0x30000..0x315FF`; SWI target `0x3000:0`. The tail
+  after the BIOS/demo data is the soft-float library at `0x5800`; BIOS/demo
   data is in `DS=0x1000`; the D16D demo still uses the flat segment-0 data
   copy at `DS=0x04A0`, and the BIOS f6 restores `DS=0x1000` on return.
 - **Vectors:** SWI/ILL vectors are written through `CS=0` to physical 0/2;

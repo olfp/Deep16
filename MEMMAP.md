@@ -313,7 +313,7 @@ was dropped for the read port):
 | `CS=0x0000` | `0x00000` | kernel code `0x0100`–`0x2FFF`, zero page/vectors, ILL handler `0x5000`, IRQ handler `0x51A0`, `divtest` `0x5300` |
 | `DS=0x1000` | `0x10000` | kernel data and boot script `0x3000`–`0x49F8`; BIOS/demo data `0x4A00`–`0x57DC`; dictionary `0x5800`–`0xFFEF` |
 | `SS=0x2000` | `0x20000` | data stack, top `0xFFF0`, 64K words |
-| `CS=0x3000` | `0x30000` | BIOS code + D16D showcase, from image `0x4A00`–`0x57FF` |
+| `CS=0x3000` | `0x30000` | BIOS code + D16D showcase, then the soft-float library, from image `0x4A00`–`0x5FFF` |
 | `ES=0xF000` | `0xF0000` | MMIO, boot ROM `0xFFFF0`–`0xFFFFF` |
 
 Within `DS=0x1000`:

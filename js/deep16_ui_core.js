@@ -465,6 +465,7 @@ class DeepWebUI {
         if (!this.d16dSources) throw new Error('D16D showcase sources are not loaded');
         const image = Deep16D16DImage.build({
           kernel: kernelSource,
+          softfloat: this.d16dSources.softfloat,
           showcase: this.d16dSources.showcase,
           flappy: this.d16dSources.flappy,
           pacmanMap: this.d16dSources.pacmanMap,
@@ -3957,15 +3958,17 @@ class DeepWebUI {
 
             if (this.tileBuild === 'd16d') {
                 try {
-                    const [sc, fl, pm, pg, fg] = await Promise.all([
+                    const [sf, sc, fl, pm, pg, fg] = await Promise.all([
+                        fetch('asm/softfloat.asm', { cache: 'no-store' }),
                         fetch('asm/showcase/showcase.asm', { cache: 'no-store' }),
                         fetch('asm/showcase/flappy_game.asm', { cache: 'no-store' }),
                         fetch('asm/showcase/pacman_map.asm', { cache: 'no-store' }),
                         fetch('asm/showcase/pacman_game.asm', { cache: 'no-store' }),
                         fetch('asm/showcase/frogger_demo.asm', { cache: 'no-store' }),
                     ]);
-                    if (!sc.ok || !fl.ok || !pm.ok || !pg.ok || !fg.ok) throw new Error('showcase sources not found');
+                    if (!sf.ok || !sc.ok || !fl.ok || !pm.ok || !pg.ok || !fg.ok) throw new Error('showcase sources not found');
                     this.d16dSources = {
+                        softfloat: await sf.text(),
                         showcase: await sc.text(),
                         flappy: await fl.text(),
                         pacmanMap: await pm.text(),

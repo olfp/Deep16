@@ -51,6 +51,13 @@ export const BAKE_PACMAN = process.env.BAKE_PACMAN === '1';
 // without D16SEG that gap is still kernel data.  Every D16D image is a tile
 // image, so require the segmented map instead of silently corrupting it.
 export const D16SEG = !!process.env.D16SEG;
+// The FPU build appends asm/softfloat.asm at 0x5800 and defines FPU_KERNEL so
+// the ILL handler dispatches the trap words to it. D16D always includes it:
+// its return stack is at 0x2FF0 and the dictionary is in PSRAM, so flat
+// 0x5800..0x5FFF is free, and the BIOS copy now carries the whole library.
+// A non-D16D nano image keeps its return stack at 0x5800, so FPU=1 there would
+// overwrite it; require the D16D map instead of silently corrupting the stack.
+export const FPU = process.env.FPU === '1' || D16D;
 // The flat image is the 24K window; the showcase sits in the BIOS segment
 // between the BIOS code and the Forth stacks, so both sizes stay 24K.
 export const WINDOW = 0x6000;
@@ -87,15 +94,26 @@ export const DEFINES = { CONSOLE_UART: 1 };
 if (NANO) DEFINES.D16NANO = 1;                       // D16nano: software divide
 if (D16SEG) DEFINES.D16SEG = 1;                      // segmented data stack (tile build)
 if (D16D) DEFINES.D16D = 1;                          // gfx BIOS call + word
+if (FPU) DEFINES.FPU_KERNEL = 1;                     // ILL FPU dispatch + library
 if (process.env.BOOT_DIAG) DEFINES.BOOT_DIAG = 1;     // boot diagnostic build
+
+export const SOFTFLOAT_PATH = path.join(ROOT, 'asm', 'softfloat.asm');
 
 export function buildImage() {
   if (D16D && !D16SEG) {
     throw new Error('the D16D image needs D16SEG=1 (the segmented kernel)');
   }
+  if (FPU && !NANO) {
+    throw new Error('FPU=1 needs D16NANO=1 (the FPU trap lives in the nano ILL handler)');
+  }
+  if (FPU && !D16SEG) {
+    throw new Error('FPU=1 needs D16SEG=1 (the 0x5800 return stack would collide with the library)');
+  }
   const Deep16Assembler = loadAssembler();
   const source = fs.readFileSync(SOURCE_PATH, 'utf8');
-  const res = new Deep16Assembler().assemble(source, { defines: DEFINES });
+  const library = FPU ? fs.readFileSync(SOFTFLOAT_PATH, 'utf8') : '';
+  const res = new Deep16Assembler().assemble(FPU ? `${source}\n${library}` : source,
+                                             { defines: DEFINES });
   if (!res.success) throw new Error(`${SOURCE_LABEL} does not assemble: ` + res.errors.join('; '));
 
   const words = new Uint16Array(WINDOW).fill(FILL);
@@ -151,13 +169,15 @@ export function buildImage() {
 
   const build = crypto.createHash('sha256')
     .update(source)
+    .update(library)
     .update(showcase?.build ?? '')
     .update(pacman?.build ?? '')
     .digest('hex').slice(0, 16);
 
   return {
     words, outOfWindow: [...outOfWindow].sort((a, b) => a - b), collisions,
-    dictFree: sym.dict_free, biosEntry: sym.bios_entry, biosWords, build, showcase, pacman,
+    dictFree: sym.dict_free, biosEntry: sym.bios_entry, biosWords, build,
+    fpu: FPU, showcase, pacman,
   };
 }
 
@@ -168,7 +188,13 @@ export function checkImage(img) {
   if (img.dictFree >= STACK_BASE) fail.push(`dict_free 0x${img.dictFree.toString(16)} reaches the stacks (0x${STACK_BASE.toString(16)})`);
   if (img.dictFree > img.biosEntry) fail.push(`dict_free 0x${img.dictFree.toString(16)} runs into the BIOS at 0x${img.biosEntry.toString(16)}`);
   if (img.biosEntry !== BIOS_BASE) fail.push(`BIOS at 0x${img.biosEntry.toString(16)}, expected 0x${BIOS_BASE.toString(16)}`);
-  if (img.biosEntry + img.biosWords > STACK_BASE) fail.push(`BIOS (${img.biosWords} words) overruns the stacks`);
+  // The FPU library is placed at 0x5800, above STACK_BASE, because the D16D
+  // return stack lives at 0x2FF0. Its ceiling is the image window instead.
+  const biosLimit = FPU ? WINDOW : STACK_BASE;
+  if (img.biosEntry + img.biosWords > biosLimit) {
+    fail.push(`BIOS (${img.biosWords} words) overruns ` +
+              (FPU ? `the image window at 0x${biosLimit.toString(16)}` : 'the stacks'));
+  }
   // The only word outside the window is the kernel's echo cell, which the board
   // neither backs nor decodes (§6.4) - anything else means the kernel grew a
   // high address the board cannot back.
@@ -335,6 +361,7 @@ export function manifest(img) {
     bios_entry: `0x${img.biosEntry.toString(16)}`,
     bios_words: img.biosWords,
     stack_base: `0x${STACK_BASE.toString(16)}`,
+    fpu: img.fpu,
     build: img.build,
     pack: pack ? {
       format: 'count, (start,end) pairs, payload ranges',

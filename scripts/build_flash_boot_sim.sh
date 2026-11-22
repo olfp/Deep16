@@ -3,7 +3,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-D16NANO=1 D16D=1 D16SEG=1 node scripts/make_image.mjs >/dev/null
+# D16D implies FPU; state it so the 0x5800 BIOS-copy check is intentional.
+FPU=1 D16NANO=1 D16D=1 D16SEG=1 node scripts/make_image.mjs >/dev/null
 
 verilator --cc --exe --build -O2 -Wall -Wno-fatal -DD16SEG --top-module flash_boot_tb \
   -Mdir obj_flash_boot \

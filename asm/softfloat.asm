@@ -1,8 +1,11 @@
 ; asm/softfloat.asm - Deep16 soft-float library (prototype, P3)
 ;
-; This file is position-dependent: include it after the caller's .org. It has
-; no .org of its own so the same source can be placed in the nano/D16D image
-; or in a test harness.
+; Standalone use: include it after the caller's .org. In a kernel image,
+; FPU_KERNEL places it at 0x5800, above the D16D BIOS/demo data. The D16D
+; flash loader copies 0x4A00..0x5FFF into the BIOS segment, so the library
+; lands at CS=0x3000 offset 0x0E00 and the ILL handler can call it there.
+; Every internal call and tail jump is PC-relative, so the same words run at
+; either origin (the flat image or the BIOS copy).
 ;
 ; ABI (FPUEMUPLAN.md section 7.1, FLOATIMPL.md section 2):
 ;   F0 = R2:R3 (high:low), F1 = R4:R5
@@ -21,8 +24,8 @@
 ; R1 = bits 15..0, with bit 23 = 1 for a normal number.
 
 .ifdef FPU_KERNEL
-; In the kernel image the library lives above the BIOS/return-stack area.
-; This is the flat origin; D16D relocation is a separate placement step.
+; The flat origin. In the D16D image the BIOS copy carries the same words at
+; CS=0x3000 offset 0x0E00; the PC-relative calls do not care which copy runs.
 .org 0x5800
 .endif
 

@@ -15,11 +15,13 @@ module flash_boot_tb (
   output logic [15:0] exp_0100,
   output logic [15:0] exp_3000,
   output logic [15:0] exp_bios4a00,
+  output logic [15:0] exp_bios5800,
   output logic [15:0] got_0100,
   output logic [15:0] got_0000,
   output logic [15:0] got_3000,
   output logic [15:0] got_ds3000,
-  output logic [15:0] got_bios4a00
+  output logic [15:0] got_bios4a00,
+  output logic [15:0] got_bios5800
 );
   logic        spi_we;
   logic [3:0]  spi_addr;
@@ -107,8 +109,10 @@ module flash_boot_tb (
   assign got_3000   = psram[20'h03000];
   assign got_ds3000 = psram[20'h13000];
   assign got_bios4a00 = psram[20'h2B600 + 20'h4A00];
+  assign got_bios5800 = psram[20'h2B600 + 20'h5800];
   assign exp_0000     = flash32[64] & 16'hFFFF;
   assign exp_0100     = flash32[64 + 128] & 16'hFFFF;
   assign exp_3000     = flash32[64 + 16'h1800] & 16'hFFFF;
   assign exp_bios4a00 = flash32[64 + 16'h2500] & 16'hFFFF;
+  assign exp_bios5800 = flash32[64 + 16'h2C00] & 16'hFFFF;
 endmodule

@@ -7,6 +7,8 @@
  *
  * Placement mirrors scripts/make_image.mjs + make_showcase.mjs:
  *   - kernel assembled with CONSOLE_UART, D16NANO and D16SEG; D16D adds D16D;
+ *   - the soft-float library is appended at 0x5800 when an FPU image is asked
+ *     for, so the ILL handler can reach it through the BIOS copy;
  *   - menu words at physical 0x4A00 + their segment offset;
  *   - fill 0xFFFF; anything outside 0x0000..0x5FFF is reported, not written.
  *
@@ -16,10 +18,15 @@
  * makes.
  */
 class Deep16D16DImage {
-  // Assemble one nano kernel into the flat 24K image window.
-  static assembleNano({ kernel, defines = {} } = {}) {
+  // Assemble one nano kernel into the flat 24K image window. When softfloat is
+  // supplied it is appended, at its own .org 0x5800, and FPU_KERNEL turns on
+  // the ILL dispatch that calls it.
+  static assembleNano({ kernel, softfloat = null, defines = {} } = {}) {
     if (typeof Deep16Assembler !== 'function') throw new Error('Deep16Assembler is not loaded');
     if (typeof kernel !== 'string' || !kernel.trim()) throw new Error('nano image needs kernel source');
+    if (softfloat !== null && (typeof softfloat !== 'string' || !softfloat.trim())) {
+      throw new Error('softfloat source must be text');
+    }
 
     const defs = {
       CONSOLE_UART: 1,
@@ -27,8 +34,13 @@ class Deep16D16DImage {
       D16SEG: 1,
       ...defines,
     };
+    let source = kernel;
+    if (softfloat !== null) {
+      defs.FPU_KERNEL = 1;
+      source = `${kernel}\n${softfloat}`;
+    }
 
-    const result = new Deep16Assembler().assemble(kernel, { defines: defs });
+    const result = new Deep16Assembler().assemble(source, { defines: defs });
     if (!result.success) throw new Error('kernel does not assemble: ' + result.errors.join('; '));
 
     const WINDOW = 0x6000;
@@ -48,9 +60,10 @@ class Deep16D16DImage {
   // The generic D16nano console used by the IDE. CONSOLE_PS2 keeps the
   // CONSOLE_UART output path, but reads input from the D16nano keyboard FIFO
   // instead of the serial UART.
-  static buildNano({ kernel, defines = {} } = {}) {
+  static buildNano({ kernel, softfloat = null, defines = {} } = {}) {
     const image = this.assembleNano({
       kernel,
+      softfloat,
       defines: { CONSOLE_MIRROR: 1, CONSOLE_PS2: 1, ...defines },
     });
     const result = image.result;
@@ -69,7 +82,7 @@ class Deep16D16DImage {
   //
   //   0x00000..0x05FFF  flat code/image copy
   //   0x10000 + offset  DS=0x1000 copy of image 0x3000..0x57DC
-  //   0x30000 + offset  BIOS segment copy of image 0x4A00..0x57FF
+  //   0x30000 + offset  BIOS segment copy of image 0x4A00..0x5FFF
   //
   // bootPtr is cleared in the flat and DS copies when supplied. That disables
   // the baked Forth boot script, so the IDE starts at the interactive prompt
@@ -91,7 +104,7 @@ class Deep16D16DImage {
     for (let offset = 0x3000; offset <= Math.min(0x57DC, last); offset++) {
       put(0x10000 + offset, words[offset]);
     }
-    for (let offset = 0x4A00; offset <= Math.min(0x57FF, last); offset++) {
+    for (let offset = 0x4A00; offset <= Math.min(0x5FFF, last); offset++) {
       put(0x30000 + (offset - 0x4A00), words[offset]);
     }
 
@@ -107,13 +120,17 @@ class Deep16D16DImage {
     return changes;
   }
 
-  static build({ kernel, showcase, flappy, flappyDefs, pacmanMap, pacmanGame, frogger, defines = {},
-                 bakePacman = false, packs = {} } = {}) {
+  static build({ kernel, softfloat = null, showcase, flappy, flappyDefs, pacmanMap, pacmanGame,
+                 frogger, defines = {}, bakePacman = false, packs = {} } = {}) {
     if (typeof kernel !== 'string' || !kernel.trim()) throw new Error('D16D image needs kernel source');
     if (typeof showcase !== 'string') throw new Error('D16D image needs the showcase source');
 
+    // The board image carries the soft-float library so the D16D ILL handler
+    // can execute trapped FPU words from the BIOS segment. Callers that do not
+    // pass it get the pre-P4 image, which is what the generic nano builder uses.
     const kernelImage = this.assembleNano({
       kernel,
+      softfloat,
       defines: { D16D: 1, ...defines },
     });
     const kres = kernelImage.result;
@@ -192,6 +209,7 @@ class Deep16D16DImage {
       collisions,
       dictFree: kres.symbols.dict_free,
       biosEntry: kres.symbols.bios_entry,
+      fpu: softfloat !== null,
       symbols: kres.symbols,
       showcase: { words: sres.memoryChanges.map((c) => [c.address, c.value & 0xFFFF]) },
       flappy: block(fres, 0x5000, packs.flappy, packs.flappySprites),

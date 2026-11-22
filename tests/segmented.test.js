@@ -10,7 +10,7 @@
 // The scatter below mirrors flash_boot.sv with D16SEG:
 //   - the flat image at 0x00000 (kernel code, vectors, ILL/divtest code)
 //   - image words 0x3000..0x57DC at DS 0x1000 (kernel data, BIOS/demo data)
-//   - image words 0x4A00..0x57FF at CS 0x3000 (BIOS code + demo)
+//   - image words 0x4A00..0x5FFF at CS 0x3000 (BIOS code + demo + FPU library)
 // The rest of PSRAM is erased (0xFFFF), like the model and a fresh part.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -28,7 +28,7 @@ const BIOS_SEG = 0x3000;
 const DS_LO = 0x3000;          // first image word copied to DS
 const DS_HI = 0x57dc;          // last one flash_boot copies
 const BIOS_LO = 0x4a00;        // the BIOS/demo block in the flat image
-const BIOS_HI = 0x57ff;
+const BIOS_HI = 0x5fff;        // includes the soft-float library at 0x5800
 // The return stack is a DS window: LD/ST through DS is the only way the kernel
 // reaches it, so it cannot be a segment of its own.
 const RSTACK_TOP = 0x2ff0;

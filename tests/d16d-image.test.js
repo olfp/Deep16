@@ -20,6 +20,7 @@ for (const f of ['js/deep16_assembler.js', 'js/deep16_d16d_image.js']) {
 const Deep16D16DImage = vm.runInThisContext('Deep16D16DImage');
 
 const kernel = fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8');
+const softfloat = fs.readFileSync(path.join(ROOT, 'asm', 'softfloat.asm'), 'utf8');
 const showcase = fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'showcase.asm'), 'utf8');
 const flappy = fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'flappy_game.asm'), 'utf8');
 const flappyDefs = fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'flappy_defs.asm'), 'utf8');
@@ -28,7 +29,7 @@ const pacmanGame = fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'pacman_ga
 const frogger = fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'frogger_demo.asm'), 'utf8');
 
 const packs = { flappy: flappyArtPack(), pacman: pacmanArtPack(), frogger: froggerArtPack() };
-const sources = { kernel, showcase, flappy, flappyDefs, pacmanMap, pacmanGame, frogger, packs };
+const sources = { kernel, softfloat, showcase, flappy, flappyDefs, pacmanMap, pacmanGame, frogger, packs };
 
 test('browser builder matches the Node D16D image word for word', () => {
   const node = buildImage();
@@ -41,6 +42,11 @@ test('browser builder matches the Node D16D image word for word', () => {
     [...browser.showcase.words].sort((a, b) => a[0] - b[0]),
     [...node.showcase.words].sort((a, b) => a[0] - b[0]), 'menu block matches');
   assert.deepEqual(browser.pacman.words, node.pacman.words, 'pacman block matches');
+  assert.equal(browser.fpu, true, 'the browser build carries the FPU library');
+  assert.equal(node.fpu, true, 'the Node build carries the FPU library');
+  // f_unpack is the first library word at 0x5800 (BIOS offset 0x0E00).
+  assert.notEqual(node.words[0x5800], 0xFFFF, 'the soft-float library is in the image');
+  assert.equal(browser.words[0x5800], node.words[0x5800], 'library word matches');
   // The games are slices: the gap below the BIOS and the game area are empty.
   assert.equal(node.words[0x4350], 0xffff, 'frogger is not baked into the image');
   assert.equal(node.words[0x5F00], 0xffff, 'flappy is not baked into the image');
@@ -78,6 +84,16 @@ test('the image is code plus the showcase, not graphics', () => {
   for (let a = 0xF3000; a <= 0xF3000 + 32; a++) {
     assert.equal(browser.words[a], undefined);
   }
+});
+
+test('the BIOS scatter carries the FPU library to segment 0x3000', () => {
+  const image = Deep16D16DImage.build(sources);
+  const memory = [];
+  Deep16D16DImage.scatterD16SEG(image.words, { memory });
+  // 0x5800 - 0x4A00 = 0x0E00, and 0x30000 + 0x0E00 = 0x30E00.
+  assert.equal(memory[0x30E00], image.words[0x5800], 'f_unpack reached the BIOS copy');
+  assert.equal(memory[0x30E00 + 0x65C], image.words[0x5E5C], 'the last library word too');
+  assert.equal(memory[0x315FF], 0xFFFF, 'the FILL tail below 0x6000 is copied as the loader does');
 });
 
 test('a broken kernel reports the assembler error', () => {

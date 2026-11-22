@@ -1,9 +1,11 @@
 # FPU Emulation via ILL — Design Plan
 
-Status: **P0-P4 implemented for the non-D16D nano kernel.** Written against
-`932815c` ("Snapshot: D16nano tile console, ILL trap, 720p DVI"). The
-soft-float library and the ILL FPU dispatch are complete and tested. The
-D16D BIOS-copy placement and the board image-size decision remain.
+Status: **P0-P4 implemented, including D16D.** Written against `932815c`
+("Snapshot: D16nano tile console, ILL trap, 720p DVI"). The soft-float
+library and the ILL FPU dispatch are complete and tested on both the
+non-D16D nano kernel and the D16D BIOS-segment path. The D16D BIOS copy now
+carries `0x4A00..0x5FFF`, so the library at flat `0x5800` is reachable at
+BIOS offset `0x0E00`.
 
 ---
 
@@ -379,7 +381,17 @@ sign-extends.
 
 Build recipe: assemble `asm/forth_nano.asm` followed by `asm/softfloat.asm`
 with `CONSOLE_UART`, `D16NANO` and `FPU_KERNEL` defined. The library places
-itself at `0x5800`. This is what `tests/ill-fpu.test.js` does.
+itself at `0x5800`. `scripts/make_image.mjs` does this whenever `D16D` is
+set (or `D16NANO=1 D16SEG=1 FPU=1` for a test image), and
+`js/deep16_d16d_image.js` appends the same source when it is passed as
+`softfloat`.
+
+D16D relocation: the flash loader now copies `0x4A00..0x5FFF`, not
+`0x4A00..0x57FF`. Flat `0x5800` therefore lands at physical `0x30E00`
+(BIOS `CS=0x3000`, offset `0x0E00`). The library needs no per-label fixup:
+its internal calls and tail jumps are PC-relative deltas, which are the same
+at either origin. `tests/d16d-fpu.test.js` poisons the flat copy after the
+scatter, so a pass proves the BIOS copy executed.
 
 ### 6.3 Register window
 
@@ -449,10 +461,13 @@ words of headroom: usable for tests and shallow Forth code, but tight for a
 deep stack. The D16SEG profile puts the data stack in SS=0x2000, which avoids
 the collision but needs the slice loader.
 
-D16D is not wired yet: its handler runs at CS=0x3000 and the BIOS copy ends
-at 0x57FF, so the flat library at 0x5800 is unreachable. The remaining P4
-placement work is to extend the BIOS copy to 0x5FFF and relocate the library
-(or route it through a flat trampoline).
+D16D uses the D16SEG map: the return stack is at `0x2FF0`, the dictionary is
+in PSRAM, and flat `0x5800` is free. The BIOS copy extension makes the whole
+library reachable at `CS=0x3000` offset `0x0E00`; `checkImage` accepts a BIOS
+that runs up to the `0x6000` window edge for an FPU image instead of stopping
+at the `0x5800` return-stack base. `tests/d16d-fpu.test.js` covers FADD,
+FMUL, FDIV, FSQRT, FCMP and a repeated trap through that path, and the flash
+boot bench checks the `0x5800` word at physical `0x30E00`.
 
 Subtraction is exact on both sides of the guard-bit boundary. The `d >= 24`
 case returns the previous float below |A| directly; the `d < 24` case aligns A
@@ -542,7 +557,7 @@ kernel is loaded at `0x5000`, so it competes with the demo area there.
 | P1 | **Done.** General undefined-opcode trap in all four cores | A reserved word traps on every core; double fault is diagnosable |
 | P2 | **Done.** `SAPF` in the DIV/DIV32 handler (§4) | `tests/ill-trap.test.js` covers zero, negative and positive quotients for DIV and DIV32 |
 | P3 | **Done.** Layer 1 + `i2f`/`u2f`/`f2i`/FADD/FSUB/FMUL/FDIV/FSQRT/FCMP in `asm/softfloat.asm` | `tests/softfloat.test.js` passes: exhaustive conversions and round trip, `f2i` boundaries, randomized FSUB/FDIV/FSQRT/FMUL references, and JS+RTL vectors for every arithmetic operation |
-| P4 | **Done for non-D16D.** FPU decode + dispatch in the ILL handler (FADD/FMUL/FDIV/FSQRT/FCMP; FSUB by sign flip) | `tests/ill-fpu.test.js` covers the trapped ops, F1/shared preservation and repeated traps. D16D BIOS-copy placement remains |
+| P4 | **Done, including D16D.** FPU decode + dispatch in the ILL handler (FADD/FMUL/FDIV/FSQRT/FCMP; FSUB by sign flip) | `tests/ill-fpu.test.js` covers the flat nano kernel; `tests/d16d-fpu.test.js` covers the BIOS-segment path with the flat copy poisoned; the flash boot bench checks the library copy |
 | P5 | **Done.** FDIV/FSQRT dispatch (same handler) | `tests/ill-fpu.test.js` covers both |
 | P6 | FEXP, FLOG — or never; the handler currently returns NaN | — |
 

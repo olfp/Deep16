@@ -13,7 +13,7 @@ import { buildSlices, SCREEN_BASE } from '../scripts/make_slices.mjs';
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
 
 const WINDOW = 0x6000, DS_SEG = 0x1000, BIOS_SEG = 0x3000;
-const DS_LO = 0x3000, DS_HI = 0x57dc, BIOS_LO = 0x4a00, BIOS_HI = 0x57ff;
+const DS_LO = 0x3000, DS_HI = 0x57dc, BIOS_LO = 0x4a00, BIOS_HI = 0x5fff;
 const TILE = 0xF1000;
 const glyph = (ch) => (ch.charCodeAt(0) - 0x20) * 32;
 const cell = (row, col) => TILE + row * 82 + col;

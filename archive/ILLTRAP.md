@@ -126,3 +126,9 @@ result back through `SMV`. FCMP uses `SAPF` for its N/Z/V nibble; FEXP/FLOG
 return the canonical NaN until they are implemented. The library and dispatch
 are appended at flat 0x5800 under `FPU_KERNEL`; all internal calls are
 PC-relative because `LDI` sign-extends addresses at or above 0x4000.
+
+On D16D the trap vector enters the trampoline at 0x4D24 and switches to the
+BIOS copy (`CS=0x3000`, PC `0x0600`). `rtl/flash/flash_boot.sv` now copies
+image words `0x4A00..0x5FFF`, so flat `0x5800` is present at physical
+`0x30E00` (offset `0x0E00`). The library needs no relocation fixup: the
+PC-relative deltas are identical in the flat and BIOS copies.

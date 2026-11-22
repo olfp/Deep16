@@ -56,6 +56,7 @@ function loadModules() {
 function readSources() {
   return {
     kernel: fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8'),
+    softfloat: fs.readFileSync(path.join(ROOT, 'asm', 'softfloat.asm'), 'utf8'),
     showcase: fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'showcase.asm'), 'utf8'),
     flappy: fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'flappy_game.asm'), 'utf8'),
     flappyDefs: fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'flappy_defs.asm'), 'utf8'),
@@ -72,6 +73,7 @@ function boot(scene) {
   const src = readSources();
   const image = Builder.build({
     kernel: src.kernel,
+    softfloat: src.softfloat,
     showcase: src.showcase,
     flappy: src.flappy,
     flappyDefs: src.flappyDefs,

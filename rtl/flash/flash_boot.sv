@@ -182,7 +182,7 @@ module flash_boot (
         S_WR1W: if (bbusy) begin
 `ifdef D16SEG
           if (img_i >= 14'h1800 && img_i <= 14'h2BEE) st <= S_WR_D0;
-          else if (img_i >= 14'h2500 && img_i < 14'h2C00) st <= S_WR_B0;
+          else if (img_i >= 14'h2500 && img_i < 14'h3000) st <= S_WR_B0;
           else
 `endif
           if (img_i == 14'(IMG_PAIRS - 1)) st <= S_CRC_CHK;
@@ -207,14 +207,16 @@ module flash_boot (
           st <= S_WR_D1W;
         end
         S_WR_D1W: if (bbusy) begin
-          if (img_i >= 14'h2500 && img_i < 14'h2C00) st <= S_WR_B0;
+          if (img_i >= 14'h2500 && img_i < 14'h3000) st <= S_WR_B0;
           else if (img_i == 14'(IMG_PAIRS - 1)) st <= S_CRC_CHK;
           else begin img_i <= img_i + 14'd1; st <= S_CP_REQ; end
         end
 
         // The BIOS/demo block also gets a copy in segment 0x3000. The source
-        // offset is 0x4A00..0x57FF; the BIOS segment starts at 0x30000, so the
-        // destination is 0x30000 + (source - 0x4A00) = 0x2B600 + source.
+        // offset is 0x4A00..0x5FFF; the BIOS segment starts at 0x30000, so the
+        // destination is 0x30000 + (source - 0x4A00) = 0x2B600 + source. The
+        // last 0x800 words are the soft-float library at 0x5800 (BIOS offset
+        // 0x0E00), so an FPU trap can run it in the BIOS segment.
         S_WR_B0: if (!bbusy) begin
           breq <= 1'b1; bwe <= 1'b1;
           baddr <= 20'h2B600 + {5'd0, img_i, 1'b0};

@@ -171,9 +171,9 @@ write the 444 KB tile bitstream into the 608 Kbit user flash: it does not fit.
 
 The tile build uses the same 24K flat image as the console, but `D16SEG`
 scatters it: `CS=0` flat code, `DS=0x1000` data and dictionary (base `0x5800`),
-`SS=0x2000` stack, and `CS=0x3000` for the BIOS/demo copied from image
-`0x4A00..0x57FF`. The flat image is 48 KB; the rest of the 76 KB boot image is
-`0xFF`.
+`SS=0x2000` stack, and `CS=0x3000` for the BIOS/demo and soft-float library
+copied from image `0x4A00..0x5FFF`. The flat image is 48 KB; the rest of the
+76 KB boot image is `0xFF`.
 
 ## Simulation
 
