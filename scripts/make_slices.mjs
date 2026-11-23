@@ -146,7 +146,8 @@ function directory(entries) {
   return words;
 }
 
-export function buildSlices() {
+export function buildSlices(options = {}) {
+  const includePole = options.includePole !== false;
   const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
   const start = read('forth/start.fth');
   const essentials = read('screens/flash/essentials.fth');
@@ -191,10 +192,15 @@ export function buildSlices() {
   const froggerFirst = flappyFirst + flappySlices.length;
   const froggerSlices = binarySlices(frogger.words, froggerFirst, 'frogger', 0, frogger.seg, 1);
   // The Pole road renderer and its on-board timing harness. It is loaded into
-  // segment 0x7000, which is free in the D16D segment map.
-  const pole = buildPole();
-  const poleFirst = froggerFirst + froggerSlices.length;
-  const poleSlices = binarySlices(pole.words, poleFirst, 'pole', 0, pole.seg, 1);
+  // segment 0x7000, which is free in the D16D segment map. The board image can
+  // leave them out with --without-pole while the sources stay in the repo.
+  let pole = null;
+  let poleSlices = [];
+  let poleFirst = froggerFirst + froggerSlices.length;
+  if (includePole) {
+    pole = buildPole();
+    poleSlices = binarySlices(pole.words, poleFirst, 'pole', 0, pole.seg, 1);
+  }
   const helloFirst = poleFirst + poleSlices.length;
   const helloSlices = sourceSlices(hello, helloFirst, 'hello');
   const samples = buildSamples();
@@ -209,10 +215,14 @@ export function buildSlices() {
   const lilaSlices = sourceSlices(lila, lilaFirst, 'lila');
   // The on-board Pole timing harness. It goes last so the app slices keep
   // their numbers; it is a developer object, not a menu entry.
-  const poleBench = buildPoleBench();
+  let poleBench = null;
+  let poleBenchSlices = [];
   const poleBenchFirst = lilaFirst + lilaSlices.length;
-  const poleBenchSlices = binarySlices(poleBench.words, poleBenchFirst, 'polebench', 0,
-                                       poleBench.seg, 1);
+  if (includePole) {
+    poleBench = buildPoleBench();
+    poleBenchSlices = binarySlices(poleBench.words, poleBenchFirst, 'polebench', 0,
+                                   poleBench.seg, 1);
+  }
 
   const slices = [directory([
     entry({ type: TYPES.TEXT, first: startFirst, name: 'start' }),
@@ -226,12 +236,12 @@ export function buildSlices() {
     entry({ type: TYPES.BINARY, flags: 1, first: pacFirst, name: 'pacman' }),
     entry({ type: TYPES.BINARY, flags: 1, first: flappyFirst, name: 'flappy' }),
     entry({ type: TYPES.BINARY, flags: 1, first: froggerFirst, name: 'frogger' }),
-    entry({ type: TYPES.BINARY, flags: 1, first: poleFirst, name: 'pole' }),
+    ...(includePole ? [entry({ type: TYPES.BINARY, flags: 1, first: poleFirst, name: 'pole' })] : []),
     entry({ type: TYPES.TEXT, first: helloFirst, name: 'hello' }),
     entry({ type: TYPES.ULAW, flags: ping.rate, first: pingFirst, name: ping.name }),
     entry({ type: TYPES.ULAW, flags: swoosh.rate, first: swooshFirst, name: swoosh.name }),
     entry({ type: TYPES.TEXT, first: lilaFirst, name: 'lila' }),
-    entry({ type: TYPES.BINARY, flags: 1, first: poleBenchFirst, name: 'polebench' }),
+    ...(includePole ? [entry({ type: TYPES.BINARY, flags: 1, first: poleBenchFirst, name: 'polebench' })] : []),
   ]), ...startSlices, ...essSlices, ...editSlices, ...gfxSlices, ...audioSlices, ...gameSlices,
      ...sdSlices, ...editorSlices, ...pacSlices, ...flappySlices, ...froggerSlices, ...poleSlices,
      ...helloSlices, ...pingSlices, ...swooshSlices, ...lilaSlices, ...poleBenchSlices];
@@ -258,10 +268,12 @@ export function buildSlices() {
       pacman: { first: pacFirst, count: pacSlices.length, words: pac.max + 1 },
       flappy: { first: flappyFirst, count: flappySlices.length, words: flappy.max + 1 },
       frogger: { first: froggerFirst, count: froggerSlices.length, words: frogger.max + 1 },
-      pole: { first: poleFirst, count: poleSlices.length, words: pole.max + 1,
-              segment: `0x${pole.seg.toString(16)}` },
-      polebench: { first: poleBenchFirst, count: poleBenchSlices.length,
-                   words: poleBench.max + 1, segment: `0x${poleBench.seg.toString(16)}` },
+      ...(includePole ? {
+        pole: { first: poleFirst, count: poleSlices.length, words: pole.max + 1,
+                segment: `0x${pole.seg.toString(16)}` },
+        polebench: { first: poleBenchFirst, count: poleBenchSlices.length,
+                     words: poleBench.max + 1, segment: `0x${poleBench.seg.toString(16)}` },
+      } : {}),
       hello: { first: helloFirst, count: helloSlices.length, chars: hello.length },
       ping: { first: pingFirst, count: pingSlices.length, samples: ping.bytes.length,
               rate: ping.rate },
@@ -277,7 +289,9 @@ const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPat
 if (isMain) {
   const arg = process.argv.find((a) => a.startsWith('--out='));
   const out = path.resolve(ROOT, arg ? arg.slice(6) : 'artifacts/image/slices.bin');
-  const { bytes, manifest } = buildSlices();
+  const { bytes, manifest } = buildSlices({
+    includePole: !process.argv.includes('--without-pole'),
+  });
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(out, bytes);
   fs.writeFileSync(path.join(path.dirname(out), 'slices.manifest.json'),

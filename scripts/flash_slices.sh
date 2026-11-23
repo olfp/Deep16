@@ -18,7 +18,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-node scripts/make_slices.mjs
+node scripts/make_slices.mjs ${SLICES_WITHOUT_POLE:+--without-pole}
 command -v openFPGALoader >/dev/null 2>&1 || { echo "openFPGALoader not found" >&2; exit 1; }
 
 openFPGALoader -f --external-flash --file-type bin \

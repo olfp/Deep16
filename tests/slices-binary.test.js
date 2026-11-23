@@ -60,6 +60,30 @@ for (const [name, build] of [['pole', buildPole], ['polebench', buildPoleBench]]
   });
 }
 
+test('the image can be built without the pole objects', () => {
+  const full = buildSlices();
+  const lean = buildSlices({ includePole: false });
+  assert.equal(lean.manifest.objects.pole, undefined);
+  assert.equal(lean.manifest.objects.polebench, undefined);
+  assert.equal(lean.manifest.slices, full.manifest.slices - 10,
+    'the two five-slice pole blocks are left out');
+  // The directory must not name them either.
+  const dir = lean.words.slice(0, SLICE_WORDS);
+  const names = [];
+  for (let i = 0; i < 255; i++) {
+    const type = dir[8 + i * 8] & 0xff;
+    if (type === 0xff) break;
+    const name = [];
+    for (let c = 0; c < 6; c++) {
+      const w = dir[8 + i * 8 + 2 + c];
+      for (const b of [w & 0xff, w >> 8]) if (b) name.push(String.fromCharCode(b));
+    }
+    names.push(name.join(''));
+  }
+  assert.equal(names.includes('pole'), false);
+  assert.equal(names.includes('polebench'), false);
+});
+
 test('the directory lists the apps and their flags', () => {
   const { words } = buildSlices();
   const dir = words.slice(0, SLICE_WORDS);
