@@ -10,7 +10,7 @@
 ; tests/pole-asm.test.js compares the map this code writes with the model's,
 ; cell for cell.
 ;
-; Measured cost on the core3 RTL model: 14,368 instructions and 60,399 cycles
+; Measured cost on the core3 RTL model: 14,687 instructions and 61,729 cycles
 ; per frame with the dirty skip, out of the 112,500 cycles a 60 Hz frame has at
 ; 6.75 MHz. About 55% of the instructions are the per-cell fill loop below,
 ; which writes up to 1,867 cells at four instructions each; the skip removes
@@ -237,6 +237,7 @@ ec_straight:
     LSI R6, 5                  ; left 1, right 1
 ec_store:
     ST R6, R7, 0
+
 
     ; the lateral shift = ((x_acc - player_x) * half) >> 8
     LDI ST_PLAYER_X
@@ -963,6 +964,12 @@ dirty_store_done:
     NOP
 
 ; ---------------------------------------------------------------------------
+; The helpers live after the art copy, before the tile art: the renderer's
+; own code must end before the state block at 0x04B0.
+; ---------------------------------------------------------------------------
+.org 0x0E00
+
+; ---------------------------------------------------------------------------
 ; mul_shr8: R2 = a (signed), R4 = b (unsigned) -> R2 = (a*b) >> 8.
 ; The magnitude is multiplied unsigned and the sign is applied afterwards, so
 ; the result truncates toward zero. Clobbers R2, R3, R6, R7.
@@ -987,12 +994,6 @@ ms8_done:
     MOV R2, R6
     JMP LR
     NOP
-
-; ---------------------------------------------------------------------------
-; The helpers live after the art copy, before the tile art: the renderer's
-; own code must end before the state block at 0x04B0.
-; ---------------------------------------------------------------------------
-.org 0x0E00
 
 ; ---------------------------------------------------------------------------
 ; fill_cells: R6 = the cell word, R2 = the map offset, R3 = the count.
@@ -1032,10 +1033,8 @@ draw_edges:
     LD R6, R3, 0
     STS R6, ES, R2
 de_no_l1:
-    ; the left k=2 cell (adaptive bands only)
-    AND R5, R5
-    JZ de_no_l2
-    NOP
+    ; the left k=2 cell: the adaptive word, or grass on a straight band so
+    ; an edge left by an earlier frame cannot show through
     LDI 2
     CMP R4, R0
     JN de_no_l2
@@ -1043,9 +1042,20 @@ de_no_l1:
     MOV R2, R12
     ADD R2, R4
     SUB R2, 2
+    AND R5, R5
+    JZ de_l2_grass
+    NOP
     LDI SCR_EDGELC
     MOV R3, R0
     LD R6, R3, 0
+    LDI de_l2_store
+    MOV PC, R0
+    NOP
+de_l2_grass:
+    LDI SCR_GRASS
+    MOV R3, R0
+    LD R6, R3, 0
+de_l2_store:
     STS R6, ES, R2
 de_no_l2:
     ; the right k=0 cell
@@ -1068,10 +1078,7 @@ de_no_l2:
     LD R6, R3, 0
     STS R6, ES, R2
 de_no_r1:
-    ; the right k=2 cell (adaptive bands only)
-    AND R5, R5
-    JZ de_done
-    NOP
+    ; the right k=2 cell, same rule
     LDI 78
     CMP R7, R0
     JNC de_done
@@ -1079,9 +1086,20 @@ de_no_r1:
     MOV R2, R12
     ADD R2, R7
     ADD R2, 2
+    AND R5, R5
+    JZ de_r2_grass
+    NOP
     LDI SCR_EDGERRC
     MOV R3, R0
     LD R6, R3, 0
+    LDI de_r2_store
+    MOV PC, R0
+    NOP
+de_r2_grass:
+    LDI SCR_GRASS
+    MOV R3, R0
+    LD R6, R3, 0
+de_r2_store:
     STS R6, ES, R2
 de_done:
     JMP LR

@@ -3,7 +3,7 @@
 Status: **milestones 1–2 complete; milestone 3 art and dirty redraw built;
 milestones 4–5 implemented 2026-11-20.** The on-board harness ran on the real
 FPGA: 99,127 cycles per frame, 88.1% of the 60 Hz budget. The art pipeline's
-core3 baseline is 60,399 cycles per frame (53.7% of the budget) with the
+core3 baseline is 61,729 cycles per frame (54.9% of the budget) with the
 dirty skip; it was 56,697 (50.4%) after the scrolling grass and the
 alternating mountain row. The dirty redraw saves 8.33% of the board harness's
 simulated steps on the JS core (848,191 against 925,284, identical picture). The playable game is now the `pole` slice and the
@@ -206,12 +206,12 @@ difference is the renderer's own cost.
 
 | Work | Cycles per frame | Share of the 60 Hz budget |
 |---|---:|---:|
-| Renderer, dirty (projection + tilemap + sprites + skip) | 60,399 | 53.7% |
+| Renderer, dirty (projection + tilemap + sprites + skip) | 61,729 | 54.9% |
 | State advance (phase, hill, horizon) | 169 | 0.2% |
 | **Total** | **52,380** | **46.6%** |
 | 60 Hz budget at 6.75 MHz | 112,500 | 100% |
 
-That is 14,368 instructions per frame at about 4.17 cycles per instruction
+That is 14,687 instructions per frame at about 4.17 cycles per instruction
 (the core3 needs four cycles for an ALU op and five for a load or a store).
 Before the dirty skip the same measurement was 13,565 instructions and 56,697
 cycles.
@@ -259,10 +259,10 @@ the core3 benchmark, wrapped in a timing loop that uses the board's own clocks.
   so it can be read off the screen as well as off the serial console:
 
   ```
-  POLE frames=01024 ms=08300 cyc16=12345 cyc_per_frame=054693 core3=060399
+  POLE frames=01024 ms=08300 cyc16=12345 cyc_per_frame=054693 core3=061729
   ```
 
-  The core3 baseline (60,399) is printed alongside the board number, so the
+  The core3 baseline (61,729) is printed alongside the board number, so the
   two are directly comparable. The millisecond and cycles-per-frame fields
   are full decimal numbers, because the board is slower than the core3 with
   its combinational memory and may pass 65,535 cycles per frame. A `!` in
@@ -315,17 +315,17 @@ The art pipeline of milestone 3 changed the renderer slightly: the grass now
 scrolls with the road and the mountain row alternates two profiles, which
 costs 873 core3 cycles per frame and takes the core3 baseline from 55,824 to
 56,697 (50.4% of the budget). The dirty redraw then took the core3 figure to
-60,399 (53.7%), which is the number the harness now prints.
+61,729 (54.9%), which is the number the harness now prints.
 
 **The 2026-11-23 run** (wide car, two-cell edge, 1,024 frames):
 
 ```
-POLE frames=01024 ms=15018 cyc16=57864 cyc_per_frame=98995 core3=060399
+POLE frames=01024 ms=15018 cyc16=57864 cyc_per_frame=98995 core3=061729
 ```
 
 | | cycles per frame | share of the 60 Hz budget |
 |---|---:|---:|
-| core3, combinational memory | 60,399 | 53.7% |
+| core3, combinational memory | 61,729 | 54.9% |
 | **board, real PSRAM** | **98,995** | **88.0%** |
 | 60 Hz budget at 6.75 MHz | 112,500 | 100% |
 
@@ -388,12 +388,14 @@ are not: the pole slice carried no tile art, so the renderer pointed at slots
   board shows, down to the last pixel. `npm run render:pole:art` writes it to
   `artifacts/pole/`.
 - `asm/pole/pole_art.asm` copies the art into the banks when the slice
-  starts: three block moves, one per bank. The tile art is the last 32 tiles
-  of the tile bank, the sprite art is the first 18 groups of the sprite bank,
-  and the three palettes are three consecutive 16-word banks of the palette
-  window. The console font and the bird sprite are left alone.
-- The slice carries the art, so it is no longer one 4 KB slice but five
-  (9,776 words). The loader already follows the link and copies the
+  starts: three block moves, one per bank. The tile art is the last 64 tiles
+  of the tile bank (slots 64..127), the sprite art is the first 18 groups of
+  the sprite bank, and the three palettes are three consecutive 16-word banks
+  of the palette window. Slots 64..95 hold the console lowercase font, so the
+  game saves those 1,024 words and restores them on exit; tiles 0..63 and the
+  bird sprite are left alone.
+- The slice carries the art, so it is no longer one 4 KB slice but six
+  (10,800 words). The loader already follows the link and copies the
   continuations, so `game-run` works unchanged.
 
 **Two bugs the art work found**
@@ -414,7 +416,7 @@ The art copy is 5,424 words moved once, before the measured loop, so it costs
 nothing per frame. The renderer changes do cost: the scrolling grass and the
 alternating mountain row take the core3 baseline from 55,824 to 56,697
 cycles per frame (50.4% of the 60 Hz budget). The dirty redraw then brings it
-to 60,399 (53.7%), and the report and the plan quote the new number. On the board the same change should cost roughly 1,500
+to 61,729 (54.9%), and the report and the plan quote the new number. On the board the same change should cost roughly 1,500
 cycles per frame.
 
 The mountain row needed a restructure to fit: a conditional branch reaches
@@ -451,7 +453,7 @@ A build define, `POLE_NODIRTY`, forces the skip to 0 and is used by
 
 Measured on the 64-frame board harness: **848,191 steps dirty against 925,284
 full, a saving of 77,093 steps (8.33%)**, with the final map identical. The
-core3 renderer benchmark is 60,399 cycles per frame with the skip (53.7% of
+core3 renderer benchmark is 61,729 cycles per frame with the skip (54.9% of
 the budget; the two-cell edge art added about 3,700 cycles on top of the dirty
 saving), and its map and OAM still match the host model. The
 quarter the plan expected was optimistic: at the usual horizon only four of
@@ -491,7 +493,7 @@ itself to the frame toggle. The visual pass is the remaining milestone-6 item.
 ### Milestone 5 — config-flash and menu integration (done 2026-11-20)
 
 The game is a type-4 binary slice at segment `0x7000`, five slices in the
-current image (the art blocks at `0x1000`/`0x1400`/`0x2600` force the span).
+current image (the art blocks at `0x1000`/`0x1800`/`0x2A00` force the span).
 The directory lists it as `pole`, and the showcase menu launches it with
 **R** (the `str_name_pole` name lives in the free `0x4C0` gap, because the
 app-name block at `0x4E0` is full). The launch copies the slice and the game
@@ -525,19 +527,24 @@ tile at every band. The car is now 64x32, built from two sprite halves
 (groups 0 and 17); the player uses two of the eight OAM slots, so the game
 shows six opponents instead of seven.
 
-The edge is a two-cell diagonal. The top edge tile at the projected cell holds
-the upper part of the line and the cell one column outside holds the lower
-part; both use the same offset bucket (four buckets, two-pixel resolution) and
-the line drops ten pixels over the fifteen rows, which is the road's own width
-change per band. The asphalt boundary is now a continuous diagonal rather than
-a vertical bar per tile; only the far, narrow bands still show a small step.
-The line is two pixels, red on the grass side and white on the road side. The
-road colours are unchanged.
+The edge is adaptive. On a straight band it keeps the cheap two-cell edge:
+the top cell at the projected column and the cell outside it, with a ten-pixel
+drop, which is the road's own width change per band. On a curve the centre
+shift adds to one border and subtracts from the other, so the renderer takes
+the slope class from the curve table (shallow 4, straight 10, steep 16) and
+writes a third cell on the curve bands. The edge words come from a class x
+bucket table; the line is two pixels, red on the grass side and white on the
+road side. The asphalt boundary is now a continuous diagonal on straights and
+curves; the far, narrow bands still show a small step.
 
-The extra edge cells cost about 900 instructions and 3,700 core3 cycles per
-frame. The slice is still 9,776 words and the palettes stay at `0x2600`; the
-core3 baseline is 60,399 cycles per frame (53.7%), and the board is
-re-measured with the new art.
+The adaptive art grows the tile pack to 64 tiles (8 base, 24 straight, 12
+shallow, 12 steep, 8 centre), so it uses slots 64..127 and the game saves and
+restores the lowercase font tiles. The tile art is 2,048 words, the sprite art
+moves to `0x1800`, the palettes to `0x2A00`, and the slice span is 10,800
+words (six slices). The renderer helpers moved to `0x0E00` and the edge-word
+table to `0x0D00`, because the grown row body had pushed `fill_sky` into the
+state block. The core3 baseline is 61,729 cycles per frame (54.9%), and the
+board is re-measured with the new art.
 
 ## Decision gates
 

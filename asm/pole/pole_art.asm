@@ -123,7 +123,7 @@ pole_font_save:
     MOV R6, R0
 font_save_loop:
     LDS R5, ES, R2
-    STS R5, DS, R3
+    ST R5, R3, 0
     ADD R2, 1
     ADD R3, 1
     SUB R6, 1
@@ -142,7 +142,7 @@ pole_font_restore:
     LDI FONT_LEN
     MOV R6, R0
 font_restore_loop:
-    LDS R5, DS, R2
+    LD R5, R2, 0
     STS R5, ES, R3
     ADD R2, 1
     ADD R3, 1
