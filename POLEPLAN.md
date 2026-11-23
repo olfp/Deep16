@@ -3,7 +3,7 @@
 Status: **milestones 1–2 complete; milestone 3 art and dirty redraw built;
 milestones 4–5 implemented 2026-11-20.** The on-board harness ran on the real
 FPGA: 99,127 cycles per frame, 88.1% of the 60 Hz budget. The art pipeline's
-core3 baseline is 52,173 cycles per frame (46.4% of the budget) with the
+core3 baseline is 55,862 cycles per frame (49.7% of the budget) with the
 dirty skip; it was 56,697 (50.4%) after the scrolling grass and the
 alternating mountain row. The dirty redraw saves 8.33% of the board harness's
 simulated steps on the JS core (848,191 against 925,284, identical picture). The playable game is now the `pole` slice and the
@@ -204,12 +204,12 @@ difference is the renderer's own cost.
 
 | Work | Cycles per frame | Share of the 60 Hz budget |
 |---|---:|---:|
-| Renderer, dirty (projection + tilemap + sprites + skip) | 52,173 | 46.4% |
+| Renderer, dirty (projection + tilemap + sprites + skip) | 55,862 | 49.7% |
 | State advance (phase, hill, horizon) | 169 | 0.2% |
 | **Total** | **52,380** | **46.6%** |
 | 60 Hz budget at 6.75 MHz | 112,500 | 100% |
 
-That is 12,501 instructions per frame at about 4.17 cycles per instruction
+That is 13,268 instructions per frame at about 4.17 cycles per instruction
 (the core3 needs four cycles for an ALU op and five for a load or a store).
 Before the dirty skip the same measurement was 13,565 instructions and 56,697
 cycles.
@@ -257,10 +257,10 @@ the core3 benchmark, wrapped in a timing loop that uses the board's own clocks.
   so it can be read off the screen as well as off the serial console:
 
   ```
-  POLE frames=01024 ms=08300 cyc16=12345 cyc_per_frame=054693 core3=052173
+  POLE frames=01024 ms=08300 cyc16=12345 cyc_per_frame=054693 core3=055862
   ```
 
-  The core3 baseline (52,173) is printed alongside the board number, so the
+  The core3 baseline (55,862) is printed alongside the board number, so the
   two are directly comparable. The millisecond and cycles-per-frame fields
   are full decimal numbers, because the board is slower than the core3 with
   its combinational memory and may pass 65,535 cycles per frame. A `!` in
@@ -313,17 +313,17 @@ The art pipeline of milestone 3 changed the renderer slightly: the grass now
 scrolls with the road and the mountain row alternates two profiles, which
 costs 873 core3 cycles per frame and takes the core3 baseline from 55,824 to
 56,697 (50.4% of the budget). The dirty redraw then took the core3 figure to
-52,173 (46.4%), which is the number the harness now prints.
+55,862 (49.7%), which is the number the harness now prints.
 
 **The 2026-11-20 run** (art pipeline and dirty redraw, 1,024 frames):
 
 ```
-POLE frames=01024 ms=14092 cyc16=27782 cyc_per_frame=92891 core3=052173
+POLE frames=01024 ms=14092 cyc16=27782 cyc_per_frame=92891 core3=055862
 ```
 
 | | cycles per frame | share of the 60 Hz budget |
 |---|---:|---:|
-| core3, combinational memory | 52,173 | 46.4% |
+| core3, combinational memory | 55,862 | 49.7% |
 | **board, real PSRAM** | **92,891** | **82.6%** |
 | 60 Hz budget at 6.75 MHz | 112,500 | 100% |
 
@@ -341,7 +341,7 @@ POLE frames=01024 ms=14092 cyc16=27782 cyc_per_frame=92891 core3=052173
 
 This run predates the wide player car and the diagonal edge; those change one
 sprite and drop one opponent, so the board number has to be re-measured with
-the new art (the core3 figure moved from 52,211 to 52,173).
+the new art (the core3 figure moved from 52,211 to 55,862).
 
 The screen during the milestone-2 run showed the report line, the console's
 own text and the road, but the road was drawn with the wrong tiles: the slice
@@ -416,7 +416,7 @@ The art copy is 5,424 words moved once, before the measured loop, so it costs
 nothing per frame. The renderer changes do cost: the scrolling grass and the
 alternating mountain row take the core3 baseline from 55,824 to 56,697
 cycles per frame (50.4% of the 60 Hz budget). The dirty redraw then brings it
-to 52,173 (46.4%), and the report and the plan quote the new number. On the board the same change should cost roughly 1,500
+to 55,862 (49.7%), and the report and the plan quote the new number. On the board the same change should cost roughly 1,500
 cycles per frame.
 
 The mountain row needed a restructure to fit: a conditional branch reaches
@@ -453,8 +453,9 @@ A build define, `POLE_NODIRTY`, forces the skip to 0 and is used by
 
 Measured on the 64-frame board harness: **848,191 steps dirty against 925,284
 full, a saving of 77,093 steps (8.33%)**, with the final map identical. The
-core3 renderer benchmark agrees: 52,173 cycles per frame with the skip against
-56,697 without it (7.9%), and its map and OAM still match the host model. The
+core3 renderer benchmark is 55,862 cycles per frame with the skip (49.7% of
+the budget; the two-cell edge art added about 3,700 cycles on top of the dirty
+saving), and its map and OAM still match the host model. The
 quarter the plan expected was optimistic: at the usual horizon only four of
 the 24 rows are plain sky, and the per-row skip check eats a few instructions
 of what those four rows save.
@@ -524,14 +525,21 @@ the player car was 28x22 in one 32x32 sprite, too small against a road about
 356 pixels wide, and the border was a thick red/white bar that stepped a whole
 tile at every band. The car is now 64x32, built from two sprite halves
 (groups 0 and 17); the player uses two of the eight OAM slots, so the game
-shows six opponents instead of seven. The edge is a two-pixel red/white line
-that walks eight pixels across the tile, so it reads as a diagonal instead of
-a vertical bar; the tile grid still steps at band boundaries, but the step is
-much smaller than before. The road colours are unchanged.
+shows six opponents instead of seven.
 
-The slice grows to 9,776 words and the palettes move to `0x2600`; the core3
-baseline is 52,173 cycles per frame (46.4%), and the board is re-measured with
-the new art.
+The edge is a two-cell diagonal. The top edge tile at the projected cell holds
+the upper part of the line and the cell one column outside holds the lower
+part; both use the same offset bucket (four buckets, two-pixel resolution) and
+the line drops ten pixels over the fifteen rows, which is the road's own width
+change per band. The asphalt boundary is now a continuous diagonal rather than
+a vertical bar per tile; only the far, narrow bands still show a small step.
+The line is two pixels, red on the grass side and white on the road side. The
+road colours are unchanged.
+
+The extra edge cells cost about 900 instructions and 3,700 core3 cycles per
+frame. The slice is still 9,776 words and the palettes stay at `0x2600`; the
+core3 baseline is 55,862 cycles per frame (49.7%), and the board is
+re-measured with the new art.
 
 ## Decision gates
 

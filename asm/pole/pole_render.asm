@@ -10,7 +10,7 @@
 ; tests/pole-asm.test.js compares the map this code writes with the model's,
 ; cell for cell.
 ;
-; Measured cost on the core3 RTL model: 12,501 instructions and 52,173 cycles
+; Measured cost on the core3 RTL model: 13,268 instructions and 55,862 cycles
 ; per frame with the dirty skip, out of the 112,500 cycles a 60 Hz frame has at
 ; 6.75 MHz. About 55% of the instructions are the per-cell fill loop below,
 ; which writes up to 1,867 cells at four instructions each; the skip removes
@@ -63,7 +63,9 @@
 .equ ART_ROAD_A 102
 .equ ART_ROAD_B 103
 .equ ART_L_EDGE 104
+.equ ART_L_EDGEB 108
 .equ ART_R_EDGE 112
+.equ ART_R_EDGEB 116
 .equ ART_CENTER 120
 
 .equ ST_PHASE    0x04B0
@@ -77,9 +79,11 @@
 .equ SCR_PHASE   0x04E0
 .equ SCR_HALFQ   0x04E2
 .equ SCR_EDGEL   0x04E4
+.equ SCR_EDGELB  0x04E5
 .equ SCR_ROAD    0x04E6
 .equ SCR_CENTER  0x04E8
 .equ SCR_EDGER   0x04EA
+.equ SCR_EDGERRB 0x04E7
 .equ SCR_MID     0x04EC
 .equ SCR_GRASS   0x04EE
 .equ SCR_SKIP    0x04E1
@@ -357,20 +361,41 @@ cc1:
     LDI SCR_CENTER
     MOV R2, R0
     ST R3, R2, 0
+    ; The edge is two cells: a top tile at the edge cell and a bottom tile
+    ; one column outside it. The offset is bucketed to four positions
+    ; (offset >> 1), and each bucket has the matching pair of tiles.
+    MOV R2, R10
+    SR R2, 1
     LDI ART_L_EDGE
-    ADD R0, R10
+    ADD R0, R2
     SL R0, 5
     MOV R3, R0
+    LDI ART_L_EDGEB
+    ADD R0, R2
+    SL R0, 5
+    MOV R6, R0
     LDI SCR_EDGEL
     MOV R2, R0
     ST R3, R2, 0
+    LDI SCR_EDGELB
+    MOV R2, R0
+    ST R6, R2, 0
+    MOV R2, R8
+    SR R2, 1
     LDI ART_R_EDGE
-    ADD R0, R8
+    ADD R0, R2
     SL R0, 5
     MOV R3, R0
+    LDI ART_R_EDGEB
+    ADD R0, R2
+    SL R0, 5
+    MOV R6, R0
     LDI SCR_EDGER
     MOV R2, R0
     ST R3, R2, 0
+    LDI SCR_EDGERRB
+    MOV R2, R0
+    ST R6, R2, 0
 
     ; the road texture alternates every eight bands
     LDI SCR_PHASE
@@ -445,7 +470,7 @@ no_left_grass:
     JMP R11
     NOP
 no_right_grass:
-    ; the left edge tile
+    ; the left top edge tile (the bottom tile comes after the road)
     MOV R2, R12
     ADD R2, R4
     LDI SCR_EDGEL
@@ -518,13 +543,12 @@ cnt_b_ok:
     JMP R11
     NOP
 no_road_b:
-    ; the right edge tile
-    MOV R2, R12
-    ADD R2, R7
-    LDI SCR_EDGER
-    MOV R3, R0
-    LD R6, R3, 0
-    STS R6, ES, R2
+    ; the four edge cells: left and right, top and bottom
+    LDI draw_edges
+    MOV R11, R0
+    LINK
+    JMP R11
+    NOP
     CMP R9, R9
     JZ row_next
     NOP
@@ -547,8 +571,14 @@ row_next:
     ADD R1, 1
     LDI 24
     CMP R1, R0
-    JNZ row_loop
+    JZ row_done
     NOP
+    ; the row body is longer than a conditional branch reaches, so the loop
+    ; back edge goes through a register jump
+    LDI row_loop
+    MOV PC, R0
+    NOP
+row_done:
 
     ; ---- the sprites ----------------------------------------------------
     LDI SEG_OAM
@@ -805,6 +835,48 @@ fill_cells:
     SUB R3, 1
     JNZ fill_cells
     ADD R2, 1
+    JMP LR
+    NOP
+
+; ---------------------------------------------------------------------------
+; draw_edges: write the four edge cells of the row. The top edge is in the
+; cell the projection gives; the bottom edge is one column outside it, so the
+; two tiles together draw a diagonal boundary. R4 is the left cell, R7 the
+; right cell, R12 the row base and ES the tile segment.
+; ---------------------------------------------------------------------------
+draw_edges:
+    ; the left bottom cell, when it is on screen
+    CMP R4, R9
+    JZ de_no_lb
+    NOP
+    MOV R2, R12
+    ADD R2, R4
+    SUB R2, 1
+    LDI SCR_EDGELB
+    MOV R3, R0
+    LD R6, R3, 0
+    STS R6, ES, R2
+de_no_lb:
+    ; the right top cell
+    MOV R2, R12
+    ADD R2, R7
+    LDI SCR_EDGER
+    MOV R3, R0
+    LD R6, R3, 0
+    STS R6, ES, R2
+    ; the right bottom cell, when it is on screen
+    LDI 79
+    CMP R7, R0
+    JNC de_done
+    NOP
+    MOV R2, R12
+    ADD R2, R7
+    ADD R2, 1
+    LDI SCR_EDGERRB
+    MOV R3, R0
+    LD R6, R3, 0
+    STS R6, ES, R2
+de_done:
     JMP LR
     NOP
 
