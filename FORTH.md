@@ -208,7 +208,8 @@ high half on top**, the same order as a double. Float literals use the usual
 | `f.` | `( f -- )` | print a fixed-point decimal |
 
 The arithmetic words go through the ILL trap, so they work the same way in
-the flat kernel and in D16D's BIOS segment. `s>f`/`f>s` call the conversion
+the flat kernel and in D16D's BIOS segment. They round to nearest, ties to
+even, matching IEEE-754 and JS `Math.fround`. `s>f`/`f>s` call the conversion
 routines directly because the ISA has no conversion trap word. The float
 words assume their operands are present; unlike the integer primitives they
 do not print a stack-underflow error.

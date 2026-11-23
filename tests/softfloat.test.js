@@ -5,8 +5,8 @@
 // place input words at 0x0200 and the result at 0x0300.
 //
 // Numeric policy (FPUEMUPLAN.md section 8): denormals flush to signed zero,
-// one canonical quiet NaN (0x7FC00000), truncate toward zero, infinities are
-// generated and consumed, and no exception flags are delivered.
+// one canonical quiet NaN (0x7FC00000), round to nearest with ties to even,
+// infinities are generated and consumed, and no exception flags are delivered.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -138,10 +138,14 @@ const vectors = [
   ['fadd32', '1 + -1', f32(0x3F80, 0), f32(0xBF80, 0), 0],
   ['fadd32', '3 + -1', f32(0x4040, 0), f32(0xBF80, 0), f32(0x4000, 0)],
   ['fadd32', '1 + -2', f32(0x3F80, 0), f32(0xC000, 0), f32(0xBF80, 0)],
-  ['fadd32', '1 + 2^-24 (truncates)', f32(0x3F80, 0), f32(0x3380, 0), f32(0x3F80, 0)],
-  ['fadd32', '1 - 2^-24', f32(0x3F80, 0), f32(0xB380, 0), f32(0x3F7F, 0xFFFF)],
-  ['fadd32', '1 - 2^-25', f32(0x3F80, 0), f32(0xB300, 0), f32(0x3F7F, 0xFFFF)],
+  ['fadd32', '1 + 2^-24 (tie to even)', f32(0x3F80, 0), f32(0x3380, 0), f32(0x3F80, 0)],
+  ['fadd32', '1 + 1.5*2^-24', f32(0x3F80, 0), f32(0x33C0, 0), f32(0x3F80, 1)],
+  ['fadd32', '1 - 2^-24 (exact prevfloat)', f32(0x3F80, 0), f32(0xB380, 0), f32(0x3F7F, 0xFFFF)],
+  ['fadd32', '1 - 1.5*2^-24', f32(0x3F80, 0), f32(0xB3C0, 0), f32(0x3F7F, 0xFFFE)],
+  ['fadd32', '1 - 2^-25 (tie to even)', f32(0x3F80, 0), f32(0xB300, 0), f32(0x3F80, 0)],
   ['fadd32', '0 + 1.5', 0, f32(0x3FC0, 0), f32(0x3FC0, 0)],
+  ['fadd32', '1 + 0.75*2^-23', f32(0x3F80, 0), f32(0x33C0, 0), f32(0x3F80, 1)],
+  ['fadd32', '2 - 1.5*2^-24', f32(0x4000, 0), f32(0xB3C0, 0), f32(0x3FFF, 0xFFFF)],
   ['fadd32', '+Inf + 1', f32(0x7F80, 0), f32(0x3F80, 0), f32(0x7F80, 0)],
   ['fadd32', '+Inf + -Inf', f32(0x7F80, 0), f32(0xFF80, 0), 0x7FC00000],
   ['fadd32', 'NaN + 1', f32(0x7FC0, 0), f32(0x3F80, 0), 0x7FC00000],
@@ -180,7 +184,7 @@ const vectors = [
   ['fmul32', '2^-126 * 2', f32(0x0080, 0), f32(0x4000, 0), f32(0x0100, 0)],
 ];
 
-test('FADD/FSUB/FMUL match the truncating policy on JS and RTL', async () => {
+test('FADD/FSUB/FMUL match the round-to-nearest policy on JS and RTL', async () => {
   for (const [routine, name, a, b, want] of vectors) {
     const source = binaryProgram(routine, a, b);
     const { sim } = runJsProgram(source);
@@ -192,8 +196,9 @@ test('FADD/FSUB/FMUL match the truncating policy on JS and RTL', async () => {
   }
 });
 
-// The 24x24 mantissa multiply is the core of FMUL; pin it directly against a
-// BigInt reference, including the truncation and the exponent-increment bit.
+// The 24x24 mantissa multiply is the core of FMUL; pin the stored 24-bit
+// significand, the exponent-increment bit, and the guard/sticky pair against a
+// BigInt reference.
 test('fmul24 matches a BigInt reference', () => {
   let seed = 0x12345678;
   const rnd = () => {
@@ -202,9 +207,20 @@ test('fmul24 matches a BigInt reference', () => {
   };
   const reference = (a, b) => {
     const product = BigInt(a) * BigInt(b);
-    return (product >> 47n) & 1n
-      ? { significand: Number(product >> 24n), increment: 1 }
-      : { significand: Number(product >> 23n), increment: 0 };
+    if ((product >> 47n) & 1n) {
+      return {
+        significand: Number(product >> 24n),
+        increment: 1,
+        guard: Number((product >> 23n) & 1n),
+        sticky: (product & 0x7FFFFFn) === 0n ? 0 : 1,
+      };
+    }
+    return {
+      significand: Number(product >> 23n),
+      increment: 0,
+      guard: Number((product >> 22n) & 1n),
+      sticky: (product & 0x3FFFFFn) === 0n ? 0 : 1,
+    };
   };
   for (let i = 0; i < 100; i++) {
     const a = 0x800000 + (rnd() % 0x800000);
@@ -223,12 +239,16 @@ test('fmul24 matches a BigInt reference', () => {
     JMP R3
     NOP
     LDI 0x0300
-    MOV R6, R0
-    ST R4, R6, 0
-    ADD R6, 1
-    ST R5, R6, 0
-    ADD R6, 1
-    ST R10, R6, 0
+    MOV R8, R0
+    ST R4, R8, 0
+    ADD R8, 1
+    ST R5, R8, 0
+    ADD R8, 1
+    ST R10, R8, 0
+    ADD R8, 1
+    ST R6, R8, 0
+    ADD R8, 1
+    ST R7, R8, 0
     HALT
 .org 0x0200
     .word 0x${((a >>> 16) & 0xFFFF).toString(16)}
@@ -242,14 +262,44 @@ test('fmul24 matches a BigInt reference', () => {
     assert.equal(got, want.significand, `fmul24 ${a.toString(16)} * ${b.toString(16)}`);
     assert.equal(sim.memory[0x302], want.increment,
                  `fmul24 exponent increment ${a.toString(16)} * ${b.toString(16)}`);
+    assert.equal(sim.memory[0x303], want.guard,
+                 `fmul24 guard ${a.toString(16)} * ${b.toString(16)}`);
+    assert.equal(sim.memory[0x304], want.sticky,
+                 `fmul24 sticky ${a.toString(16)} * ${b.toString(16)}`);
   }
 });
 
-// A BigInt reference for truncating subtraction: decode both operands, align
-// to the smaller exponent, subtract exactly, then keep the top 24 bits. This
-// is the property the exact left-aligned path must reproduce for every
-// exponent difference, not just the hand-picked boundaries above.
-function truncSubtract(aBits, bBits) {
+// Round an exact magnitude to a float32 significand. The value is
+// magnitude * 2^(e-150); magnitude is positive.
+function roundMagnitude(sign, magnitude, e) {
+  const length = magnitude.toString(2).length;
+  let exponent;
+  let significand;
+  if (length <= 24) {
+    significand = magnitude << BigInt(24 - length);
+    exponent = e + length - 24;
+  } else {
+    const shift = BigInt(length - 24);
+    let q = magnitude >> shift;
+    const rem = magnitude & ((1n << shift) - 1n);
+    const half = 1n << (shift - 1n);
+    if (rem > half || (rem === half && (q & 1n) === 1n)) q += 1n;
+    exponent = e + length - 24;
+    if (q === (1n << 24n)) {
+      q >>= 1n;
+      exponent += 1;
+    }
+    significand = q;
+  }
+  if (exponent <= 0) return sign << 31;
+  if (exponent >= 255) return (sign << 31) | 0x7F800000;
+  return (sign << 31) | (exponent << 23) | Number(significand & 0x7FFFFFn);
+}
+
+// Exact BigInt subtraction followed by round-to-nearest, ties to even. This is
+// the property the exact left-aligned path must reproduce for every exponent
+// difference, not just the hand-picked boundaries above.
+function refSubtract(aBits, bBits) {
   const decode = (bits) => {
     const sign = bits >>> 31;
     const exp = (bits >>> 23) & 0xFF;
@@ -271,15 +321,52 @@ function truncSubtract(aBits, bBits) {
   if (d === 0n) return 0;
   const sign = d < 0n ? 1 : 0;
   const magnitude = d < 0n ? -d : d;
-  const length = magnitude.toString(2).length;
-  const significand = length <= 24
-    ? (magnitude << BigInt(24 - length))
-    : (magnitude >> BigInt(length - 24));
-  const exponent = e + length - 24;
-  if (exponent <= 0) return sign << 31;
-  if (exponent >= 255) return (sign << 31) | 0x7F800000;
-  return (sign << 31) | (exponent << 23) | Number(significand & 0x7FFFFFn);
+  return roundMagnitude(sign, magnitude, e) >>> 0;
 }
+
+// Exact BigInt addition followed by round-to-nearest, ties to even. This
+// exercises the aligned-tail path and the d >= 24 half-ulp cases across the
+// whole exponent range, not just the hand-picked boundaries above.
+function refAdd(aBits, bBits) {
+  const decode = (bits) => {
+    const sign = bits >>> 31;
+    const exp = (bits >>> 23) & 0xFF;
+    const mant = bits & 0x7FFFFF;
+    return exp === 0 ? { sign: 0, exp: 0, mant: 0 } : { sign, exp, mant };
+  };
+  const a = decode(aBits);
+  const b = decode(bBits);
+  const aZero = a.exp === 0;
+  const bZero = b.exp === 0;
+  if (aZero && bZero) return 0;
+  const e = aZero ? b.exp : bZero ? a.exp : Math.min(a.exp, b.exp);
+  const toInt = (v) => {
+    if (v.exp === 0) return 0n;
+    const magnitude = BigInt(0x800000 | v.mant) << BigInt(v.exp - e);
+    return v.sign ? -magnitude : magnitude;
+  };
+  const d = toInt(a) + toInt(b);
+  if (d === 0n) return 0;
+  const sign = d < 0n ? 1 : 0;
+  const magnitude = d < 0n ? -d : d;
+  return roundMagnitude(sign, magnitude, e) >>> 0;
+}
+
+test('fadd32 matches an exact BigInt reference across exponent differences', () => {
+  let seed = 0xADD1234;
+  const rnd = () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed;
+  };
+  for (let i = 0; i < 200; i++) {
+    const a = ((rnd() & 1) << 31) | ((1 + (rnd() % 254)) << 23) | (rnd() & 0x7FFFFF);
+    const b = ((rnd() & 1) << 31) | ((1 + (rnd() % 254)) << 23) | (rnd() & 0x7FFFFF);
+    const source = binaryProgram('fadd32', a >>> 0, b >>> 0);
+    const { sim } = runJsProgram(source);
+    assert.equal(binaryResult(sim), refAdd(a >>> 0, b >>> 0) >>> 0,
+                 `fadd32 ${hex(a)} + ${hex(b)}`);
+  }
+});
 
 test('fsub32 matches an exact BigInt reference across exponent differences', () => {
   let seed = 0xC0FFEE;
@@ -292,7 +379,7 @@ test('fsub32 matches an exact BigInt reference across exponent differences', () 
     const b = ((rnd() & 1) << 31) | ((1 + (rnd() % 254)) << 23) | (rnd() & 0x7FFFFF);
     const source = binaryProgram('fsub32', a >>> 0, b >>> 0);
     const { sim } = runJsProgram(source);
-    assert.equal(binaryResult(sim), truncSubtract(a >>> 0, b >>> 0) >>> 0,
+    assert.equal(binaryResult(sim), refSubtract(a >>> 0, b >>> 0) >>> 0,
                  `fsub32 ${hex(a)} - ${hex(b)}`);
   }
 });
@@ -446,7 +533,21 @@ test('fcmp32 matches JS ordering on random finite pairs', () => {
   }
 });
 
-function truncDivide(aBits, bBits) {
+function roundQuotient(sign, q, rem, divisor, exponent) {
+  // q is floor(value) and rem/divisor is the fractional part at the 24-bit
+  // scale. Round half to even, then fold a carry into the exponent.
+  const twice = rem * 2n;
+  if (twice > divisor || (twice === divisor && (q & 1n) === 1n)) q += 1n;
+  if (q === (1n << 24n)) {
+    q >>= 1n;
+    exponent += 1;
+  }
+  if (exponent <= 0) return (sign << 31) >>> 0;
+  if (exponent >= 255) return ((sign << 31) | 0x7F800000) >>> 0;
+  return ((sign << 31) | (exponent << 23) | Number(q & 0x7FFFFFn)) >>> 0;
+}
+
+function refDivide(aBits, bBits) {
   const decode = (bits) => ({
     sign: bits >>> 31,
     exp: (bits >>> 23) & 0xFF,
@@ -469,15 +570,13 @@ function truncDivide(aBits, bBits) {
   if (aZero) return (sign << 31) >>> 0;
   const mA = BigInt(0x800000 | a.mant);
   const mB = BigInt(0x800000 | b.mant);
-  let q = (mA << 23n) / mB;
-  let exponent = a.exp - b.exp + 127;
-  if ((q & 0x800000n) === 0n) {
-    q <<= 1n;
-    exponent -= 1;
+  const base = a.exp - b.exp + 127;
+  if (mA >= mB) {
+    const numerator = mA << 23n;
+    return roundQuotient(sign, numerator / mB, numerator % mB, mB, base);
   }
-  if (exponent <= 0) return (sign << 31) >>> 0;
-  if (exponent >= 255) return ((sign << 31) | 0x7F800000) >>> 0;
-  return ((sign << 31) | (exponent << 23) | Number(q & 0x7FFFFFn)) >>> 0;
+  const numerator = mA << 24n;
+  return roundQuotient(sign, numerator / mB, numerator % mB, mB, base - 1);
 }
 
 test('fdiv32 matches an exact BigInt reference', async () => {
@@ -492,7 +591,7 @@ test('fdiv32 matches an exact BigInt reference', async () => {
   for (const [a, b] of specials) {
     const source = binaryProgram('fdiv32', a, b);
     const { sim } = runJsProgram(source);
-    const want = truncDivide(a, b);
+    const want = refDivide(a, b);
     assert.equal(binaryResult(sim), want, `fdiv32 ${hex(a)} / ${hex(b)}`);
 
     const rtl = await runRtlProgram(source);
@@ -509,7 +608,7 @@ test('fdiv32 matches an exact BigInt reference', async () => {
     const a = ((rnd() & 1) << 31) | ((1 + (rnd() % 254)) << 23) | (rnd() & 0x7FFFFF);
     const b = ((rnd() & 1) << 31) | ((1 + (rnd() % 254)) << 23) | (rnd() & 0x7FFFFF);
     const { sim } = runJsProgram(binaryProgram('fdiv32', a >>> 0, b >>> 0));
-    assert.equal(binaryResult(sim), truncDivide(a >>> 0, b >>> 0),
+    assert.equal(binaryResult(sim), refDivide(a >>> 0, b >>> 0),
                  `fdiv32 ${hex(a)} / ${hex(b)}`);
   }
 });
@@ -538,7 +637,7 @@ function sqrtProgram(valueBits) {
 `;
 }
 
-function truncSqrt(bits) {
+function refSqrt(bits) {
   const sign = bits >>> 31;
   const exp = (bits >>> 23) & 0xFF;
   const mant = bits & 0x7FFFFF;
@@ -546,27 +645,14 @@ function truncSqrt(bits) {
     if (mant !== 0) return 0x7FC00000;
     return sign ? 0x7FC00000 : 0x7F800000;
   }
-  if (exp === 0 || sign) return sign ? 0x80000000 : 0x7FC00000;
+  if (exp === 0) return sign ? 0x80000000 : 0x00000000;
+  if (sign) return 0x7FC00000;
   const view = new DataView(new ArrayBuffer(4));
   view.setUint32(0, bits >>> 0);
-  const root = Math.sqrt(view.getFloat32(0));
-  let exponent = Math.floor(Math.log2(root));
-  let scaled = root / Math.pow(2, exponent);
-  if (scaled < 1) {
-    exponent -= 1;
-    scaled *= 2;
-  } else if (scaled >= 2) {
-    exponent += 1;
-    scaled /= 2;
-  }
-  const significand = Math.floor(scaled * 0x800000);
-  const biased = exponent + 127;
-  if (biased <= 0) return 0;
-  if (biased >= 255) return 0x7F800000;
-  return ((biased << 23) | (significand - 0x800000)) >>> 0;
+  return bitsOf(Math.fround(Math.sqrt(view.getFloat32(0))));
 }
 
-test('fsqrt32 matches a truncating reference on JS and RTL', async () => {
+test('fsqrt32 matches a nearest-even reference on JS and RTL', async () => {
   const vectors = [
     [bitsOf(1), 0x3F800000],
     [bitsOf(2), 0x3FB504F3],
@@ -575,14 +661,14 @@ test('fsqrt32 matches a truncating reference on JS and RTL', async () => {
     [bitsOf(9), 0x40400000],
     [bitsOf(0.25), 0x3F000000],
     [bitsOf(0.5), 0x3F3504F3],
-    [bitsOf(10), 0x404A62C1],
+    [bitsOf(10), 0x404A62C2],
     [bitsOf(0.1), 0x3EA1E89B],
     [bitsOf(100), 0x41200000],
-    [bitsOf(1.5), 0x3F9CC470],
+    [bitsOf(1.5), 0x3F9CC471],
     [bitsOf(2.25), 0x3FC00000],
     [bitsOf(4.41), 0x40066666],
-    [bitsOf(1e-3), 0x3D0186E2],
-    [bitsOf(1e9), 0x46F70D8D],
+    [bitsOf(1e-3), 0x3D0186E3],
+    [bitsOf(1e9), 0x46F70D8E],
     [f32(0x5F00, 0), 0x4F3504F3],
     [0x00000000, 0x00000000],
     [0x80000000, 0x80000000],
@@ -610,6 +696,6 @@ test('fsqrt32 matches a truncating reference on JS and RTL', async () => {
   for (let i = 0; i < 100; i++) {
     const value = ((1 + (rnd() % 254)) << 23) | (rnd() & 0x7FFFFF);
     const { sim } = runJsProgram(sqrtProgram(value));
-    assert.equal(binaryResult(sim), truncSqrt(value >>> 0), `fsqrt32 ${hex(value)}`);
+    assert.equal(binaryResult(sim), refSqrt(value >>> 0), `fsqrt32 ${hex(value)}`);
   }
 });

@@ -15,7 +15,7 @@
 ; Numeric policy (FPUEMUPLAN.md section 8):
 ;   - denormals flush to signed zero on input and output
 ;   - one canonical quiet NaN, 0x7FC00000
-;   - truncate toward zero
+;   - round to nearest, ties to even
 ;   - infinities are generated and consumed
 ;   - no overflow/underflow exception flags
 ;
@@ -381,11 +381,53 @@ f2i_ret:
     JMP LR
     NOP
 
+; ---- f_round -----------------------------------------------------------
+; Round a normalised 24-bit significand to nearest, ties to even.
+; Input: R4:R5 = significand (bit 23 set), R3 = biased exponent,
+;        R6 = guard bit, R7 = sticky bit (0/1).
+; Output: R4:R5 and R3 adjusted. Clobbers R0, R1, R6, R7, R9.
+; Preserves R2, R8, R10, R11, R12.
+f_round:
+    CMP R6, 0
+    JZ f_round_done
+    NOP
+    CMP R7, 0
+    JNZ f_round_up
+    NOP
+    MOV R0, R5
+    LSI R1, 1
+    AND R0, R1
+    CMP R0, 0
+    JZ f_round_done
+    NOP
+f_round_up:
+    ADD R5, 1
+    JC f_round_carry
+    NOP
+    CMP R0, R0
+    JZ f_round_done
+    NOP
+f_round_carry:
+    ADD R4, 1
+    LDI 0x100
+    MOV R9, R0
+    CMP R4, R9
+    JNZ f_round_done
+    NOP
+    LDI 0x80
+    MOV R4, R0
+    LSI R5, 0
+    ADD R3, 1
+f_round_done:
+    JMP LR
+    NOP
+
 ; ---- fadd32 / fsub32 ---------------------------------------------------
 ; A in R6:R7, B in R8:R9, result in R6:R7.
-; Truncation policy: addition discards the aligned tail. Subtraction with
-; d < 24 aligns A left and subtracts exactly, so the guard bits survive
-; normalisation; d >= 24 uses the previous-float shortcut.
+; Round to nearest, ties to even. Addition aligns B right and keeps the
+; shifted-out bits as guard/sticky. Subtraction with d < 24 aligns A left
+; and subtracts exactly; d >= 24 compares the remainder against half an ulp,
+; including the half-sized step below a power of two.
 ; Clobbers R0..R12; preserves R13, R14 (restored), R15.
 fsub32:
     XOR R8, 15                 ; flip B's sign
@@ -628,10 +670,27 @@ fadd_ordered:
     NOP
 fadd_align_start:
     LSI R7, 1
+    LSI R11, 0                 ; bit1 guard, bit2 sticky
 fadd_align:
     CMP R10, 0
     JZ fadd_add
     NOP
+    MOV R6, R1
+    AND R6, R7                 ; bit shifted out of B
+    CMP R10, 1
+    JZ fadd_align_guard
+    NOP
+    MOV R9, R6
+    SL R9, 2
+    OR R11, R9                 ; sticky |= out
+    CMP R0, R0
+    JZ fadd_align_shift
+    NOP
+fadd_align_guard:
+    MOV R9, R6
+    SL R9, 1
+    OR R11, R9                 ; the last bit out is the guard
+fadd_align_shift:
     MOV R6, R0
     AND R6, R7
     SL R6, 15
@@ -661,20 +720,68 @@ fadd_add_store:
     MOV R5, R6
     MOV R4, R7
     CMP R0, R0
-    JZ fadd_normalize
+    JZ fadd_add_jump_norm
+    NOP
+
+fadd_add_jump_norm:
+    MOV R9, PC
+fadd_add_jump_norm_l:
+    LDI fadd_normalize - fadd_add_jump_norm_l
+    ADD R9, R0
+    MOV PC, R9
     NOP
 
 fadd_sub_tiny:
+    ; d >= 24: |B| is below one ulp of A. Round A - |B| to nearest, ties to
+    ; even, in units of A's LSB. A power of two has a half-sized step just
+    ; below it, so its boundary uses 2t on the finer grid.
     LSI R6, 8
     SL R6, 4                   ; 0x80
     CMP R4, R6
-    JNZ fadd_sub_tiny_dec
+    JNZ fadd_tiny_normal
     NOP
     CMP R5, 0
-    JNZ fadd_sub_tiny_dec
+    JNZ fadd_tiny_normal
     NOP
-    ; A is a power of two: the float below it is exp-1 with an all-ones
-    ; significand (e.g. 1 - tiny -> 0x3F7FFFFF).
+    ; ---- A is a power of two ----
+    LSI R6, 12
+    SL R6, 1                   ; 24
+    CMP R10, R6
+    JNZ fadd_tiny_pow2_d25
+    NOP
+    ; d == 24: 2t in [1, 2). 2t >= 1.5 rounds two steps below A.
+    LSI R6, 12
+    SL R6, 4                   ; 0xC0
+    CMP R0, R6
+    JC fadd_tiny_pow2_prev
+    NOP
+    CMP R0, R0
+    JZ fadd_tiny_pow2_prev2
+    NOP
+fadd_tiny_pow2_d25:
+    LSI R6, 12
+    SL R6, 1
+    ADD R6, 1                  ; 25
+    CMP R10, R6
+    JNZ fadd_tiny_pow2_a       ; d >= 26 always rounds to A
+    NOP
+    ; d == 25: 2t in [0.5, 1). Only t > 0.5 rounds to prevfloat; the tie at
+    ; 0.5 goes to A.
+    LSI R6, 8
+    SL R6, 4                   ; 0x80
+    CMP R0, R6
+    JC fadd_tiny_pow2_a
+    JNZ fadd_tiny_pow2_prev
+    NOP
+    CMP R1, 0
+    JNZ fadd_tiny_pow2_prev
+    NOP
+fadd_tiny_pow2_a:
+    CMP R0, R0
+    JZ fadd_tiny_far_pack
+    NOP
+fadd_tiny_pow2_prev:
+    ; prevfloat(A) = exponent-1, significand 0xFFFFFF
     SUB R3, 1
     LSI R4, 15
     SL R4, 4
@@ -682,22 +789,69 @@ fadd_sub_tiny:
     LSI R5, 0
     SUB R5, 1                  ; 0xFFFF
     CMP R0, R0
-    JZ fadd_pack
+    JZ fadd_tiny_far_pack
     NOP
-fadd_sub_tiny_dec:
+fadd_tiny_pow2_prev2:
+    ; one step below prevfloat(A): exponent-1, significand 0xFFFFFE
+    SUB R3, 1
+    LSI R4, 15
+    SL R4, 4
+    ADD R4, 15                 ; 0xFF
+    LSI R5, 0
+    SUB R5, 2                  ; 0xFFFE
+    CMP R0, R0
+    JZ fadd_tiny_far_pack
+    NOP
+
+fadd_tiny_far_pack:
+    MOV R11, PC
+fadd_tiny_far_pack_l:
+    LDI fadd_pack - fadd_tiny_far_pack_l
+    ADD R11, R0
+    MOV PC, R11
+    NOP
+
+fadd_tiny_normal:
+    ; ---- A is not a power of two ----
+    LSI R6, 12
+    SL R6, 1                   ; 24
+    CMP R10, R6
+    JNZ fadd_tiny_a            ; d > 24 -> |B| < half an ulp
+    NOP
+    ; d == 24: t in [0.5, 1). t > 0.5 rounds to prevfloat; t == 0.5 is a
+    ; tie, won by the even significand.
+    LSI R6, 8
+    SL R6, 4                   ; 0x80
+    CMP R0, R6
+    JNZ fadd_tiny_prev         ; mantB > 0x800000
+    NOP
+    CMP R1, 0
+    JNZ fadd_tiny_prev
+    NOP
+    MOV R6, R5
+    LSI R7, 1
+    AND R6, R7
+    CMP R6, 0
+    JZ fadd_pack               ; A is even
+    NOP
+fadd_tiny_prev:
     MOV R6, R5
     SUB R6, 1
-    JC fadd_sub_tiny_borrow
+    JC fadd_tiny_prev_borrow
     NOP
     MOV R5, R6
     CMP R0, R0
     JZ fadd_pack
     NOP
-fadd_sub_tiny_borrow:
+fadd_tiny_prev_borrow:
     MOV R5, R6
     MOV R6, R4
     SUB R6, 1
     MOV R4, R6
+    CMP R0, R0
+    JZ fadd_pack
+    NOP
+fadd_tiny_a:
     CMP R0, R0
     JZ fadd_pack
     NOP
@@ -862,8 +1016,30 @@ fadd_exact_norm_done:
     SL R0, 1                   ; 24
     ADD R3, R0
     SUB R3, R10
+    ; guard/sticky from the discarded low 24 bits of D = W2:W1:W0,
+    ; still in R7:R6 after the shift loop.
+    MOV R8, R6                 ; D0
+    MOV R1, R7                 ; D1
+    MOV R6, R1
+    SR R6, 7
+    LSI R9, 1
+    AND R6, R9                 ; guard = D bit 23
+    LDI 0x7F
+    MOV R9, R0                 ; mask
+    AND R1, R9
+    OR R1, R8                  ; remaining discarded bits
+    CMP R1, 0
+    JZ fadd_exact_sticky0
+    NOP
+    LSI R7, 1
     CMP R0, R0
-    JZ fadd_pack
+    JZ fadd_exact_sticky
+    NOP
+fadd_exact_sticky0:
+    LSI R7, 0
+fadd_exact_sticky:
+    CMP R0, R0
+    JZ fadd_round_pack
     NOP
 
 fadd_zero:
@@ -889,7 +1065,7 @@ fadd_norm_check:
     MOV R6, R4
     AND R6, R9
     CMP R6, 0
-    JNZ fadd_pack
+    JNZ fadd_add_pack
     NOP
     CMP R4, 0
     JNZ fadd_norm_left
@@ -908,6 +1084,27 @@ fadd_norm_left:
     JZ fadd_norm_check
     NOP
 fadd_norm_right:
+    ; The sum carried into bit 24. After the shift the sum's old LSB is the
+    ; guard and the old guard joins sticky.
+    LSI R7, 1
+    MOV R6, R5
+    AND R6, R7                 ; new guard
+    MOV R0, R11
+    LSI R1, 6
+    AND R0, R1                 ; old guard/sticky (R9 is the norm mask)
+    CMP R0, 0
+    JZ fadd_nr_nosticky
+    NOP
+    LSI R0, 4
+    CMP R0, R0
+    JZ fadd_nr_sticky
+    NOP
+fadd_nr_nosticky:
+    LSI R0, 0
+fadd_nr_sticky:
+    SL R6, 1
+    OR R6, R0
+    MOV R11, R6
     MOV R6, R4
     LSI R7, 1
     AND R6, R7
@@ -918,6 +1115,24 @@ fadd_norm_right:
     ADD R3, 1
     CMP R0, R0
     JZ fadd_norm_check
+    NOP
+
+fadd_add_pack:
+    MOV R6, R11
+    SR R6, 1
+    LSI R7, 1
+    AND R6, R7                 ; guard
+    MOV R7, R11
+    SR R7, 2
+    LSI R0, 1
+    AND R7, R0                 ; sticky
+fadd_round_pack:
+    MOV R11, PC
+fpu_round_add:
+    LDI f_round - fpu_round_add
+    ADD R11, R0
+    LINK
+    JMP R11
     NOP
 
 fadd_pack:
@@ -941,8 +1156,9 @@ fadd_ret:
 ; Input:  R4:R5 = A significand, R0:R1 = B significand (24-bit, bit 23 set)
 ; Output: R4:R5 = normalised 24-bit product significand,
 ;         R10 = exponent increment (0 or 1)
-; The product is truncated toward zero. Clobbers R0..R2, R6..R12;
-; preserves R3.
+; R4:R5 is the truncated 24-bit product; R6/R7 carry the guard and sticky
+; bits for the caller's f_round call. Uses R2 for the rounding bits, so the
+; caller saves the sign. Clobbers R0..R2, R6..R12; preserves R3.
 fmul24:
     ; split each 24-bit significand into a 16-bit high and an 8-bit low
     LSI R11, 15
@@ -999,11 +1215,13 @@ fmul24_cstore:
     JC fmul24_tcarry
     NOP
     LSI R8, 0
+    MOV R2, R1                 ; keep T_low
     CMP R0, R0
     JZ fmul24_thigh
     NOP
 fmul24_tcarry:
     LSI R8, 1
+    MOV R2, R1                 ; keep T_low
 fmul24_thigh:
     ; T_high = (P & 0xFF) + (C_low >> 8) + carry
     LSI R9, 15
@@ -1017,6 +1235,8 @@ fmul24_thigh:
     ADD R1, R8                 ; T_high
     MOV R8, R1
     SR R8, 8                   ; carry into bit 24 (0/1)
+    ; The rounding bits are taken after normalisation, from T_high (R1) and
+    ; T_low (R2); both survive the top24 assembly below.
     ; top24 = (P >> 8) + (C >> 16) + carry
     MOV R6, R5
     SR R6, 8
@@ -1067,20 +1287,49 @@ fmul24_topdone:
     SL R6, 1
     OR R6, R0
     LSI R10, 0
+    ; The shift moved product bit 23 into the significand, so the rounding
+    ; point is one place lower: guard = T_high bit 6, sticky = bits 5..0 or
+    ; T_low.
+    MOV R4, R7
+    MOV R5, R6
+    MOV R6, R1
+    SR R6, 6
+    LSI R7, 1
+    AND R6, R7                 ; guard
+    MOV R7, R1
+    LDI 0x3F
+    AND R7, R0
+    OR R7, R2                  ; remaining discarded bits
+    CMP R7, 0
+    JZ fmul24_out
+    NOP
+    LSI R7, 1
     CMP R0, R0
     JZ fmul24_out
     NOP
 fmul24_norm:
     LSI R10, 1
-fmul24_out:
     MOV R4, R7
     MOV R5, R6
+    MOV R6, R1
+    SR R6, 7
+    LSI R7, 1
+    AND R6, R7                 ; guard
+    MOV R7, R1
+    LDI 0x7F
+    AND R7, R0
+    OR R7, R2                  ; remaining discarded bits
+    CMP R7, 0
+    JZ fmul24_out
+    NOP
+    LSI R7, 1
+fmul24_out:
     JMP LR
     NOP
 
 ; ---- fmul32 ------------------------------------------------------------
 ; A in R6:R7, B in R8:R9, result in R6:R7.
-; Truncating multiply with the same flush/NaN/Inf policy as fadd32.
+; Nearest-even multiply with the same flush/NaN/Inf policy as fadd32.
 ; Clobbers R0..R12; preserves R13, R14 (restored), R15.
 fmul32:
     MOV R12, LR
@@ -1152,7 +1401,11 @@ fmul_check_b:
     JZ fmul_zero
     NOP
 fmul_do:
-    ; fmul24(A=R4:R5, B=R0:R1) -> R4:R5, exponent increment R10
+    ; fmul24(A=R4:R5, B=R0:R1) -> R4:R5, exponent increment R10,
+    ; guard/sticky in R6/R7. fmul24 uses R2 for the rounding bits, so park
+    ; the sign on the stack for the call.
+    SUB SP, 1
+    ST R2, SP, 0
     MOV R7, R0                 ; keep mantB high across the LDI
     MOV R6, PC
 fpu_pc_9:
@@ -1162,7 +1415,16 @@ fpu_pc_9:
     LINK
     JMP R6
     NOP
+    LD R2, SP, 0
+    ADD SP, 1
     ADD R3, R10
+    MOV R11, PC
+fpu_round_mul:
+    LDI f_round - fpu_round_mul
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
     CMP R0, R0
     JZ fmul_pack
     NOP
@@ -1387,9 +1649,10 @@ fcmp_ret:
 
 ; ---- fdiv32 ------------------------------------------------------------
 ; A in R6:R7, B in R8:R9, result in R6:R7.
-; Truncating division. Divide-by-zero returns signed infinity; 0/0 and
+; Nearest-even division. Divide-by-zero returns signed infinity; 0/0 and
 ; Inf/Inf return the canonical NaN. The quotient significand is produced by
-; a 23-step restoring fractional division, so no DIV/DIV32 is used.
+; a 24-step restoring fractional division, then rounded from the remainder,
+; so no DIV/DIV32 is used.
 fdiv32:
     MOV R12, LR
     ; ---- unpack A ----
@@ -1536,7 +1799,7 @@ fdiv_rem_ready:
     LSI R10, 0                 ; Q high
     LSI R11, 0                 ; Q low
     LSI R9, 15
-    ADD R9, 8                  ; 23 fractional bits
+    ADD R9, 9                  ; 24 fractional bits, then round
 fdiv_loop:
     ; r <<= 1 (25 bits)
     MOV R4, R7
@@ -1590,33 +1853,100 @@ fdiv_next:
     SUB R9, 1
     JNZ fdiv_loop
     NOP
-    ; add the integer part bit 23
+    ; insert the integer part at bit 24; Q now holds 24 fractional bits
     CMP R8, 0
-    JZ fdiv_norm
+    JZ fdiv_round
     NOP
-    OR R10, 7
-fdiv_norm:
-    ; normalise: Q is in [2^22, 2^24)
+    OR R10, 8
+fdiv_round:
+    ; Q24 = floor(x*2^24), remainder r in R6:R7, E in R3.
+    MOV R4, R10
+    SR R4, 8
+    CMP R4, 0
+    JNZ fdiv_round_hi
+    NOP
+    ; ---- Q24 < 2^24: exponent E-1, significand Q24 ----
+    SUB R3, 1
+    ; 2r in R6:R7
+    MOV R4, R7
+    SR R4, 15
+    SL R6, 1
+    OR R6, R4
+    SL R7, 1
+    ; guard/sticky = 2r against mB
+    CMP R6, R0
+    JC fdiv_round_lo_lt
+    NOP
+    JNZ fdiv_round_lo_gt
+    NOP
+    CMP R7, R1
+    JC fdiv_round_lo_lt
+    NOP
+    JZ fdiv_round_lo_tie
+    NOP
+fdiv_round_lo_gt:
+    LSI R6, 1
+    LSI R7, 1
+    CMP R0, R0
+    JZ fdiv_round_call
+    NOP
+fdiv_round_lo_tie:
+    LSI R6, 1
+    LSI R7, 0
+    CMP R0, R0
+    JZ fdiv_round_call
+    NOP
+fdiv_round_lo_lt:
+    LSI R6, 0
+    LSI R7, 0
+    CMP R0, R0
+    JZ fdiv_round_call
+    NOP
+fdiv_round_hi:
+    ; ---- Q24 >= 2^24: exponent E, significand Q24 >> 1 ----
+    LSI R5, 1
+    MOV R8, R11
+    AND R8, R5                 ; guard = Q24 bit 0
+    CMP R6, 0
+    JNZ fdiv_round_hi_sticky
+    NOP
+    CMP R7, 0
+    JNZ fdiv_round_hi_sticky
+    NOP
+    LSI R7, 0
+    CMP R0, R0
+    JZ fdiv_round_hi_shift
+    NOP
+fdiv_round_hi_sticky:
+    LSI R7, 1
+fdiv_round_hi_shift:
     LSI R5, 1
     MOV R4, R10
-    SR R4, 7
     AND R4, R5
-    CMP R4, 0
-    JNZ fdiv_pack
+    SL R4, 15
+    SR R10, 1
+    SR R11, 1
+    OR R11, R4
+    MOV R6, R8
+fdiv_round_call:
+    MOV R4, R10
+    MOV R5, R11
+    MOV R11, PC
+fpu_round_div:
+    LDI f_round - fpu_round_div
+    ADD R11, R0
+    LINK
+    JMP R11
     NOP
-    MOV R4, R11
-    SR R4, 15
-    SL R10, 1
-    OR R10, R4
-    SL R11, 1
-    SUB R3, 1
+    MOV R0, R4
+    MOV R1, R5
 fdiv_pack:
     MOV R7, PC
 fpu_pc_11:
     LDI f_pack - fpu_pc_11
     ADD R7, R0
-    MOV R0, R10
-    MOV R1, R11
+    MOV R0, R4
+    MOV R1, R5
     MOV R10, R2
     MOV R11, R3
     LINK
@@ -1677,7 +2007,8 @@ fdiv_ret:
 ; A in R6:R7, result in R6:R7. Positive finite input only; negative finite
 ; and -Inf give the canonical NaN, -0 gives -0, +Inf gives +Inf.
 ; The 48-bit radicand m'<<23 is reduced by a 24-step digit-by-digit square
-; root, producing the 24-bit significand q = floor(sqrt(m')*2^23).
+; root, producing q = floor(sqrt(m'*2^23)); the remainder is compared with
+; q+1 to round to nearest (a half-integer root is impossible).
 fsqrt32:
     MOV R12, LR
     MOV R11, PC
@@ -1845,27 +2176,55 @@ fsqrt_next:
     SUB R9, 1
     JNZ fsqrt_loop
     NOP
-    ; normalise (normally already set)
-    LSI R0, 8
-    SL R0, 4                   ; 0x80
-    MOV R1, R10
-    AND R1, R0
-    CMP R1, 0
-    JNZ fsqrt_pack
+    ; q has bit 23 set; rem = N - q^2. Round up when rem >= q+1,
+    ; since sqrt(N) is above q by more than half. A half-integer sqrt
+    ; would need N = q^2+q+1/4, which is not an integer, so ties never
+    ; occur and sticky equals the guard.
+    MOV R4, R10
+    MOV R5, R11
+    ADD R5, 1
+    JC fsqrt_q1_carry
     NOP
-    MOV R0, R11
-    SR R0, 15
-    SL R10, 1
-    OR R10, R0
-    SL R11, 1
-    SUB R3, 1
+    CMP R0, R0
+    JZ fsqrt_compare
+    NOP
+fsqrt_q1_carry:
+    ADD R4, 1
+fsqrt_compare:
+    CMP R6, R4
+    JC fsqrt_no_round
+    NOP
+    JNZ fsqrt_round
+    NOP
+    CMP R7, R5
+    JC fsqrt_no_round
+    NOP
+fsqrt_round:
+    LSI R6, 1
+    LSI R7, 1
+    CMP R0, R0
+    JZ fsqrt_round_call
+    NOP
+fsqrt_no_round:
+    LSI R6, 0
+    LSI R7, 0
+fsqrt_round_call:
+    MOV R4, R10
+    MOV R5, R11
+    MOV R11, PC
+fpu_round_sqrt:
+    LDI f_round - fpu_round_sqrt
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
 fsqrt_pack:
     MOV R7, PC
 fpu_pc_13:
     LDI f_pack - fpu_pc_13
     ADD R7, R0
-    MOV R0, R10
-    MOV R1, R11
+    MOV R0, R4
+    MOV R1, R5
     LSI R10, 0                 ; sqrt is non-negative
     MOV R11, R3
     LINK

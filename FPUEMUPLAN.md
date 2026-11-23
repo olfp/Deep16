@@ -450,20 +450,21 @@ and `fcmp32`. `tests/softfloat.test.js` checks:
 - the `f2i` clamp/truncation table, including NaN, infinities and both zeros;
 - 100 deterministic 24×24 mantissa products against a BigInt reference;
 - FADD/FSUB/FMUL vectors (including +/-Inf, NaN, signed zero, overflow,
-  underflow and the sub-ulp truncation cases) on the JS and RTL cores;
+  underflow and the sub-ulp rounding cases) on the JS and RTL cores;
 - FCMP vectors (signed order, infinities, zeros, NaN) plus 100 random finite
   pairs against JS ordering;
 - FDIV vectors and 100 random finite pairs against an exact BigInt division
   reference, on JS and RTL;
-- FSQRT vectors (including truncation at 10, 1.5, 1e9), 100 random positive
-  normals, NaN/Inf/signed-zero cases, on JS and RTL.
+- FSQRT vectors (including the rounding boundaries at 10, 1.5, 1e9), 100
+  random positive normals, NaN/Inf/signed-zero cases, on JS and RTL.
 
-Measured size: **1,498 words** from `f_unpack` through `fsqrt_ret`, or
-**1,629 words** including the P4 dispatch, occupying `0x5800..0x5E5C`. The
-non-D16D nano data-stack top is `0x5FF0`, so the library leaves about 403
-words of headroom: usable for tests and shallow Forth code, but tight for a
-deep stack. The D16SEG profile puts the data stack in SS=0x2000, which avoids
-the collision but needs the slice loader.
+Measured size: **1,816 words** from `f_unpack` through `fsqrt_ret`,
+occupying `0x5800..0x5F18`. The P4 dispatch and `fexp32`/`flog32` follow to
+`fpu_lib_end` at `0x62B5`, inside the extended 0x7000 image window. The
+non-D16D nano data-stack top is `0x5FF0`, so the core leaves about 213 words
+of headroom: usable for tests and shallow Forth code, but tight for a deep
+stack. The D16SEG profile puts the data stack in SS=0x2000, which avoids the
+collision but needs the slice loader.
 
 D16D uses the D16SEG map: the return stack is at `0x2FF0`, the dictionary is
 in PSRAM, and flat `0x5800` is free. The BIOS copy extension makes the whole
@@ -473,13 +474,14 @@ at the `0x5800` return-stack base. `tests/d16d-fpu.test.js` covers FADD,
 FMUL, FDIV, FSQRT, FCMP and a repeated trap through that path, and the flash
 boot bench checks the `0x5800` word at physical `0x30E00`.
 
-Subtraction is exact on both sides of the guard-bit boundary. The `d >= 24`
-case returns the previous float below |A| directly; the `d < 24` case aligns A
-to the smaller exponent, subtracts the full 48-bit value, and keeps the top 24
-bits after normalisation. `tests/softfloat.test.js` includes close
-subtractions across powers of two (`1 - nextbelow(1)`, `2 - nextbelow(2)`,
-`3 - nextbelow(3)`, etc.) and 100 random finite pairs checked against a BigInt
-truncating reference.
+Subtraction is exact on both sides of the guard-bit boundary. The `d < 24`
+case aligns A to the smaller exponent, subtracts the full 48-bit value, and
+rounds the normalised result. The `d >= 24` case compares B with half an ulp of
+A, using the finer step below a power of two so the `2t` boundary picks the
+correct adjacent float. `tests/softfloat.test.js` includes close subtractions
+across powers of two (`1 - nextbelow(1)`, `2 - nextbelow(2)`,
+`3 - nextbelow(3)`, etc.) and 100 random finite pairs checked against an exact
+BigInt nearest-even reference.
 
 ### 7.4 Forth surface
 
@@ -546,12 +548,16 @@ not pin any of it.
 |---|---|---|
 | Denormals | Flush to zero on input and output | Denormal handling is the most expensive branch per operation, for a value range nobody will use here |
 | NaN | One canonical quiet NaN (`0x7FC00000`); any NaN input produces it | Payload propagation is pointless without a payload consumer |
-| Rounding | Truncate (round toward zero) | Nearest-even costs a guard/sticky analysis in every operation; truncation is one compare. Document the 1-ulp bias |
+| Rounding | Nearest-even (round to nearest, ties to even) | Matches IEEE and JS `Math.fround`; a shared `f_round` helper plus guard/sticky bits in each path keeps the bias at zero |
 | Infinity | Generate and consume per IEEE | Cheap once NaN is canonical |
 | Overflow / underflow flags | Not signalled; saturate to ±inf / ±0 | There is no exception mechanism to deliver them to |
 
-If nearest-even is wanted later, it is a localised change in the rounding
-step of `fadd32`/`fmul32`/`fdiv32`.
+Rounding uses `f_round`, a shared helper that takes the 24-bit significand,
+exponent, guard and sticky bits and applies ties-to-even, renormalising on
+overflow. `fmul24` returns its guard/sticky pair; `fdiv32` keeps the remainder
+after 24 quotient bits; `fsqrt32` compares the remainder with `q+1`;
+`fadd32`/`fsub32` track the aligned tail and the half-sized step below a power
+of two.
 
 ---
 
@@ -664,7 +670,7 @@ and can proceed in parallel with them.
 2. **Does the full D16 get the trap?** If not, the same source silently
    NOPs there — the exact bug we are fixing.
 3. **Numeric policy** (§8): flush-to-zero denormals, canonical NaN,
-   truncating rounding — accept, or amend?
+   round-to-nearest-even — implemented.
 4. **Assembler mnemonics**: implemented. `FADD`/`FMUL`/`FDIV`/`FSQRT`/`FEXP`/
    `FLOG`/`FCMP` assemble to their trap words and disassemble back.
 5. **Forth surface**: implemented for arithmetic, comparisons, conversions,
