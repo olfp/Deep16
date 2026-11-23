@@ -157,7 +157,9 @@
       const band = ROWS - 1 - row;
       const halfBase = (HALF_Q16 * dy) >> 16;
       const index = (state.phase + band) & (PATTERN_LEN - 1);
-      const half = (halfBase * track.width[index]) >> 8;
+      // keep a minimum width at the far end: a two-cell tip has room for
+      // the edge art, where a one-pixel sliver only shows the cell grid
+      const half = Math.max(10, (halfBase * track.width[index]) >> 8);
       xAcc = w16(xAcc + dxAcc);
       dxAcc = w16(dxAcc + track.curve[index]);
       const shift = mulShr8(w16(xAcc - state.playerX), half);

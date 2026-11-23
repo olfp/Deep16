@@ -3,7 +3,7 @@
 Status: **milestones 1–2 complete; milestone 3 art and dirty redraw built;
 milestones 4–5 implemented 2026-11-20.** The on-board harness ran on the real
 FPGA: 99,127 cycles per frame, 88.1% of the 60 Hz budget. The art pipeline's
-core3 baseline is 56,278 cycles per frame (50.0% of the budget) with the
+core3 baseline is 56,575 cycles per frame (50.3% of the budget) with the
 dirty skip; it was 56,697 (50.4%) after the scrolling grass and the
 alternating mountain row. The dirty redraw saves 8.33% of the board harness's
 simulated steps on the JS core (848,191 against 925,284, identical picture). The playable game is now the `pole` slice and the
@@ -206,7 +206,7 @@ difference is the renderer's own cost.
 
 | Work | Cycles per frame | Share of the 60 Hz budget |
 |---|---:|---:|
-| Renderer, dirty (projection + tilemap + sprites + skip) | 56,278 | 50.0% |
+| Renderer, dirty (projection + tilemap + sprites + skip) | 56,575 | 50.3% |
 | State advance (phase, hill, horizon) | 169 | 0.2% |
 | **Total** | **52,380** | **46.6%** |
 | 60 Hz budget at 6.75 MHz | 112,500 | 100% |
@@ -259,10 +259,10 @@ the core3 benchmark, wrapped in a timing loop that uses the board's own clocks.
   so it can be read off the screen as well as off the serial console:
 
   ```
-  POLE frames=01024 ms=08300 cyc16=12345 cyc_per_frame=054693 core3=056278
+  POLE frames=01024 ms=08300 cyc16=12345 cyc_per_frame=054693 core3=056575
   ```
 
-  The core3 baseline (56,278) is printed alongside the board number, so the
+  The core3 baseline (56,575) is printed alongside the board number, so the
   two are directly comparable. The millisecond and cycles-per-frame fields
   are full decimal numbers, because the board is slower than the core3 with
   its combinational memory and may pass 65,535 cycles per frame. A `!` in
@@ -315,17 +315,17 @@ The art pipeline of milestone 3 changed the renderer slightly: the grass now
 scrolls with the road and the mountain row alternates two profiles, which
 costs 873 core3 cycles per frame and takes the core3 baseline from 55,824 to
 56,697 (50.4% of the budget). The dirty redraw then took the core3 figure to
-56,278 (50.0%), which is the number the harness now prints.
+56,575 (50.3%), which is the number the harness now prints.
 
 **The 2026-11-23 run** (wide car, two-cell edge, 1,024 frames):
 
 ```
-POLE frames=01024 ms=15139 cyc16=19526 cyc_per_frame=99793 core3=056278
+POLE frames=01024 ms=15139 cyc16=19526 cyc_per_frame=99793 core3=056575
 ```
 
 | | cycles per frame | share of the 60 Hz budget |
 |---|---:|---:|
-| core3, combinational memory | 56,278 | 50.0% |
+| core3, combinational memory | 56,575 | 50.3% |
 | **board, real PSRAM** | **99,793** | **88.7%** |
 | 60 Hz budget at 6.75 MHz | 112,500 | 100% |
 
@@ -414,7 +414,7 @@ The art copy is 5,424 words moved once, before the measured loop, so it costs
 nothing per frame. The renderer changes do cost: the scrolling grass and the
 alternating mountain row take the core3 baseline from 55,824 to 56,697
 cycles per frame (50.4% of the 60 Hz budget). The dirty redraw then brings it
-to 56,278 (50.0%), and the report and the plan quote the new number. On the board the same change should cost roughly 1,500
+to 56,575 (50.3%), and the report and the plan quote the new number. On the board the same change should cost roughly 1,500
 cycles per frame.
 
 The mountain row needed a restructure to fit: a conditional branch reaches
@@ -451,7 +451,7 @@ A build define, `POLE_NODIRTY`, forces the skip to 0 and is used by
 
 Measured on the 64-frame board harness: **848,191 steps dirty against 925,284
 full, a saving of 77,093 steps (8.33%)**, with the final map identical. The
-core3 renderer benchmark is 56,278 cycles per frame with the skip (50.0% of
+core3 renderer benchmark is 56,575 cycles per frame with the skip (50.3% of
 the budget; the two-cell edge art added about 3,700 cycles on top of the dirty
 saving), and its map and OAM still match the host model. The
 quarter the plan expected was optimistic: at the usual horizon only four of
@@ -536,7 +536,7 @@ road colours are unchanged.
 
 The extra edge cells cost about 900 instructions and 3,700 core3 cycles per
 frame. The slice is still 9,776 words and the palettes stay at `0x2600`; the
-core3 baseline is 56,278 cycles per frame (50.0%) and the board measured
+core3 baseline is 56,575 cycles per frame (50.3%) and the board measured
 98,995 cycles/frame (88.0%).
 
 An adaptive three-cell edge was tried on 2026-11-23 to follow the curve: it

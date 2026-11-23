@@ -10,7 +10,7 @@
 ; tests/pole-asm.test.js compares the map this code writes with the model's,
 ; cell for cell.
 ;
-; Measured cost on the core3 RTL model: 13,362 instructions and 56,278 cycles
+; Measured cost on the core3 RTL model: 13,362 instructions and 56,575 cycles
 ; per frame with the dirty skip, out of the 112,500 cycles a 60 Hz frame has at
 ; 6.75 MHz. About 55% of the instructions are the per-cell fill loop below,
 ; which writes up to 1,867 cells at four instructions each; the skip removes
@@ -190,10 +190,16 @@ band_loop:
     ADD R7, R3
     LD R7, R7, 0
 
-    ; half = (half_base * width) >> 8
+    ; half = (half_base * width) >> 8, with a minimum width at the far end
     MUL R2, R7
     SR R2, 8
     MOV R4, R2
+    LDI 10
+    CMP R4, R0
+    JNN min_half_ok
+    NOP
+    MOV R4, R0
+min_half_ok:
 
     ; the curve of this band
     LDI CURVE_TBL
