@@ -10,7 +10,7 @@
 ; tests/pole-asm.test.js compares the map this code writes with the model's,
 ; cell for cell.
 ;
-; Measured cost on the core3 RTL model: 14,687 instructions and 61,729 cycles
+; Measured cost on the core3 RTL model: 13,268 instructions and 55,862 cycles
 ; per frame with the dirty skip, out of the 112,500 cycles a 60 Hz frame has at
 ; 6.75 MHz. About 55% of the instructions are the per-cell fill loop below,
 ; which writes up to 1,867 cells at four instructions each; the skip removes
@@ -54,20 +54,19 @@
 ; 0x2E0C + 0x8000, and 0x8000 is 0xC000 + 0xC000 truncated to 16 bits.
 .equ HALF_Q16_LO 0x2E0C
 
-.equ ART_SKY    64
-.equ ART_MTN_A  65
-.equ ART_MTN_B  66
-.equ ART_MTN_C  67
-.equ ART_GRASS_A 68
-.equ ART_GRASS_B 69
-.equ ART_ROAD_A 70
-.equ ART_ROAD_B 71
-.equ ART_EDGE_STRAIGHT 72
-.equ ART_EDGE_SHALLOW 96
-.equ ART_EDGE_STEEP 108
+.equ ART_SKY    96
+.equ ART_MTN_A  97
+.equ ART_MTN_B  98
+.equ ART_MTN_C  99
+.equ ART_GRASS_A 100
+.equ ART_GRASS_B 101
+.equ ART_ROAD_A 102
+.equ ART_ROAD_B 103
+.equ ART_L_EDGE 104
+.equ ART_L_EDGEB 108
+.equ ART_R_EDGE 112
+.equ ART_R_EDGEB 116
 .equ ART_CENTER 120
-.equ EDGE_CLASS 0x0AAC
-.equ EDGE_WORD_TBL 0x0D00
 
 .equ ST_PHASE    0x04B0
 .equ ST_HILL     0x04B2
@@ -81,13 +80,10 @@
 .equ SCR_HALFQ   0x04E2
 .equ SCR_EDGEL   0x04E4
 .equ SCR_EDGELB  0x04E5
-.equ SCR_EDGELC  0x04E9
 .equ SCR_ROAD    0x04E6
 .equ SCR_CENTER  0x04E8
 .equ SCR_EDGER   0x04EA
 .equ SCR_EDGERRB 0x04E7
-.equ SCR_EDGERRC 0x04EB
-.equ SCR_EDGEMODE 0x04ED
 .equ SCR_MID     0x04EC
 .equ SCR_GRASS   0x04EE
 .equ SCR_SKIP    0x04E1
@@ -210,35 +206,6 @@ band_loop:
     ADD R11, R12
     ADD R12, R2
 
-    ; ---- the edge slope class from the curve direction ------------------
-    ; A right bend makes the left border shallow and the right border steep;
-    ; a left bend does the opposite. The class word is left in bits 0-1 and
-    ; right in bits 2-3: 0 shallow, 1 straight, 2 steep.
-    LDI 23
-    MOV R7, R0
-    SUB R7, R1
-    LDI EDGE_CLASS
-    ADD R7, R0
-    AND R2, R2
-    JZ ec_straight
-    NOP
-    JN ec_negative
-    NOP
-    LSI R6, 8                  ; left 0, right 2
-    LDI ec_store
-    MOV PC, R0
-    NOP
-ec_negative:
-    LSI R6, 2                  ; left 2, right 0
-    LDI ec_store
-    MOV PC, R0
-    NOP
-ec_straight:
-    LSI R6, 5                  ; left 1, right 1
-ec_store:
-    ST R6, R7, 0
-
-
     ; the lateral shift = ((x_acc - player_x) * half) >> 8
     LDI ST_PLAYER_X
     MOV R2, R0
@@ -302,9 +269,6 @@ row_loop:
     MOV PC, R0
     NOP
 row_draw:
-    ; the edge-word code clobbers R5, so the sub-cell mask is reloaded here
-    LDI 7
-    MOV R5, R0
 
     ; dy = row*15 + 7 - horizon
     MOV R2, R1
@@ -313,13 +277,7 @@ row_draw:
     SUB R3, R2
     ADD R3, 7
     SUB R3, R13
-    JNN row_road
-    NOP
-    ; the sky path is beyond a conditional branch now
-    LDI row_sky
-    MOV PC, R0
-    NOP
-row_road:
+    JN row_sky
 
     ; ---- the road row ---------------------------------------------------
     ; the descriptor of band = 23 - row
@@ -403,167 +361,41 @@ cc1:
     LDI SCR_CENTER
     MOV R2, R0
     ST R3, R2, 0
-    ; The edge is up to three cells. The class word from the band loop
-    ; selects the slope (shallow 4, straight 10, steep 16); the offset picks
-    ; one of four buckets on a straight and one of two on a curve. The three
-    ; tile words of a side are consecutive, so only k=0 is computed.
-    LDI 23
+    ; The edge is two cells: a top tile at the edge cell and a bottom tile
+    ; one column outside it. The offset is bucketed to four positions
+    ; (offset >> 1), and each bucket has the matching pair of tiles.
+    MOV R2, R10
+    SR R2, 1
+    LDI ART_L_EDGE
+    ADD R0, R2
+    SL R0, 5
+    MOV R3, R0
+    LDI ART_L_EDGEB
+    ADD R0, R2
+    SL R0, 5
     MOV R6, R0
-    SUB R6, R1
-    LDI EDGE_CLASS
-    ADD R6, R0
-    LD R6, R6, 0               ; left class bits 0-1, right bits 2-3
-    LDI 5
-    CMP R6, R0
-    JNZ ew_adaptive
-    NOP
-    LDI ew_straight
-    MOV PC, R0
-    NOP
-
-ew_adaptive:
-    ; ---- the right side ------------------------------------------------
-    MOV R2, R6
-    SR R2, 2
-    LDI 3
-    MOV R5, R0
-    AND R2, R5                 ; the right class
-    LDI 1
-    CMP R2, R0
-    JNZ ew_right_curve
-    NOP
-    MOV R5, R8
-    SR R5, 1
-    LDI ew_right_index
-    MOV PC, R0
-    NOP
-ew_right_curve:
-    LSI R5, 0
-    LDI 5
-    CMP R8, R0
-    JC ew_right_index
-    NOP
-    LSI R5, 1
-ew_right_index:
-    SL R2, 2
-    ADD R2, R5
-    LDI EDGE_WORD_TBL
-    ADD R0, R2
-    LD R3, R0, 0               ; the left-hand word of the class/bucket
-    LDI 96
-    MOV R5, R0
-    ADD R3, R5                 ; the right block starts three tiles in
-    LDI SCR_EDGER
-    MOV R2, R0
-    ST R3, R2, 0
-    LDI 32
-    MOV R5, R0
-    ADD R3, R5
-    LDI SCR_EDGERRB
-    MOV R2, R0
-    ST R3, R2, 0
-    LDI 32
-    MOV R5, R0
-    ADD R3, R5
-    LDI SCR_EDGERRC
-    MOV R2, R0
-    ST R3, R2, 0
-
-    ; ---- the left side -------------------------------------------------
-    MOV R2, R6
-    LDI 3
-    MOV R5, R0
-    AND R2, R5                 ; the left class
-    LDI 1
-    CMP R2, R0
-    JNZ ew_left_curve
-    NOP
-    MOV R5, R10
-    SR R5, 1
-    LDI ew_left_index
-    MOV PC, R0
-    NOP
-ew_left_curve:
-    LSI R5, 0
-    LDI 5
-    CMP R10, R0
-    JC ew_left_index
-    NOP
-    LSI R5, 1
-ew_left_index:
-    SL R2, 2
-    ADD R2, R5
-    LDI EDGE_WORD_TBL
-    ADD R0, R2
-    LD R3, R0, 0
     LDI SCR_EDGEL
     MOV R2, R0
     ST R3, R2, 0
-    LDI 32
-    MOV R5, R0
-    ADD R3, R5
     LDI SCR_EDGELB
     MOV R2, R0
-    ST R3, R2, 0
-    LDI 32
-    MOV R5, R0
-    ADD R3, R5
-    LDI SCR_EDGELC
-    MOV R2, R0
-    ST R3, R2, 0
-    LDI 1
-    MOV R2, R0
-    LDI SCR_EDGEMODE
+    ST R6, R2, 0
+    MOV R2, R8
+    SR R2, 1
+    LDI ART_R_EDGE
+    ADD R0, R2
+    SL R0, 5
     MOV R3, R0
-    ST R2, R3, 0
-    LDI ew_done
-    MOV PC, R0
-    NOP
-
-ew_straight:
-    ; a straight band keeps the cheap two-cell edge: the four edge words
-    ; come from the straight block of the table, and k=2 is not written
-    MOV R5, R10
-    SR R5, 1
-    LDI 4
-    ADD R5, R0
-    LDI EDGE_WORD_TBL
-    ADD R0, R5
-    LD R3, R0, 0
-    LDI SCR_EDGEL
-    MOV R2, R0
-    ST R3, R2, 0
-    LDI 32
-    MOV R5, R0
-    ADD R3, R5
-    LDI SCR_EDGELB
-    MOV R2, R0
-    ST R3, R2, 0
-    MOV R5, R8
-    SR R5, 1
-    LDI 4
-    ADD R5, R0
-    LDI EDGE_WORD_TBL
-    ADD R0, R5
-    LD R3, R0, 0
-    LDI 96
-    MOV R5, R0
-    ADD R3, R5
+    LDI ART_R_EDGEB
+    ADD R0, R2
+    SL R0, 5
+    MOV R6, R0
     LDI SCR_EDGER
     MOV R2, R0
     ST R3, R2, 0
-    LDI 32
-    MOV R5, R0
-    ADD R3, R5
     LDI SCR_EDGERRB
     MOV R2, R0
-    ST R3, R2, 0
-    LDI 0
-    MOV R2, R0
-    LDI SCR_EDGEMODE
-    MOV R3, R0
-    ST R2, R3, 0
-ew_done:
+    ST R6, R2, 0
 
     ; the road texture alternates every eight bands
     LDI SCR_PHASE
@@ -717,8 +549,8 @@ no_road_b:
     LINK
     JMP R11
     NOP
-    LDI row_next
-    MOV PC, R0
+    CMP R9, R9
+    JZ row_next
     NOP
 
     ; ---- the sky row ----------------------------------------------------
@@ -964,12 +796,6 @@ dirty_store_done:
     NOP
 
 ; ---------------------------------------------------------------------------
-; The helpers live after the art copy, before the tile art: the renderer's
-; own code must end before the state block at 0x04B0.
-; ---------------------------------------------------------------------------
-.org 0x0E00
-
-; ---------------------------------------------------------------------------
 ; mul_shr8: R2 = a (signed), R4 = b (unsigned) -> R2 = (a*b) >> 8.
 ; The magnitude is multiplied unsigned and the sign is applied afterwards, so
 ; the result truncates toward zero. Clobbers R2, R3, R6, R7.
@@ -1013,17 +839,15 @@ fill_cells:
     NOP
 
 ; ---------------------------------------------------------------------------
-; draw_edges: write the five edge cells around the projected cell.
+; draw_edges: write the four edge cells of the row. The top edge is in the
+; cell the projection gives; the bottom edge is one column outside it, so the
+; two tiles together draw a diagonal boundary. R4 is the left cell, R7 the
+; right cell, R12 the row base and ES the tile segment.
 ; ---------------------------------------------------------------------------
 draw_edges:
-    ; R5 = 0 for a straight band (no k=2 cells), 1 for an adaptive band
-    LDI SCR_EDGEMODE
-    MOV R3, R0
-    LD R5, R3, 0
-    ; the left k=1 cell, when it is on screen
-    LDI 1
-    CMP R4, R0
-    JN de_no_l1
+    ; the left bottom cell, when it is on screen
+    CMP R4, R9
+    JZ de_no_lb
     NOP
     MOV R2, R12
     ADD R2, R4
@@ -1032,43 +856,18 @@ draw_edges:
     MOV R3, R0
     LD R6, R3, 0
     STS R6, ES, R2
-de_no_l1:
-    ; the left k=2 cell: the adaptive word, or grass on a straight band so
-    ; an edge left by an earlier frame cannot show through
-    LDI 2
-    CMP R4, R0
-    JN de_no_l2
-    NOP
-    MOV R2, R12
-    ADD R2, R4
-    SUB R2, 2
-    AND R5, R5
-    JZ de_l2_grass
-    NOP
-    LDI SCR_EDGELC
-    MOV R3, R0
-    LD R6, R3, 0
-    LDI de_l2_store
-    MOV PC, R0
-    NOP
-de_l2_grass:
-    LDI SCR_GRASS
-    MOV R3, R0
-    LD R6, R3, 0
-de_l2_store:
-    STS R6, ES, R2
-de_no_l2:
-    ; the right k=0 cell
+de_no_lb:
+    ; the right top cell
     MOV R2, R12
     ADD R2, R7
     LDI SCR_EDGER
     MOV R3, R0
     LD R6, R3, 0
     STS R6, ES, R2
-    ; the right k=1 cell
+    ; the right bottom cell, when it is on screen
     LDI 79
     CMP R7, R0
-    JNC de_no_r1
+    JNC de_done
     NOP
     MOV R2, R12
     ADD R2, R7
@@ -1076,30 +875,6 @@ de_no_l2:
     LDI SCR_EDGERRB
     MOV R3, R0
     LD R6, R3, 0
-    STS R6, ES, R2
-de_no_r1:
-    ; the right k=2 cell, same rule
-    LDI 78
-    CMP R7, R0
-    JNC de_done
-    NOP
-    MOV R2, R12
-    ADD R2, R7
-    ADD R2, 2
-    AND R5, R5
-    JZ de_r2_grass
-    NOP
-    LDI SCR_EDGERRC
-    MOV R3, R0
-    LD R6, R3, 0
-    LDI de_r2_store
-    MOV PC, R0
-    NOP
-de_r2_grass:
-    LDI SCR_GRASS
-    MOV R3, R0
-    LD R6, R3, 0
-de_r2_store:
     STS R6, ES, R2
 de_done:
     JMP LR
@@ -1170,13 +945,3 @@ fs_loop:
     ADD R2, 1
     JMP LR
     NOP
-
-; ---------------------------------------------------------------------------
-; The edge class base tiles and the bucket offsets. The band loop fills
-; EDGE_CLASS (24 words at 0x0AAC) with the per-band slope classes.
-; ---------------------------------------------------------------------------
-.org 0x0D00
-edge_word_tbl:
-    .word 0x0C00, 0x0CC0, 0, 0        ; shallow: buckets 0, 1
-    .word 0x0900, 0x09C0, 0x0A80, 0x0B40  ; straight: four buckets
-    .word 0x0D80, 0x0E40, 0, 0        ; steep: buckets 0, 1

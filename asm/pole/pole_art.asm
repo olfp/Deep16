@@ -8,13 +8,13 @@
 ; The art lives in the slice's own segment:
 ;
 ;   0x0C00  this copy
-;   0x1000  the 64 tile words (tiles 64..127), 2048 words
-;   0x1800  the 18 sprite groups, 4608 words
-;   0x2A00  the three palettes, 48 words
+;   0x1000  the 32 tile words (tiles 96..127), 1024 words
+;   0x1400  the 18 sprite groups, 4608 words
+;   0x2600  the three palettes, 48 words
 ;
 ; All three copies are block moves:
-;   - the art tiles are the last 64 tiles of the tile bank, so they start at
-;     tile 64 * 32 words;
+;   - the art tiles are the last 32 tiles of the tile bank, so they start at
+;     tile 96 * 32 words;
 ;   - the sprite groups are the first 18 of the sprite bank, so they start at
 ;     group 0 * 256 words;
 ;   - the palettes are three consecutive 16-word banks of the palette window,
@@ -30,17 +30,14 @@
 .equ SEG_PALETTE   -0x0A00      ; 0xF600: the OAM and the palettes
 
 .equ ART_TILE_SRC  0x1000
-.equ ART_TILE_DST  0x0800       ; tile 64 * 32 words
-.equ ART_TILE_LEN  2048
-.equ ART_SPR_SRC   0x1800
+.equ ART_TILE_DST  0x0C00       ; tile 96 * 32 words
+.equ ART_TILE_LEN  1024
+.equ ART_SPR_SRC   0x1400
 .equ ART_SPR_DST   0x0000       ; group 0 * 256 words
 .equ ART_SPR_LEN   4608
-.equ ART_PAL_SRC   0x2A00
+.equ ART_PAL_SRC   0x2600
 .equ ART_PAL_DST   0x0080       ; palette set 0, bank 0
 .equ ART_PAL_LEN   48
-.equ FONT_SAVE     0x3000       ; the 32 lowercase font tiles, saved once
-.equ FONT_SRC      0x0800       ; tile 64 * 32 words
-.equ FONT_LEN      1024
 
 ; ---------------------------------------------------------------------------
 ; pole_art_copy: copy the art into the tile, sprite and palette banks.
@@ -103,51 +100,5 @@ art_pal_loop:
     JNZ art_pal_loop
     NOP
 
-    JMP LR
-    NOP
-
-; ---------------------------------------------------------------------------
-; pole_font_save / pole_font_restore: the art overwrites tile bank slots
-; 64..95, which hold the console's lowercase font. The HUD only uses upper
-; case, digits and punctuation, so the game saves those tiles before the copy
-; and restores them on exit. 1,024 words, once at each end.
-; ---------------------------------------------------------------------------
-pole_font_save:
-    LDI SEG_TILE_BANK
-    MVS ES, R0
-    LDI FONT_SRC
-    MOV R2, R0
-    LDI FONT_SAVE
-    MOV R3, R0
-    LDI FONT_LEN
-    MOV R6, R0
-font_save_loop:
-    LDS R5, ES, R2
-    ST R5, R3, 0
-    ADD R2, 1
-    ADD R3, 1
-    SUB R6, 1
-    JNZ font_save_loop
-    NOP
-    JMP LR
-    NOP
-
-pole_font_restore:
-    LDI SEG_TILE_BANK
-    MVS ES, R0
-    LDI FONT_SAVE
-    MOV R2, R0
-    LDI FONT_SRC
-    MOV R3, R0
-    LDI FONT_LEN
-    MOV R6, R0
-font_restore_loop:
-    LD R5, R2, 0
-    STS R5, ES, R3
-    ADD R2, 1
-    ADD R3, 1
-    SUB R6, 1
-    JNZ font_restore_loop
-    NOP
     JMP LR
     NOP

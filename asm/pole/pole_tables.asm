@@ -13,9 +13,9 @@
 .org 0x0A00
 curve_tbl:
     .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-    .word 6, 6, 6, 6, 6, 6, 6, 6, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 3, 3, 3, 3, 3, 3, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0
     .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-    .word 0xFFFA, 0xFFFA, 0xFFFA, 0xFFFA, 0xFFFA, 0xFFFA, 0xFFFA, 0xFFFA, 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0xFFFD, 0xFFFD, 0xFFFD, 0xFFFD, 0xFFFD, 0xFFFD, 0xFFFD, 0xFFFD, 0, 0, 0, 0, 0, 0, 0, 0
 
 .org 0x0A40
 width_tbl:
