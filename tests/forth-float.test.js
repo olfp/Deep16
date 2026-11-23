@@ -133,14 +133,18 @@ test('f. prints fixed-point decimals, scientific notation and the special values
   assert.match(line(ctx, '0 49088 f.'), /f\. -1\.5000  ok/);
   assert.match(line(ctx, '0 0 f.'), /f\. 0\.0000  ok/);
   assert.match(line(ctx, '0 32768 f.'), /f\. -0\.0000  ok/);
-  assert.match(line(ctx, '0 18176 f.'), /f\. 3\.2767e4  ok/);
+  assert.match(line(ctx, '0 18176 f.'), /f\. 3\.2768e4  ok/);
   assert.match(line(ctx, '1e10 f.'), /f\. 1\.0000e10  ok/);
   assert.match(line(ctx, '1e5 f.'), /f\. 1\.0000e5  ok/);
   assert.match(line(ctx, '-1e10 f.'), /f\. -1\.0000e10  ok/);
-  assert.match(line(ctx, '65535.0 f.'), /f\. 6\.5534e4  ok/);
+  assert.match(line(ctx, '65535.0 f.'), /f\. 6\.5535e4  ok/);
   assert.match(line(ctx, '9e-5 f.'), /f\. 9\.0000e-5  ok/);
   assert.match(line(ctx, '2e-38 f.'), /f\. 2\.0000e-38  ok/);
   assert.match(line(ctx, '1e-38 f.'), /f\. 0\.0000  ok/);
+  // Four-digit rounding and its carry into the integer part.
+  assert.match(line(ctx, '0.0002 f.'), /f\. 0\.0002  ok/);
+  assert.match(line(ctx, '65368 16255 f.'), /f\. 1\.0000  ok/);
+  assert.match(line(ctx, '20429 18371 f.'), /f\. 1\.0000e5  ok/);
   assert.match(line(ctx, '0 32704 f.'), /f\. nan  ok/);
   assert.match(line(ctx, '0 32640 f.'), /f\. inf  ok/);
   // Two floats on one line prove f. leaves >IN and TIB intact.
@@ -154,7 +158,7 @@ test('float literal tokens push two cells or compile two LIT cells', () => {
   assert.match(line(ctx, '1e3 u. u.'), /1e3 u\. u\. 17530 0  ok/);
   assert.match(line(ctx, '1.5e2 f.'), /f\. 150\.0000  ok/);
   assert.match(line(ctx, '1.5e-2 f.'), /f\. 0\.0150  ok/);
-  assert.match(line(ctx, '1.23456 f.'), /f\. 1\.2344  ok/);
+  assert.match(line(ctx, '1.23456 f.'), /f\. 1\.2345  ok/);
   assert.match(line(ctx, '12345.6789 f.'), /f\. 12345\.6787  ok/);
   assert.match(line(ctx, ': t1 1.5 ; t1 f.'), /t1 f\. 1\.5000  ok/);
   assert.match(line(ctx, ': t2 2.25 ; t2 f.'), /t2 f\. 2\.2500  ok/);
@@ -167,7 +171,7 @@ test('float literal tokens push two cells or compile two LIT cells', () => {
 
 test('fexp and flog compute and print', () => {
   const ctx = boot();
-  assert.match(line(ctx, '1.0 fexp f.'), /f\. 2\.7182  ok/);
+  assert.match(line(ctx, '1.0 fexp f.'), /f\. 2\.7183  ok/);
   assert.match(line(ctx, '2.0 flog f.'), /f\. 0\.6931  ok/);
   assert.match(line(ctx, '0.0 fexp f.'), /f\. 1\.0000  ok/);
   assert.match(line(ctx, '1.0 flog f.'), /f\. 0\.0000  ok/);

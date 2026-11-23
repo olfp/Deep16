@@ -1124,28 +1124,6 @@ fd_cell_4:
     ADD R10, R0
     STS R9, CS, R10
 
-    ; ---- print the integer part, then '.' ----
-    LDI pn_space_flag
-    MOV R10, R0
-    LSI R1, 0
-    ST R1, R10, 0
-    MOV R10, PC
-fd_cell_5:
-    LDI f_dot_int - fd_cell_5
-    ADD R10, R0
-    LDS R2, CS, R10
-    LDI print_number
-    MOV R3, R0
-    LINK
-    JMP R3
-    NOP
-    LDI put_char
-    MOV R4, R0
-    LDI '.'
-    LINK
-    JMP R4
-    NOP
-
     ; ---- fraction = abs(f) - float(int) ----
     MOV R10, PC
 fd_cell_6:
@@ -1201,6 +1179,10 @@ fd_cell_11:
     MOV R5, R0
     SL R5, 1                   ; 0x4000 low
     FMUL
+    LDI 0x3F00
+    MOV R4, R0
+    LSI R5, 0
+    FADD                       ; round the four printed digits half up
     MOV R10, PC
 fd_cell_12:
     LDI f_dot_in - fd_cell_12
@@ -1217,12 +1199,78 @@ fd_frac_f2i:
     JMP R11
     NOP
     MOV R6, R9
-    MOV R9, R0                 ; keep the fraction while loading the cell address
+    MOV R9, R0                 ; rounded fraction, 0..10000
+    LDI 10000
+    MOV R1, R0
+    CMP R9, R1
+    JNZ fd_frac_no_carry
+    NOP
+    ; A fraction of 10000 carries into the integer. In scientific form
+    ; 9.99996eN becomes 1.0000e(N+1); in fixed form 32767.99999 becomes
+    ; 32768.0000, which print_number still prints as an unsigned magnitude.
+    LSI R9, 0
+    MOV R10, PC
+fd_cell_30:
+    LDI f_dot_int - fd_cell_30
+    ADD R10, R0
+    LDS R2, CS, R10
+    ADD R2, 1
+    MOV R10, PC
+fd_cell_31:
+    LDI f_dot_sci - fd_cell_31
+    ADD R10, R0
+    LDS R1, CS, R10
+    CMP R1, 0
+    JZ fd_frac_store_int
+    NOP
+    LDI 10
+    MOV R1, R0
+    CMP R2, R1
+    JNZ fd_frac_store_int
+    NOP
+    LSI R2, 1
+    MOV R10, PC
+fd_cell_32:
+    LDI f_dot_exp - fd_cell_32
+    ADD R10, R0
+    LDS R1, CS, R10
+    ADD R1, 1
+    STS R1, CS, R10
+fd_frac_store_int:
+    MOV R10, PC
+fd_cell_33:
+    LDI f_dot_int - fd_cell_33
+    ADD R10, R0
+    STS R2, CS, R10
+fd_frac_no_carry:
     MOV R10, PC
 fd_cell_13:
     LDI f_dot_frac - fd_cell_13
     ADD R10, R0
     STS R9, CS, R10
+
+    ; ---- print the integer part, then '.' ----
+    LDI pn_space_flag
+    MOV R10, R0
+    LSI R1, 0
+    ST R1, R10, 0
+    MOV R10, PC
+fd_cell_5:
+    LDI f_dot_int - fd_cell_5
+    ADD R10, R0
+    LDS R2, CS, R10
+    LDI print_number
+    MOV R3, R0
+    LINK
+    JMP R3
+    NOP
+    LDI put_char
+    MOV R4, R0
+    LDI '.'
+    LINK
+    JMP R4
+    NOP
+
 
     ; ---- four digits, leading zeroes ----
     MOV R10, PC
