@@ -158,8 +158,13 @@ test('float literal tokens push two cells or compile two LIT cells', () => {
   assert.match(line(ctx, '1e3 u. u.'), /1e3 u\. u\. 17530 0  ok/);
   assert.match(line(ctx, '1.5e2 f.'), /f\. 150\.0000  ok/);
   assert.match(line(ctx, '1.5e-2 f.'), /f\. 0\.0150  ok/);
-  assert.match(line(ctx, '1.23456 f.'), /f\. 1\.2345  ok/);
+  assert.match(line(ctx, '1.23456 f.'), /f\. 1\.2346  ok/);
   assert.match(line(ctx, '12345.6789 f.'), /f\. 12345\.6787  ok/);
+  assert.match(line(ctx, '0.00009 f.'), /f\. 9\.0000e-5  ok/);
+  assert.match(line(ctx, '0.00009999 f.'), /f\. 9\.9990e-5  ok/);
+  assert.match(line(ctx, '1.999999 f.'), /f\. 2\.0000  ok/);
+  assert.match(line(ctx, '0.999999999 f.'), /f\. 1\.0000  ok/);
+  assert.match(line(ctx, '0.123456789 f.'), /f\. 0\.1235  ok/);
   assert.match(line(ctx, ': t1 1.5 ; t1 f.'), /t1 f\. 1\.5000  ok/);
   assert.match(line(ctx, ': t2 2.25 ; t2 f.'), /t2 f\. 2\.2500  ok/);
   // Invalid forms fall back to the ordinary word scanner.

@@ -224,7 +224,7 @@ and a decimal exponent (`3.2768e4`, `1.6516e38`, `9.0000e-5`). NaN prints
 
 A float literal is recognized by the number scanner. The integer part may be
 up to five digits but must fit 16 bits (65535); larger integer parts are
-rejected and fall back to the word scanner. The fraction is up to four digits;
+rejected and fall back to the word scanner. The fraction is up to nine digits;
 extra fraction digits are validated but ignored. Interpreted, the literal pushes its two cells (high
 half on top); compiled, it emits `LIT low LIT high`. Anything that does not
 match the grammar (`1.`, `1e`, `1..5`) falls back to the ordinary word scan

@@ -544,7 +544,7 @@ fpu_lit_cells_end:
 ; A token without a dot or an exponent is left to the ordinary integer/word
 ; scanner. The first pass is register-only and validates the token; the
 ; second pass parses the integer and fraction digits. The integer part is
-; limited to five digits and the fraction to four (extra fraction digits are
+; limited to five digits and the fraction to nine (extra fraction digits are
 ; validated and ignored). Nothing is pushed or compiled until the whole token
 ; has validated; on any error >IN goes back to the token start.
 .org 0x4330
@@ -646,7 +646,7 @@ sf_frac_loop:
     JZ sf_frac_loop
     NOP
 sf_frac_done:
-    LDI 4
+    LDI 9
     CMP R7, R0
     JN sf_frac_store
     NOP
@@ -1689,7 +1689,8 @@ sf_p_int_done:
     NOP
     ADD R3, 1
     LD R1, SP, 5
-    LSI R7, 0
+    LSI R9, 0                  ; fraction high (R6 stays TIB)
+    LSI R7, 0                  ; fraction low
 sf_p_frac_loop:
     CMP R1, 0
     JZ sf_p_frac_done
@@ -1705,11 +1706,26 @@ sf_p_frac_loop:
     NOP
     LDI '0'
     SUB R2, R0
-    MOV R4, R7
+    ; R6:R7 = R6:R7 * 10 + digit
     LDI 10
-    MUL R4, R0
-    ADD R4, R2
-    MOV R7, R4
+    MOV R8, R0
+    MOV R4, R7
+    MUL32 R4, R8               ; high:low of low*10
+    MOV R10, R9
+    MUL32 R10, R8              ; low of high*10 in R11
+    ADD R5, R2
+    MOV R7, R5
+    MOV R9, R11
+    JC sf_p_frac_carry
+    NOP
+    ADD R9, R4
+    CMP R0, R0
+    JZ sf_p_frac_next
+    NOP
+sf_p_frac_carry:
+    ADD R9, R4
+    ADD R9, 1
+sf_p_frac_next:
     ADD R3, 1
     SUB R1, 1
     CMP R0, R0
@@ -1717,6 +1733,7 @@ sf_p_frac_loop:
     NOP
 sf_p_frac_done:
     ST R7, SP, 10
+    ST R9, SP, 0               ; fraction high; the token start is no longer needed
 sf_p_go:
     LDI sf_build_tramp
     MOV PC, R0
@@ -1754,8 +1771,8 @@ sf_i2f_int:
     LD R10, SP, 10
     MOV R9, R6
     MOV R11, PC
-sf_i2f_frac:
-    LDI i2f - sf_i2f_frac
+sf_u2f_frac_lo:
+    LDI u2f - sf_u2f_frac_lo
     ADD R11, R0
     MOV R0, R10
     LINK
@@ -1764,6 +1781,37 @@ sf_i2f_frac:
     MOV R6, R9
     ST R2, SP, 13
     ST R3, SP, 14
+    ; A fraction above four digits has a nonzero high word.
+    LD R10, SP, 0
+    CMP R10, 0
+    JZ sf_frac_low_only
+    NOP
+    MOV R9, R6
+    MOV R11, PC
+sf_u2f_frac_hi:
+    LDI u2f - sf_u2f_frac_hi
+    ADD R11, R0
+    MOV R0, R10
+    LINK
+    JMP R11
+    NOP
+    MOV R6, R9
+    ; high * 65536.0 + low
+    MOV R4, R2
+    MOV R5, R3
+    LDI 0x23C0
+    MOV R4, R0
+    SL R4, 1                   ; 0x4780 = 65536.0 high
+    LSI R5, 0
+    FMUL
+    MOV R4, R2
+    MOV R5, R3
+    LD R2, SP, 13
+    LD R3, SP, 14
+    FADD
+    ST R2, SP, 13
+    ST R3, SP, 14
+sf_frac_low_only:
     LD R1, SP, 5
     NEG R1                     ; divide by 10^frac_count
     MOV R11, PC
