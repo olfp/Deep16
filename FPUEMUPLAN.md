@@ -534,7 +534,8 @@ grammar falls back to the ordinary word scanner.
 range reduction plus a degree-7 polynomial for exp, and the atanh series for
 log. `tests/transcendental.test.js` checks them directly against
 `Math.exp`/`Math.log`: within one ulp for `exp` and two ulps for `log` on
-normal results, plus the special values.
+normal results, plus the special values; a representative set also has to
+produce identical bits on the RTL core.
 The flash loader copies the same words to BIOS offset `0x1600`, so the ILL
 handler can run them. `fexp`/`flog` are Forth words in the `0x417D` block.
 `tests/forth-float.test.js` boots the D16SEG nano kernel and types real Forth
@@ -566,7 +567,7 @@ of two.
 
 ## 9. Cost
 
-### 9.1 Cycles (estimates, 16-bit ALU, 32-bit single)
+### 9.1 Cycles (estimates; FEXP/FLOG measured on RTL)
 
 | Op | Cycles | at 6.75 MHz |
 |---|---|---|
@@ -576,11 +577,18 @@ of two.
 | FMUL | 350–700 | 52–104 µs |
 | FDIV | 700–1400 | 104–207 µs |
 | FSQRT | 900–1800 | 133–267 µs |
-| FEXP / FLOG | 2000–5000 | 0.30–0.74 ms |
+| FEXP / FLOG | 2,950–12,500 (measured) | 0.44–1.85 ms |
 
 The spec's table (~60 cycles FADD, ~150 FDIV) is optimistic by close to an
 order of magnitude. The trap overhead is a minority of the total — which is
 an argument that the trap is cheap and the library is the work.
+
+The FEXP/FLOG row is measured, not estimated, with
+`scripts/bench_transcendental.mjs`: FEXP takes 8,766–12,099 free-run cycles for
+normal inputs (77 instructions at zero), FLOG takes 2,959–12,491, and the CPI
+is 1.24–1.31. These numbers exclude the ILL trap entry/exit. Negative FEXP
+arguments cost more because the polynomial's intermediate subtractions take
+the exact left-aligned path more often.
 
 Usable for teaching and demos; not for real-time.
 

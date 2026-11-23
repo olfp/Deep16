@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { assemble, buildMemory, loadBrowserScripts, ROOT } from './helpers.js';
+import { assemble, buildMemory, loadBrowserScripts, loadRtl, MEM_WORDS, ROOT } from './helpers.js';
 
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
 
@@ -80,6 +80,35 @@ function runner(routine) {
   };
 }
 
+// Run the same probe on the RTL core. loadRtl() is a singleton, so each
+// runner calls init() and reloads the image; use one runner at a time.
+async function rtlRunner(routine) {
+  const res = assemble(program(routine), { defines: { FPU_KERNEL: 1 } });
+  assert.equal(res.success, true, res.errors.join('; '));
+  const rtl = await loadRtl();
+  rtl.init(MEM_WORDS);
+  const memory = buildMemory(res);
+  let highest = 0;
+  for (const change of res.memoryChanges) highest = Math.max(highest, change.address);
+  const words = new Uint16Array(highest + 1);
+  words.set(memory.slice(0, highest + 1));
+  rtl.load_program(0, words);
+  rtl.set_segments(0, 0, 0, 0);
+  return (bits) => {
+    rtl.poke(0x0200, bits >>> 16);
+    rtl.poke(0x0201, bits & 0xffff);
+    const regs = new Uint16Array(16);
+    regs[13] = 0x7f00;
+    regs[15] = PROBE;
+    rtl.set_registers(regs);
+    let steps = 0;
+    while (steps < 200000 && rtl.step()) steps++;
+    assert.ok(steps < 200000, `${routine} must halt on the RTL core`);
+    const pair = rtl.get_memory_slice(0x0300, 2);
+    return ((pair[0] << 16) | pair[1]) >>> 0;
+  };
+}
+
 let seed = 0x51ED270B;
 const rnd = () => {
   seed = (Math.imul(seed, 1103515245) + 12345) >>> 0;
@@ -150,4 +179,30 @@ test('fexp32 and flog32 handle the special values', () => {
   assert.equal(log(bitsOf(1)), 0, 'log(1) = +0');
   assert.equal(log(bitsOf(1e-39)), 0xFF800000,
                'a positive denormal flushes to zero, so log is -Inf');
+});
+
+test('fexp32 and flog32 produce the same bits on the RTL core', async () => {
+  const expBits = [
+    bitsOf(0), bitsOf(-0), bitsOf(1), bitsOf(-1), bitsOf(10), bitsOf(-10),
+    bitsOf(80), bitsOf(-80), bitsOf(3.5), bitsOf(-3.5),
+    0x7F800000, 0x7FC00000,
+  ];
+  const jsExp = runner('fexp32');
+  const rtlExp = await rtlRunner('fexp32');
+  for (const bits of expBits) {
+    assert.equal(rtlExp(bits), jsExp(bits),
+                 `RTL fexp32 ${hex(bits)} must match JS`);
+  }
+
+  const logBits = [
+    bitsOf(1), bitsOf(2), bitsOf(10), bitsOf(0.5), bitsOf(100), bitsOf(1e-3),
+    bitsOf(1e9), bitsOf(3.4e38), bitsOf(1.0000001),
+    bitsOf(0), 0x7F800000, 0x7FC00000,
+  ];
+  const jsLog = runner('flog32');
+  const rtlLog = await rtlRunner('flog32');
+  for (const bits of logBits) {
+    assert.equal(rtlLog(bits), jsLog(bits),
+                 `RTL flog32 ${hex(bits)} must match JS`);
+  }
 });
