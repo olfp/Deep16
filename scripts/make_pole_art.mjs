@@ -31,8 +31,10 @@ export const TILE = Object.freeze({
   GRASS_B: 101,
   ROAD_A: 102,
   ROAD_B: 103,
-  LEFT_EDGE: 104,      // 104..111: the left edge at eight sub-cell offsets
-  RIGHT_EDGE: 112,     // 112..119: the right edge
+  LEFT_EDGE: 104,      // 104..107: left edge, top cell, four offset buckets
+  LEFT_EDGE_B: 108,    // 108..111: left edge, bottom cell
+  RIGHT_EDGE: 112,     // 112..115: right edge, top cell
+  RIGHT_EDGE_B: 116,   // 116..119: right edge, bottom cell
   CENTER: 120,         // 120..127: the centre stripe
 });
 
@@ -288,48 +290,82 @@ function grassPixel(x, y) {
 // The left edge of the road: grass, then the rumble strip, then the road.
 // The boundary sits at `boundary` pixels into the cell, so the eight tiles
 // are the eight positions the boundary can take.
-export function leftEdgeGrid(boundary) {
+// The road edge is drawn across two cells so the asphalt boundary can be a
+// continuous diagonal instead of a vertical bar per tile. The top cell holds
+// the upper half of the line, the cell one column outside holds the lower
+// half; both use the same offset bucket, and the line drops ten pixels over
+// the fifteen rows, which is the road's own width change per band.
+export const EDGE_BUCKETS = Object.freeze([2, 4, 6, 7]);
+const EDGE_SLOPE = 10;
+
+function edgeShift(y) {
+  return Math.round((y * EDGE_SLOPE) / (CELL_H - 1));
+}
+
+function asphaltPixel(x, y) {
+  return ((x * 5 + y) % 13 === 0) ? TILE_COLORS.ASPHALT_MID : TILE_COLORS.ASPHALT;
+}
+
+// The left top cell: the line starts at `a` on the top edge and walks left.
+export function leftTopGrid(a) {
   const grid = grid15x8(TILE_COLORS.ASPHALT);
-  // The edge walks left by eight pixels from the top of the tile to the
-  // bottom, so the border is a diagonal inside the tile instead of a vertical
-  // bar that steps a whole tile at every band. A two-pixel red/white line
-  // marks the edge; a thick rumble strip made the steps read as a fence.
-  const slope = 8;
   for (let y = 0; y < CELL_H; y++) {
-    const edge = boundary - Math.floor((y * slope) / (CELL_H - 1));
+    const edge = a - edgeShift(y);
     for (let x = 0; x < CELL_W; x++) {
-      if (x < edge - 1) {
-        grid[y][x] = grassPixel(x, y);
-      } else if (x === edge - 1) {
-        grid[y][x] = TILE_COLORS.RUMBLE_RED;
-      } else if (x === edge) {
-        grid[y][x] = TILE_COLORS.RUMBLE_WHITE;
-      } else {
-        grid[y][x] = ((x * 5 + y) % 13 === 0) ? TILE_COLORS.ASPHALT_MID
-                                              : TILE_COLORS.ASPHALT;
-      }
+      if (edge < 0) grid[y][x] = asphaltPixel(x, y);
+      else if (x < edge - 1) grid[y][x] = grassPixel(x, y);
+      else if (x === edge - 1) grid[y][x] = TILE_COLORS.RUMBLE_RED;
+      else if (x === edge) grid[y][x] = TILE_COLORS.RUMBLE_WHITE;
+      else grid[y][x] = asphaltPixel(x, y);
     }
   }
   return grid;
 }
-// The right edge: the mirror image, with the rumble strip on the other side.
-export function rightEdgeGrid(boundary) {
+
+// The left bottom cell: the line enters at the right edge and ends at `a`.
+export function leftBottomGrid(a) {
   const grid = grid15x8(TILE_COLORS.ASPHALT);
-  // Mirror of the left edge: the line walks right by eight pixels.
-  const slope = 8;
   for (let y = 0; y < CELL_H; y++) {
-    const edge = boundary + Math.floor((y * slope) / (CELL_H - 1));
+    const edge = 8 + a - edgeShift(y);
     for (let x = 0; x < CELL_W; x++) {
-      if (x <= edge) {
-        grid[y][x] = ((x * 5 + y) % 13 === 0) ? TILE_COLORS.ASPHALT_MID
-                                              : TILE_COLORS.ASPHALT;
-      } else if (x === edge + 1) {
-        grid[y][x] = TILE_COLORS.RUMBLE_WHITE;
-      } else if (x === edge + 2) {
-        grid[y][x] = TILE_COLORS.RUMBLE_RED;
-      } else {
-        grid[y][x] = grassPixel(x, y);
-      }
+      if (edge > 8) grid[y][x] = grassPixel(x, y);
+      else if (edge < 0) grid[y][x] = asphaltPixel(x, y);
+      else if (x < edge - 1) grid[y][x] = grassPixel(x, y);
+      else if (x === edge - 1) grid[y][x] = TILE_COLORS.RUMBLE_RED;
+      else if (x === edge) grid[y][x] = TILE_COLORS.RUMBLE_WHITE;
+      else grid[y][x] = asphaltPixel(x, y);
+    }
+  }
+  return grid;
+}
+
+// The right top cell: the line starts at `a` and walks right.
+export function rightTopGrid(a) {
+  const grid = grid15x8(TILE_COLORS.ASPHALT);
+  for (let y = 0; y < CELL_H; y++) {
+    const edge = a + edgeShift(y);
+    for (let x = 0; x < CELL_W; x++) {
+      if (edge > 7) grid[y][x] = asphaltPixel(x, y);
+      else if (x <= edge) grid[y][x] = asphaltPixel(x, y);
+      else if (x === edge + 1) grid[y][x] = TILE_COLORS.RUMBLE_WHITE;
+      else if (x === edge + 2) grid[y][x] = TILE_COLORS.RUMBLE_RED;
+      else grid[y][x] = grassPixel(x, y);
+    }
+  }
+  return grid;
+}
+
+// The right bottom cell: the line enters at the left edge and ends at `a`.
+export function rightBottomGrid(a) {
+  const grid = grid15x8(TILE_COLORS.ASPHALT);
+  for (let y = 0; y < CELL_H; y++) {
+    const edge = a - 8 + edgeShift(y);
+    for (let x = 0; x < CELL_W; x++) {
+      if (edge < 0) grid[y][x] = grassPixel(x, y);
+      else if (x <= edge) grid[y][x] = asphaltPixel(x, y);
+      else if (x === edge + 1) grid[y][x] = TILE_COLORS.RUMBLE_WHITE;
+      else if (x === edge + 2) grid[y][x] = TILE_COLORS.RUMBLE_RED;
+      else grid[y][x] = grassPixel(x, y);
     }
   }
   return grid;
@@ -492,9 +528,13 @@ export function poleTileGrids() {
     { index: TILE.ROAD_A, grid: roadGrid(0) },
     { index: TILE.ROAD_B, grid: roadGrid(1) },
   ];
+  EDGE_BUCKETS.forEach((a, bucket) => {
+    tiles.push({ index: TILE.LEFT_EDGE + bucket, grid: leftTopGrid(a) });
+    tiles.push({ index: TILE.LEFT_EDGE_B + bucket, grid: leftBottomGrid(a) });
+    tiles.push({ index: TILE.RIGHT_EDGE + bucket, grid: rightTopGrid(a) });
+    tiles.push({ index: TILE.RIGHT_EDGE_B + bucket, grid: rightBottomGrid(a) });
+  });
   for (let offset = 0; offset < 8; offset++) {
-    tiles.push({ index: TILE.LEFT_EDGE + offset, grid: leftEdgeGrid(offset) });
-    tiles.push({ index: TILE.RIGHT_EDGE + offset, grid: rightEdgeGrid(offset) });
     tiles.push({ index: TILE.CENTER + offset, grid: centerGrid(offset) });
   }
   // The bank copy is one block, so the tiles have to be in index order.

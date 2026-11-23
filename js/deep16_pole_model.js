@@ -46,8 +46,10 @@
     GRASS_B: 101,
     ROAD_A: 102,
     ROAD_B: 103,
-    LEFT_EDGE: 104,     // 104..111: left edge, eight sub-cell offsets
-    RIGHT_EDGE: 112,    // 112..119: right edge
+    LEFT_EDGE: 104,     // 104..107: left edge, top cell, four buckets
+    LEFT_EDGE_B: 108,   // 108..111: left edge, bottom cell
+    RIGHT_EDGE: 112,    // 112..115: right edge, top cell
+    RIGHT_EDGE_B: 116,  // 116..119: right edge, bottom cell
     CENTER: 120,        // 120..127: centre stripe
   });
 
@@ -214,16 +216,22 @@
     // The grass takes the same band parity as the road texture, so the ground
     // scrolls with the road instead of standing still.
     const grassWord = ((((state.phase + band) >> 3) & 1) ? ART.GRASS_B : ART.GRASS_A) << 5;
-    const leftWord = (ART.LEFT_EDGE + leftOff) << 5;
-    const rightWord = (ART.RIGHT_EDGE + rightOff) << 5;
+    const leftBucket = leftOff >> 1;
+    const rightBucket = rightOff >> 1;
+    const leftTop = (ART.LEFT_EDGE + leftBucket) << 5;
+    const leftBottom = (ART.LEFT_EDGE_B + leftBucket) << 5;
+    const rightTop = (ART.RIGHT_EDGE + rightBucket) << 5;
+    const rightBottom = (ART.RIGHT_EDGE_B + rightBucket) << 5;
     const centerWord = (ART.CENTER + centerOff) << 5;
 
     for (let col = 0; col < COLS; col++) cells[col] = grassWord;
-    cells[leftCell] = leftWord;
+    if (leftCell > 0) cells[leftCell - 1] = leftBottom;
+    cells[leftCell] = leftTop;
     for (let col = leftCell + 1; col < centerCell; col++) cells[col] = roadTile;
     cells[centerCell] = centerWord;
     for (let col = centerCell + 1; col < rightCell; col++) cells[col] = roadTile;
-    cells[rightCell] = rightWord;
+    cells[rightCell] = rightTop;
+    if (rightCell + 1 < COLS) cells[rightCell + 1] = rightBottom;
     return cells;
   }
 
