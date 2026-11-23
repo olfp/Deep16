@@ -544,7 +544,7 @@ fpu_lit_cells_end:
 ; A token without a dot or an exponent is left to the ordinary integer/word
 ; scanner. The first pass is register-only and validates the token; the
 ; second pass parses the integer and fraction digits. The integer part is
-; limited to five digits and the fraction to nine (extra fraction digits are
+; limited to nine digits for both the integer and fraction parts (extra digits are
 ; validated and ignored). Nothing is pushed or compiled until the whole token
 ; has validated; on any error >IN goes back to the token start.
 .org 0x4330
@@ -602,7 +602,7 @@ sf_int_loop:
     JZ sf_int_loop
     NOP
 sf_int_done:
-    LDI 6
+    LDI 10
     CMP R4, R0
     JN sf_int_ok
     NOP
@@ -1655,7 +1655,8 @@ sf_parse:
     NOP
     ADD R3, 1
 sf_p_int:
-    LSI R7, 0
+    LSI R9, 0                  ; integer high (R6 stays TIB)
+    LSI R7, 0                  ; integer low
 sf_p_int_loop:
     LD R2, R3, 0
     LDI '0'
@@ -1668,20 +1669,35 @@ sf_p_int_loop:
     NOP
     LDI '0'
     SUB R2, R0
-    MOV R4, R7
+    ; R9:R7 = R9:R7 * 10 + digit
     LDI 10
-    MUL R4, R0
-    ADD R4, R2
-    CMP R4, R7
-    JC sf_p_int_overflow
+    MOV R8, R0
+    MOV R4, R7
+    MUL32 R4, R8
+    MOV R10, R9
+    MUL32 R10, R8
+    ADD R5, R2
+    JC sf_p_int_carry
     NOP
-    MOV R7, R4
+    MOV R7, R5
+    MOV R9, R11
+    ADD R9, R4
+    CMP R0, R0
+    JZ sf_p_int_next
+    NOP
+sf_p_int_carry:
+    MOV R7, R5
+    MOV R9, R11
+    ADD R9, R4
+    ADD R9, 1
+sf_p_int_next:
     ADD R3, 1
     CMP R0, R0
     JZ sf_p_int_loop
     NOP
 sf_p_int_done:
     ST R7, SP, 9
+    ST R9, SP, 6               ; integer high; exp_seen is no longer needed
     LD R2, R3, 0
     LDI '.'
     CMP R2, R0
@@ -1714,15 +1730,17 @@ sf_p_frac_loop:
     MOV R10, R9
     MUL32 R10, R8              ; low of high*10 in R11
     ADD R5, R2
-    MOV R7, R5
-    MOV R9, R11
     JC sf_p_frac_carry
     NOP
+    MOV R7, R5
+    MOV R9, R11
     ADD R9, R4
     CMP R0, R0
     JZ sf_p_frac_next
     NOP
 sf_p_frac_carry:
+    MOV R7, R5
+    MOV R9, R11
     ADD R9, R4
     ADD R9, 1
 sf_p_frac_next:
@@ -1738,13 +1756,6 @@ sf_p_go:
     LDI sf_build_tramp
     MOV PC, R0
     NOP
-
-sf_p_int_overflow:
-    ; The integer part no longer fits 16 bits; reject the token and let the
-    ; ordinary scanner report it instead of silently wrapping.
-    LDI sf_reject
-    MOV PC, R0
-    NOP
 fpu_lit_parse_end:
 
 .org fpu_dot_end
@@ -1753,8 +1764,8 @@ sf_build:
     LD R10, SP, 9
     MOV R9, R6
     MOV R11, PC
-sf_i2f_int:
-    LDI u2f - sf_i2f_int
+sf_u2f_int_lo:
+    LDI u2f - sf_u2f_int_lo
     ADD R11, R0
     MOV R0, R10
     LINK
@@ -1763,6 +1774,36 @@ sf_i2f_int:
     MOV R6, R9
     ST R2, SP, 11
     ST R3, SP, 12
+    LD R10, SP, 6
+    CMP R10, 0
+    JZ sf_int_low_only
+    NOP
+    MOV R9, R6
+    MOV R11, PC
+sf_u2f_int_hi:
+    LDI u2f - sf_u2f_int_hi
+    ADD R11, R0
+    MOV R0, R10
+    LINK
+    JMP R11
+    NOP
+    MOV R6, R9
+    ; high * 65536.0 + low
+    MOV R4, R2
+    MOV R5, R3
+    LDI 0x23C0
+    MOV R4, R0
+    SL R4, 1                   ; 0x4780 = 65536.0 high
+    LSI R5, 0
+    FMUL
+    MOV R4, R2
+    MOV R5, R3
+    LD R2, SP, 11
+    LD R3, SP, 12
+    FADD
+    ST R2, SP, 11
+    ST R3, SP, 12
+sf_int_low_only:
 
     LD R1, SP, 5
     CMP R1, 0

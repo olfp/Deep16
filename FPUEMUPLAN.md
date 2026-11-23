@@ -522,9 +522,9 @@ digits are rounded half up, with a carry into the integer or exponent. NaN and
 infinities
 print `nan`/`inf`.
 
-Float literals use `[-]digits[.digits][e[+/-]digits]`. The integer part is
-limited to five digits and must fit 16 bits; the fraction is limited to nine,
-and extra fraction digits are validated and ignored. Interpreted, the literal pushes its two cells (high on
+Float literals use `[-]digits[.digits][e[+/-]digits]`. Both the integer and
+fraction parts are limited to nine digits; extra digits are validated and
+ignored. Interpreted, the literal pushes its two cells (high on
 top); compiled, it emits `LIT low LIT high`. Anything that does not match the
 grammar falls back to the ordinary word scanner.
 

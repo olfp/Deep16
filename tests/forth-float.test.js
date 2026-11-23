@@ -165,6 +165,10 @@ test('float literal tokens push two cells or compile two LIT cells', () => {
   assert.match(line(ctx, '1.999999 f.'), /f\. 2\.0000  ok/);
   assert.match(line(ctx, '0.999999999 f.'), /f\. 1\.0000  ok/);
   assert.match(line(ctx, '0.123456789 f.'), /f\. 0\.1235  ok/);
+  assert.match(line(ctx, '65536.0 u. u.'), /65536\.0 u\. u\. 18304 0  ok/);
+  assert.match(line(ctx, '65536.0 f.'), /f\. 6\.5536e4  ok/);
+  assert.match(line(ctx, '123456.0 f.'), /f\. 1\.2346e5  ok/);
+  assert.match(line(ctx, '999999999.0 f.'), /f\. 1\.0000e9  ok/);
   assert.match(line(ctx, ': t1 1.5 ; t1 f.'), /t1 f\. 1\.5000  ok/);
   assert.match(line(ctx, ': t2 2.25 ; t2 f.'), /t2 f\. 2\.2500  ok/);
   // Invalid forms fall back to the ordinary word scanner.
@@ -172,6 +176,7 @@ test('float literal tokens push two cells or compile two LIT cells', () => {
   assert.match(line(ctx, '1..5 .'), /undefined word: 1\.\.5/);
   assert.match(line(ctx, '1e .'), /undefined word: 1e/);
   assert.match(line(ctx, '1. .'), /undefined word: 1\./);
+  assert.match(line(ctx, '1234567890.0 .'), /undefined word: 1234567890\.0/);
 });
 
 test('fexp and flog compute and print', () => {
