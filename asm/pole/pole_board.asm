@@ -8,9 +8,9 @@
 ; The report goes out over the UART and is drawn into the visible tilemap, so
 ; the number can be read off the screen as well as off the serial console:
 ;
-;   POLE frames=01024 ms=08300 cyc16=12345 cyc_per_frame=054693 core3=055862
+;   POLE frames=01024 ms=08300 cyc16=12345 cyc_per_frame=054693 core3=060399
 ;
-; The core3 baseline is 55,862 cycles/frame, measured by scripts/bench_pole.mjs
+; The core3 baseline is 60,399 cycles/frame, measured by scripts/bench_pole.mjs
 ; with the dirty skip on the RTL core with combinational memory. The board
 ; number includes the
 ; PSRAM cache misses, so it is expected to be higher.
@@ -157,7 +157,7 @@ str_cpf:
     .text " cyc_per_frame="
 .org 0x05B0
 str_core3:
-    .text " core3=055862"
+    .text " core3=060399"
 
 ; ---------------------------------------------------------------------------
 ; The driver.
@@ -168,6 +168,11 @@ board_main:
     ; The tile, sprite and palette banks are shared with the other games, so
     ; the slice copies its own art in before the first frame. The copy is
     ; outside the measured loop.
+    LDI pole_font_save
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
     LDI pole_art_copy
     MOV R4, R0
     LINK
@@ -446,6 +451,11 @@ bm_text:
     NOP
 
     ; ---- back to the caller ----------------------------------------------
+    LDI pole_font_restore
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
     LDI POLE_RET10
     MOV R2, R0
     LD R10, R2, 0

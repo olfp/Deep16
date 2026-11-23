@@ -3,13 +3,15 @@
 Status: **milestones 1–2 complete; milestone 3 art and dirty redraw built;
 milestones 4–5 implemented 2026-11-20.** The on-board harness ran on the real
 FPGA: 99,127 cycles per frame, 88.1% of the 60 Hz budget. The art pipeline's
-core3 baseline is 55,862 cycles per frame (49.7% of the budget) with the
+core3 baseline is 60,399 cycles per frame (53.7% of the budget) with the
 dirty skip; it was 56,697 (50.4%) after the scrolling grass and the
 alternating mountain row. The dirty redraw saves 8.33% of the board harness's
 simulated steps on the JS core (848,191 against 925,284, identical picture). The playable game is now the `pole` slice and the
-showcase menu launches it with **R**. The board run with the art and the dirty
-redraw is done (92,891 cycles/frame, 82.6% of the budget), and the functional
-milestone-6 checks pass; the visual pass is still open.
+showcase menu launches it with **R**. The board run with the art, the dirty
+redraw and the two-cell edge is done (98,995 cycles/frame, 88.0% of the
+budget); the functional milestone-6 checks pass. The visual pass is close:
+straights are smooth, but sharp curves still step because a 16-pixel edge drop
+needs a third tile cell.
 
 ## Objective
 
@@ -204,12 +206,12 @@ difference is the renderer's own cost.
 
 | Work | Cycles per frame | Share of the 60 Hz budget |
 |---|---:|---:|
-| Renderer, dirty (projection + tilemap + sprites + skip) | 55,862 | 49.7% |
+| Renderer, dirty (projection + tilemap + sprites + skip) | 60,399 | 53.7% |
 | State advance (phase, hill, horizon) | 169 | 0.2% |
 | **Total** | **52,380** | **46.6%** |
 | 60 Hz budget at 6.75 MHz | 112,500 | 100% |
 
-That is 13,268 instructions per frame at about 4.17 cycles per instruction
+That is 14,368 instructions per frame at about 4.17 cycles per instruction
 (the core3 needs four cycles for an ALU op and five for a load or a store).
 Before the dirty skip the same measurement was 13,565 instructions and 56,697
 cycles.
@@ -257,10 +259,10 @@ the core3 benchmark, wrapped in a timing loop that uses the board's own clocks.
   so it can be read off the screen as well as off the serial console:
 
   ```
-  POLE frames=01024 ms=08300 cyc16=12345 cyc_per_frame=054693 core3=055862
+  POLE frames=01024 ms=08300 cyc16=12345 cyc_per_frame=054693 core3=060399
   ```
 
-  The core3 baseline (55,862) is printed alongside the board number, so the
+  The core3 baseline (60,399) is printed alongside the board number, so the
   two are directly comparable. The millisecond and cycles-per-frame fields
   are full decimal numbers, because the board is slower than the core3 with
   its combinational memory and may pass 65,535 cycles per frame. A `!` in
@@ -313,35 +315,31 @@ The art pipeline of milestone 3 changed the renderer slightly: the grass now
 scrolls with the road and the mountain row alternates two profiles, which
 costs 873 core3 cycles per frame and takes the core3 baseline from 55,824 to
 56,697 (50.4% of the budget). The dirty redraw then took the core3 figure to
-55,862 (49.7%), which is the number the harness now prints.
+60,399 (53.7%), which is the number the harness now prints.
 
-**The 2026-11-20 run** (art pipeline and dirty redraw, 1,024 frames):
+**The 2026-11-23 run** (wide car, two-cell edge, 1,024 frames):
 
 ```
-POLE frames=01024 ms=14092 cyc16=27782 cyc_per_frame=92891 core3=055862
+POLE frames=01024 ms=15018 cyc16=57864 cyc_per_frame=98995 core3=060399
 ```
 
 | | cycles per frame | share of the 60 Hz budget |
 |---|---:|---:|
-| core3, combinational memory | 55,862 | 49.7% |
-| **board, real PSRAM** | **92,891** | **82.6%** |
+| core3, combinational memory | 60,399 | 53.7% |
+| **board, real PSRAM** | **98,995** | **88.0%** |
 | 60 Hz budget at 6.75 MHz | 112,500 | 100% |
 
-- the board is still 1.78x the core3 figure: the PSRAM misses cost about
-  40,700 cycles per frame;
-- 14,092 ms for 1,024 frames is 13.76 ms per frame, so the renderer alone
-  reaches 72.7 fps and leaves 2.9 ms per frame for input, physics and the HUD;
-- the cycle counter agrees with the timer: 95,120,384 cycles is 27,648
-  modulo 65,536, and the counter read 27,782 - 134 cycles apart, well inside
-  the one-millisecond truncation of the timer;
-- the margin is 19,609 cycles per frame (17.4%), up from 13,373 before the
-  dirty work. Against the milestone-2 run the net is -6,236 cycles: the art
-  costs about 1,700 on the board and the dirty skip saves about 8,000, which
-  matches the core3 drop scaled by the board's 1.78x memory factor.
-
-This run predates the wide player car and the diagonal edge; those change one
-sprite and drop one opponent, so the board number has to be re-measured with
-the new art (the core3 figure moved from 52,211 to 55,862).
+- the board is 1.77x the core3 figure: the PSRAM misses cost about 43,100
+  cycles per frame;
+- 15,018 ms for 1,024 frames is 14.67 ms per frame, so the renderer alone
+  reaches 68.2 fps and leaves 2.0 ms per frame for input, physics and the HUD;
+- the cycle counter agrees with the timer: 101,370,880 cycles is 52,224
+  modulo 65,536, and the counter read 57,864 - 5,640 cycles apart, inside the
+  one-millisecond truncation of the timer;
+- the margin is 13,505 cycles per frame (12.0%). The two-cell edge costs
+  about 6,170 board cycles over the single-cell version (98,995 against
+  92,825), which matches the core3 rise of 3,689 scaled by 1.77. The game
+  still fits 60 Hz, but the headroom is now thin.
 
 The screen during the milestone-2 run showed the report line, the console's
 own text and the road, but the road was drawn with the wrong tiles: the slice
@@ -416,7 +414,7 @@ The art copy is 5,424 words moved once, before the measured loop, so it costs
 nothing per frame. The renderer changes do cost: the scrolling grass and the
 alternating mountain row take the core3 baseline from 55,824 to 56,697
 cycles per frame (50.4% of the 60 Hz budget). The dirty redraw then brings it
-to 55,862 (49.7%), and the report and the plan quote the new number. On the board the same change should cost roughly 1,500
+to 60,399 (53.7%), and the report and the plan quote the new number. On the board the same change should cost roughly 1,500
 cycles per frame.
 
 The mountain row needed a restructure to fit: a conditional branch reaches
@@ -453,7 +451,7 @@ A build define, `POLE_NODIRTY`, forces the skip to 0 and is used by
 
 Measured on the 64-frame board harness: **848,191 steps dirty against 925,284
 full, a saving of 77,093 steps (8.33%)**, with the final map identical. The
-core3 renderer benchmark is 55,862 cycles per frame with the skip (49.7% of
+core3 renderer benchmark is 60,399 cycles per frame with the skip (53.7% of
 the budget; the two-cell edge art added about 3,700 cycles on top of the dirty
 saving), and its map and OAM still match the host model. The
 quarter the plan expected was optimistic: at the usual horizon only four of
@@ -538,7 +536,7 @@ road colours are unchanged.
 
 The extra edge cells cost about 900 instructions and 3,700 core3 cycles per
 frame. The slice is still 9,776 words and the palettes stay at `0x2600`; the
-core3 baseline is 55,862 cycles per frame (49.7%), and the board is
+core3 baseline is 60,399 cycles per frame (53.7%), and the board is
 re-measured with the new art.
 
 ## Decision gates

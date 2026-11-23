@@ -66,21 +66,35 @@ function runBoard() {
   sim.registers[11] = 0x07F0;
   sim.registers[15] = 0x0000;
   sim.running = true;
+  // The harness restores the saved lowercase font before it returns to the
+  // console, which overwrites the art tiles again. Stop at the restore so the
+  // copy can be inspected.
+  const restore = res.symbols.pole_font_restore;
   let steps = 0;
-  while (sim.running && steps < 8000000) { sim.step(); steps++; }
-  assert.equal(sim.running, false, `the board program did not halt (${steps} steps)`);
+  let stoppedAtRestore = false;
+  while (sim.running && steps < 8000000) {
+    if (restore !== undefined && sim.segmentRegisters.CS === SEG
+        && sim.registers[15] === restore) {
+      stoppedAtRestore = true;
+      break;
+    }
+    sim.step();
+    steps++;
+  }
+  assert.ok(stoppedAtRestore || !sim.running,
+    `the board program did not halt or reach the restore (${steps} steps)`);
   return { sim, steps };
 }
 
-test('the tile art fills the 32 art slots in bank order', () => {
+test('the tile art fills the 64 art slots in bank order', () => {
   const grids = poleTileGrids();
-  assert.equal(grids.length, 32, 'the art area is 32 tiles');
+  assert.equal(grids.length, 64, 'the art area is 64 tiles');
   grids.forEach((tile, i) => {
     assert.equal(tile.index, TILE.SKY + i,
       `tile ${i} is slot ${tile.index}, the bank order has to be the slot order`);
   });
   const words = poleTileWords();
-  assert.equal(words.length, 32 * 32, '32 tiles of 32 words');
+  assert.equal(words.length, 64 * 32, '64 tiles of 32 words');
   // The words have to decode back into the grids they came from.
   grids.forEach((tile, i) => {
     assert.deepEqual(words.slice(i * 32, i * 32 + 32), tileWords(tile.grid),
@@ -231,14 +245,15 @@ test('the copy routine puts the art where the hardware looks for it', () => {
 
   // The destinations are the ones the renderer and the OAM use.
   assert.equal(ART_DESTINATIONS.TILE, TILE_BANK + TILE.SKY * 32,
-    'the art tiles have to start at tile 96');
+    'the art tiles have to start at tile 64');
   assert.equal(ART_DESTINATIONS.SPRITE, SPRITE_BANK, 'the groups start at 0');
   assert.equal(ART_DESTINATIONS.PALETTE, PALETTE, 'the palettes start at set 0, bank 0');
 });
 
 test('the copy leaves the console font and the bird sprite alone', () => {
   const { sim } = runBoard();
-  // The font is baked into the bitstream in tiles 0..95.
+  // The console font is baked into the bitstream in tiles 0..63; the art
+  // overwrites 64..127 and saves/restores 64..95.
   for (let i = 0; i < TILE.SKY * 32; i++) {
     assert.equal(sim.memory[TILE_BANK + i] & 0xFFFF, 0xFFFF,
       `the copy wrote into the font at word ${i}`);

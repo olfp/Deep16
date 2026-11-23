@@ -69,6 +69,11 @@ pole_program:
 ; ---------------------------------------------------------------------------
 .org 0x0600
 game_main:
+    LDI pole_font_save
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
     LDI pole_art_copy
     MOV R4, R0
     LINK
@@ -300,6 +305,11 @@ game_down_ok:
     NOP
 
 game_quit:
+    LDI pole_font_restore
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
     LDI G_RET10
     MOV R2, R0
     LD R10, R2, 0

@@ -23,18 +23,17 @@ export const SPRITE_SIZE = 32;
 
 // Tile slots. The model (js/deep16_pole_model.js) uses the same numbers.
 export const TILE = Object.freeze({
-  SKY: 96,
-  MOUNTAIN_A: 97,
-  MOUNTAIN_B: 98,
-  MOUNTAIN_C: 99,
-  GRASS_A: 100,
-  GRASS_B: 101,
-  ROAD_A: 102,
-  ROAD_B: 103,
-  LEFT_EDGE: 104,      // 104..107: left edge, top cell, four offset buckets
-  LEFT_EDGE_B: 108,    // 108..111: left edge, bottom cell
-  RIGHT_EDGE: 112,     // 112..115: right edge, top cell
-  RIGHT_EDGE_B: 116,   // 116..119: right edge, bottom cell
+  SKY: 64,
+  MOUNTAIN_A: 65,
+  MOUNTAIN_B: 66,
+  MOUNTAIN_C: 67,
+  GRASS_A: 68,
+  GRASS_B: 69,
+  ROAD_A: 70,
+  ROAD_B: 71,
+  EDGE_STRAIGHT: 72,   // 72..95: 4 buckets x {left k0..2, right k0..2}
+  EDGE_SHALLOW: 96,    // 96..107: 2 buckets x 6, slope 4
+  EDGE_STEEP: 108,     // 108..119: 2 buckets x 6, slope 16
   CENTER: 120,         // 120..127: the centre stripe
 });
 
@@ -59,13 +58,13 @@ export const MODEL_GROUPS = Object.freeze([1, 5, 9, 13]);
 // the hardware banks. The two match: asm/pole/pole_art.asm copies the blocks
 // with these numbers.
 export const ART_OFFSETS = Object.freeze({
-  TILE: 0x1000,       // 1024 words: the 32 art tiles
-  SPRITE: 0x1400,     // 4608 words: the 18 sprite groups
-  PALETTE: 0x2600,    // 48 words: the three palette banks
+  TILE: 0x1000,       // 2048 words: the 64 art tiles
+  SPRITE: 0x1800,     // 4608 words: the 18 sprite groups
+  PALETTE: 0x2A00,    // 48 words: the three palette banks
 });
 
 export const ART_DESTINATIONS = Object.freeze({
-  TILE: 0xF3C00,      // the tile bank at tile 96
+  TILE: 0xF3800,      // the tile bank at tile 64
   SPRITE: 0xF4000,    // the sprite bank at group 0
   PALETTE: 0xF6080,   // the palette window, set 0, bank 0
 });
@@ -290,86 +289,53 @@ function grassPixel(x, y) {
 // The left edge of the road: grass, then the rumble strip, then the road.
 // The boundary sits at `boundary` pixels into the cell, so the eight tiles
 // are the eight positions the boundary can take.
-// The road edge is drawn across two cells so the asphalt boundary can be a
-// continuous diagonal instead of a vertical bar per tile. The top cell holds
-// the upper half of the line, the cell one column outside holds the lower
-// half; both use the same offset bucket, and the line drops ten pixels over
-// the fifteen rows, which is the road's own width change per band.
-export const EDGE_BUCKETS = Object.freeze([2, 4, 6, 7]);
-const EDGE_SLOPE = 10;
+// The road edge is drawn across up to three cells so the asphalt boundary is
+// a continuous diagonal. Each tile is one cell of the same line: k=0 is the
+// cell the projection gives, k=1 and k=2 are the cells outside it. The line
+// drops `slope` pixels over the fifteen rows; a curve uses a different slope
+// on each side because the centre shift adds to one edge and subtracts from
+// the other.
+export const EDGE_STRAIGHT_BUCKETS = Object.freeze([0, 2, 4, 6]);
+export const EDGE_CURVE_BUCKETS = Object.freeze([3, 7]);
+export const EDGE_SLOPES = Object.freeze([4, 10, 16]);
 
-function edgeShift(y) {
-  return Math.round((y * EDGE_SLOPE) / (CELL_H - 1));
+function edgeShift(y, slope) {
+  return Math.round((y * slope) / (CELL_H - 1));
 }
 
 function asphaltPixel(x, y) {
   return ((x * 5 + y) % 13 === 0) ? TILE_COLORS.ASPHALT_MID : TILE_COLORS.ASPHALT;
 }
 
-// The left top cell: the line starts at `a` on the top edge and walks left.
-export function leftTopGrid(a) {
+// One cell of a left or right edge. `a` is the line's offset at the top of
+// the band, `k` is the cell index (0 is the projected cell), `side` picks the
+// road/grass orientation.
+export function edgeGrid(a, slope, k, side) {
   const grid = grid15x8(TILE_COLORS.ASPHALT);
   for (let y = 0; y < CELL_H; y++) {
-    const edge = a - edgeShift(y);
+    const shift = edgeShift(y, slope);
+    const edge = side === 'left' ? a - shift + 8 * k : a + shift - 8 * k;
     for (let x = 0; x < CELL_W; x++) {
-      if (edge < 0) grid[y][x] = asphaltPixel(x, y);
-      else if (x < edge - 1) grid[y][x] = grassPixel(x, y);
-      else if (x === edge - 1) grid[y][x] = TILE_COLORS.RUMBLE_RED;
-      else if (x === edge) grid[y][x] = TILE_COLORS.RUMBLE_WHITE;
-      else grid[y][x] = asphaltPixel(x, y);
+      if (side === 'left') {
+        if (edge > 8) grid[y][x] = grassPixel(x, y);
+        else if (edge < 0) grid[y][x] = asphaltPixel(x, y);
+        else if (x < edge - 1) grid[y][x] = grassPixel(x, y);
+        else if (x === edge - 1) grid[y][x] = TILE_COLORS.RUMBLE_RED;
+        else if (x === edge) grid[y][x] = TILE_COLORS.RUMBLE_WHITE;
+        else grid[y][x] = asphaltPixel(x, y);
+      } else {
+        if (edge < 0) grid[y][x] = grassPixel(x, y);
+        else if (edge > 8) grid[y][x] = asphaltPixel(x, y);
+        else if (x <= edge) grid[y][x] = asphaltPixel(x, y);
+        else if (x === edge + 1) grid[y][x] = TILE_COLORS.RUMBLE_WHITE;
+        else if (x === edge + 2) grid[y][x] = TILE_COLORS.RUMBLE_RED;
+        else grid[y][x] = grassPixel(x, y);
+      }
     }
   }
   return grid;
 }
 
-// The left bottom cell: the line enters at the right edge and ends at `a`.
-export function leftBottomGrid(a) {
-  const grid = grid15x8(TILE_COLORS.ASPHALT);
-  for (let y = 0; y < CELL_H; y++) {
-    const edge = 8 + a - edgeShift(y);
-    for (let x = 0; x < CELL_W; x++) {
-      if (edge > 8) grid[y][x] = grassPixel(x, y);
-      else if (edge < 0) grid[y][x] = asphaltPixel(x, y);
-      else if (x < edge - 1) grid[y][x] = grassPixel(x, y);
-      else if (x === edge - 1) grid[y][x] = TILE_COLORS.RUMBLE_RED;
-      else if (x === edge) grid[y][x] = TILE_COLORS.RUMBLE_WHITE;
-      else grid[y][x] = asphaltPixel(x, y);
-    }
-  }
-  return grid;
-}
-
-// The right top cell: the line starts at `a` and walks right.
-export function rightTopGrid(a) {
-  const grid = grid15x8(TILE_COLORS.ASPHALT);
-  for (let y = 0; y < CELL_H; y++) {
-    const edge = a + edgeShift(y);
-    for (let x = 0; x < CELL_W; x++) {
-      if (edge > 7) grid[y][x] = asphaltPixel(x, y);
-      else if (x <= edge) grid[y][x] = asphaltPixel(x, y);
-      else if (x === edge + 1) grid[y][x] = TILE_COLORS.RUMBLE_WHITE;
-      else if (x === edge + 2) grid[y][x] = TILE_COLORS.RUMBLE_RED;
-      else grid[y][x] = grassPixel(x, y);
-    }
-  }
-  return grid;
-}
-
-// The right bottom cell: the line enters at the left edge and ends at `a`.
-export function rightBottomGrid(a) {
-  const grid = grid15x8(TILE_COLORS.ASPHALT);
-  for (let y = 0; y < CELL_H; y++) {
-    const edge = a - 8 + edgeShift(y);
-    for (let x = 0; x < CELL_W; x++) {
-      if (edge < 0) grid[y][x] = grassPixel(x, y);
-      else if (x <= edge) grid[y][x] = asphaltPixel(x, y);
-      else if (x === edge + 1) grid[y][x] = TILE_COLORS.RUMBLE_WHITE;
-      else if (x === edge + 2) grid[y][x] = TILE_COLORS.RUMBLE_RED;
-      else grid[y][x] = grassPixel(x, y);
-    }
-  }
-  return grid;
-}
 // The centre stripe. The stripe is two pixels wide and starts at `offset`
 // inside the cell; the cell edge cuts it, which is the usual seam of a
 // sub-cell accurate line on an eight pixel grid. The stripe is dashed: the
@@ -528,12 +494,17 @@ export function poleTileGrids() {
     { index: TILE.ROAD_A, grid: roadGrid(0) },
     { index: TILE.ROAD_B, grid: roadGrid(1) },
   ];
-  EDGE_BUCKETS.forEach((a, bucket) => {
-    tiles.push({ index: TILE.LEFT_EDGE + bucket, grid: leftTopGrid(a) });
-    tiles.push({ index: TILE.LEFT_EDGE_B + bucket, grid: leftBottomGrid(a) });
-    tiles.push({ index: TILE.RIGHT_EDGE + bucket, grid: rightTopGrid(a) });
-    tiles.push({ index: TILE.RIGHT_EDGE_B + bucket, grid: rightBottomGrid(a) });
-  });
+  const edgeClass = (base, buckets, slope) => {
+    buckets.forEach((a, bucket) => {
+      for (let k = 0; k < 3; k++) {
+        tiles.push({ index: base + bucket * 6 + k, grid: edgeGrid(a, slope, k, 'left') });
+        tiles.push({ index: base + bucket * 6 + 3 + k, grid: edgeGrid(a, slope, k, 'right') });
+      }
+    });
+  };
+  edgeClass(TILE.EDGE_STRAIGHT, EDGE_STRAIGHT_BUCKETS, EDGE_SLOPES[1]);
+  edgeClass(TILE.EDGE_SHALLOW, EDGE_CURVE_BUCKETS, EDGE_SLOPES[0]);
+  edgeClass(TILE.EDGE_STEEP, EDGE_CURVE_BUCKETS, EDGE_SLOPES[2]);
   for (let offset = 0; offset < 8; offset++) {
     tiles.push({ index: TILE.CENTER + offset, grid: centerGrid(offset) });
   }
