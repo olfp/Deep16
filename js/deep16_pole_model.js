@@ -38,18 +38,17 @@
   // 96..127. The eight sub-cell variants of each edge/stripe tile follow the
   // base slot.
   const ART = Object.freeze({
-    SKY: 96,
-    MOUNTAIN_A: 97,
-    MOUNTAIN_B: 98,
-    MOUNTAIN_C: 99,
-    GRASS_A: 100,
-    GRASS_B: 101,
-    ROAD_A: 102,
-    ROAD_B: 103,
-    LEFT_EDGE: 104,     // 104..107: left edge, top cell, four buckets
-    LEFT_EDGE_B: 108,   // 108..111: left edge, bottom cell
-    RIGHT_EDGE: 112,    // 112..115: right edge, top cell
-    RIGHT_EDGE_B: 116,  // 116..119: right edge, bottom cell
+    SKY: 64,
+    MOUNTAIN_A: 65,
+    MOUNTAIN_B: 66,
+    MOUNTAIN_C: 67,
+    GRASS_A: 68,
+    GRASS_B: 69,
+    ROAD_A: 70,
+    ROAD_B: 71,
+    EDGE_STRAIGHT: 72,  // 72..95: four buckets
+    EDGE_SHALLOW: 96,   // 96..107: two buckets, slope 4
+    EDGE_STEEP: 108,    // 108..119: two buckets, slope 16
     CENTER: 120,        // 120..127: centre stripe
   });
 
@@ -216,22 +215,31 @@
     // The grass takes the same band parity as the road texture, so the ground
     // scrolls with the road instead of standing still.
     const grassWord = ((((state.phase + band) >> 3) & 1) ? ART.GRASS_B : ART.GRASS_A) << 5;
-    const leftBucket = leftOff >> 1;
-    const rightBucket = rightOff >> 1;
-    const leftTop = (ART.LEFT_EDGE + leftBucket) << 5;
-    const leftBottom = (ART.LEFT_EDGE_B + leftBucket) << 5;
-    const rightTop = (ART.RIGHT_EDGE + rightBucket) << 5;
-    const rightBottom = (ART.RIGHT_EDGE_B + rightBucket) << 5;
+    // The curve adds to one edge and subtracts from the other: a right bend
+    // makes the left border shallow and the right border steep. The renderer
+    // reads the same sign from the curve table, so the two agree.
+    const curve = CURVE_TRACK[(state.phase + band) & (PATTERN_LEN - 1)];
+    const leftClass = curve > 0 ? 0 : (curve < 0 ? 2 : 1);
+    const rightClass = curve > 0 ? 2 : (curve < 0 ? 0 : 1);
+    const bucketOf = (cls, off) => (cls === 1 ? (off >> 1) : (off >= 5 ? 1 : 0));
+    const baseOf = (cls) => (cls === 0 ? ART.EDGE_SHALLOW
+      : (cls === 1 ? ART.EDGE_STRAIGHT : ART.EDGE_STEEP));
+    const leftBase = baseOf(leftClass) + bucketOf(leftClass, leftOff) * 6;
+    const rightBase = baseOf(rightClass) + bucketOf(rightClass, rightOff) * 6 + 3;
     const centerWord = (ART.CENTER + centerOff) << 5;
 
+    // A straight band keeps the two-cell edge; a curve needs the third cell.
+    const edgeCells = (leftClass === 1 && rightClass === 1) ? 2 : 3;
     for (let col = 0; col < COLS; col++) cells[col] = grassWord;
-    if (leftCell > 0) cells[leftCell - 1] = leftBottom;
-    cells[leftCell] = leftTop;
+    for (let k = 0; k < edgeCells; k++) {
+      if (leftCell - k >= 0) cells[leftCell - k] = (leftBase + k) << 5;
+    }
     for (let col = leftCell + 1; col < centerCell; col++) cells[col] = roadTile;
     cells[centerCell] = centerWord;
     for (let col = centerCell + 1; col < rightCell; col++) cells[col] = roadTile;
-    cells[rightCell] = rightTop;
-    if (rightCell + 1 < COLS) cells[rightCell + 1] = rightBottom;
+    for (let k = 0; k < edgeCells; k++) {
+      if (rightCell + k < COLS) cells[rightCell + k] = (rightBase + k) << 5;
+    }
     return cells;
   }
 
