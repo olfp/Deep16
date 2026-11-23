@@ -460,7 +460,7 @@ and `fcmp32`. `tests/softfloat.test.js` checks:
 
 Measured size: **1,816 words** from `f_unpack` through `fsqrt_ret`,
 occupying `0x5800..0x5F18`. The P4 dispatch and `fexp32`/`flog32` follow to
-`fpu_lib_end` at `0x6434`, inside the extended 0x7000 image window. The
+`fpu_lib_end` at `0x6456`, inside the extended 0x7000 image window. The
 non-D16D nano data-stack top is `0x5FF0`, so the core leaves about 213 words
 of headroom: usable for tests and shallow Forth code, but tight for a deep
 stack. The D16SEG profile puts the data stack in SS=0x2000, which avoids the
@@ -489,7 +489,7 @@ BigInt nearest-even reference.
 defined. Its headers and main code live in the free `0x417D..0x42EB` gap, and
 its headers link the oldest float word to `h_segbase`; `forth_wl` names
 `h_fdot`. The `f.` printer starts at `fpu_lib_end` (above the library at
-`0x6434`); its CS-relative scratch cells sit in the `0x6780` tail, above the
+`0x6456`); its CS-relative scratch cells sit in the `0x6798` tail, above the
 literal build and below the parser, so an `LDI` address reaches them without
 sign-extending and they stay clear of the D16D `0x1F3C`/`0x1F40` cells.
 
@@ -580,7 +580,7 @@ of two.
 | FMUL | 350–700 | 52–104 µs |
 | FDIV | 700–1400 | 104–207 µs |
 | FSQRT | 900–1800 | 133–267 µs |
-| FEXP / FLOG | FEXP 6,540–8,780; FLOG 1,670–12,760 (measured) | 0.25–1.89 ms |
+| FEXP / FLOG | FEXP 6,530–8,780; FLOG 1,670–9,340 (measured) | 0.25–1.38 ms |
 
 The spec's table (~60 cycles FADD, ~150 FDIV) is optimistic by close to an
 order of magnitude. The trap overhead is a minority of the total — which is
@@ -588,12 +588,15 @@ an argument that the trap is cheap and the library is the work.
 
 The FEXP/FLOG row is measured, not estimated, with
 `scripts/bench_transcendental.mjs`: after switching both Horner loops to
-unpacked operands and folding the product guard/sticky into the add, FEXP
-takes 6,543–8,780 free-run cycles for normal inputs (78 instructions at zero)
-and FLOG takes 1,667–12,752 (the low end is the `z2 == 0` shortcut at
-`log(1)`). The CPI is 1.27–1.32. These numbers exclude the ILL trap
-entry/exit. Positive and negative FEXP arguments now cost about the same;
-the old exact-subtraction path no longer dominates the negative cases.
+unpacked operands, folding the product guard/sticky into the add, and using
+a degree-7 near-minimax coefficient set for `exp`, FEXP takes 6,525–8,774
+free-run cycles for normal inputs (78 instructions at zero) and FLOG takes
+1,667–9,334 (the low end is the `z2 == 0` shortcut at `log(1)`). The mean is
+6,405 for FEXP and 5,817 for FLOG, and the CPI is 1.27–1.32. When the exponent
+gap exceeds 24, both loops return the constant directly, since the product is
+below half an ulp; this removed the packed-fadd detour for near-1 `log`
+inputs. These numbers exclude the ILL trap entry/exit. Positive and negative
+FEXP arguments now cost about the same.
 
 Usable for teaching and demos; not for real-time.
 

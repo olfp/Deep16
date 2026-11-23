@@ -3010,9 +3010,27 @@ fe_j_ret_final:
     NOP
 
 fe_poly_slow:
-    ; d >= 8: the exact left shift no longer fits R6:R7. Round t first,
-    ; then pack t and c and use the general add; this only happens for |r|
-    ; below about 1e-5. The trampoline clobbered R0.
+    ; d >= 8. If d > 24, t is below half an ulp of c, so the result is c.
+    LDI 24
+    MOV R11, R0
+    CMP R10, R11
+    JC fe_poly_slow_pack
+    NOP
+    JZ fe_poly_slow_pack
+    NOP
+    LD R11, SP, 14
+    SUB R11, 3
+    LDS R4, CS, R11
+    ADD R11, 1
+    LDS R5, CS, R11
+    ADD R11, 1
+    LDS R3, CS, R11
+    CMP R0, R0
+    JZ fe_j_next_entry
+    NOP
+fe_poly_slow_pack:
+    ; d <= 24: round t first, then pack t and c and use the general add.
+    ; The trampoline clobbered R0.
     LD R11, SP, 14
     SUB R11, 3
     LDS R0, CS, R11
@@ -3079,6 +3097,7 @@ fe_poly_unpack_p:
     MOV R4, R0
     MOV R5, R1
     MOV R3, R11
+fe_j_next_entry:
     MOV R11, PC
 fe_j_next:
     LDI fe_poly_next - fe_j_next
@@ -3087,14 +3106,14 @@ fe_j_next:
     NOP
 
 fe_poly_table:
-    .word 0x00D0, 0x0D01, 114  ; 1/5040
-    .word 0x00B6, 0x0B61, 117  ; 1/720
-    .word 0x0088, 0x8889, 120  ; 1/120
-    .word 0x00AA, 0xAAAB, 122  ; 1/24
-    .word 0x00AA, 0xAAAB, 124  ; 1/6
-    .word 0x0080, 0x0000, 126  ; 1/2
-    .word 0x0080, 0x0000, 127  ; 1
-    .word 0x0080, 0x0000, 127  ; 1
+    .word 0x00D0, 0xBEF9, 114  ; c7  0.0001990756864
+    .word 0x00B6, 0xD3A9, 117  ; c6  0.001394857769
+    .word 0x0088, 0x8853, 120  ; c5  0.008333283477
+    .word 0x00AA, 0xAA32, 122  ; c4  0.04166621715
+    .word 0x00AA, 0xAAAB, 124  ; c3  0.1666666716
+    .word 0x0080, 0x0000, 126  ; c2  0.5
+    .word 0x0080, 0x0000, 127  ; c1  1
+    .word 0x0080, 0x0000, 127  ; c0  1
 
 
 fe_range_big:
@@ -3496,7 +3515,26 @@ flp_j_series:
     NOP
 
 flp_slow:
-    ; d >= 8: round t first, then pack t and c and use fadd32.
+    ; d >= 8. If d > 24, t is below half an ulp of c, so the result is c.
+    LDI 24
+    MOV R11, R0
+    CMP R10, R11
+    JC flp_slow_pack
+    NOP
+    JZ flp_slow_pack
+    NOP
+    LD R11, SP, 10
+    SUB R11, 3
+    LDS R4, CS, R11
+    ADD R11, 1
+    LDS R5, CS, R11
+    ADD R11, 1
+    LDS R3, CS, R11
+    CMP R0, R0
+    JZ flp_j_next_entry
+    NOP
+flp_slow_pack:
+    ; d <= 24: round t first, then pack t and c and use fadd32.
     LD R11, SP, 10
     SUB R11, 3
     LDS R0, CS, R11
@@ -3565,6 +3603,7 @@ flp_unpack_p:
     MOV R4, R0
     MOV R5, R1
     MOV R3, R11
+flp_j_next_entry:
     MOV R11, PC
 flp_j_next:
     LDI flp_next - flp_j_next

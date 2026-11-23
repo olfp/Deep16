@@ -414,7 +414,7 @@ fpu_words_end:
 ; The printer code sits above the library, keeping the header/code gap below
 ; 0x4330 inside its pacman budget. It runs from the flat image at CS=0,
 ; which is also where the direct i2f/f2i calls live. Its scratch cells sit in
-; the 0x6780 tail and the power-of-ten tables in the free 0x6900 tail; both
+; the 0x6798 tail and the power-of-ten tables in the free 0x6900 tail; both
 ; are addressed PC-relatively, so they stay clear of the D16D 0x1F3C/0x1F40
 ; code and the low-memory data cells.
 .org 0x6900
@@ -502,7 +502,7 @@ f_ten_powers_neg:
     .word 0x0208, 0x1CEA
 f_ten_powers_neg_end:
 
-.org 0x6780
+.org 0x6798
 fpu_dot_base:
 f_dot_high:
     .word 0
