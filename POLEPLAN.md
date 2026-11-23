@@ -8,7 +8,7 @@ dirty skip; it was 56,697 (50.4%) after the scrolling grass and the
 alternating mountain row. The dirty redraw saves 8.33% of the board harness's
 simulated steps on the JS core (848,191 against 925,284, identical picture). The playable game is now the `pole` slice and the
 showcase menu launches it with **R**. The board run with the art, the dirty
-redraw and the two-cell edge is done (98,995 cycles/frame, 88.0% of the
+redraw and the two-cell edge is done (99,793 cycles/frame, 88.7% of the
 budget); the functional milestone-6 checks pass. The visual pass is close:
 straights are smooth, but sharp curves still step because a 16-pixel edge drop
 needs a third tile cell.
@@ -320,26 +320,26 @@ costs 873 core3 cycles per frame and takes the core3 baseline from 55,824 to
 **The 2026-11-23 run** (wide car, two-cell edge, 1,024 frames):
 
 ```
-POLE frames=01024 ms=15018 cyc16=57864 cyc_per_frame=98995 core3=056278
+POLE frames=01024 ms=15139 cyc16=19526 cyc_per_frame=99793 core3=056278
 ```
 
 | | cycles per frame | share of the 60 Hz budget |
 |---|---:|---:|
 | core3, combinational memory | 56,278 | 50.0% |
-| **board, real PSRAM** | **98,995** | **88.0%** |
+| **board, real PSRAM** | **99,793** | **88.7%** |
 | 60 Hz budget at 6.75 MHz | 112,500 | 100% |
 
-- the board is 1.77x the core3 figure: the PSRAM misses cost about 43,100
+- the board is 1.77x the core3 figure: the PSRAM misses cost about 43,500
   cycles per frame;
-- 15,018 ms for 1,024 frames is 14.67 ms per frame, so the renderer alone
-  reaches 68.2 fps and leaves 2.0 ms per frame for input, physics and the HUD;
-- the cycle counter agrees with the timer: 101,370,880 cycles is 52,224
-  modulo 65,536, and the counter read 57,864 - 5,640 cycles apart, inside the
+- 15,139 ms for 1,024 frames is 14.78 ms per frame, so the renderer alone
+  reaches 67.6 fps and leaves 1.9 ms per frame for input, physics and the HUD;
+- the cycle counter agrees with the timer: 102,188,032 cycles is 17,408
+  modulo 65,536, and the counter read 19,526 - 2,118 cycles apart, inside the
   one-millisecond truncation of the timer;
-- the margin is 13,505 cycles per frame (12.0%). The two-cell edge costs
-  about 6,170 board cycles over the single-cell version (98,995 against
-  92,825), which matches the core3 rise of 3,689 scaled by 1.77. The game
-  still fits 60 Hz, but the headroom is now thin.
+- the margin is 12,707 cycles per frame (11.3%). The two-cell edge costs
+  about 6,170 board cycles over the single-cell version, and loading the
+  horizon from memory instead of R13 costs another 800. The game still fits
+  60 Hz, but the headroom is thin.
 
 The screen during the milestone-2 run showed the report line, the console's
 own text and the road, but the road was drawn with the wrong tiles: the slice
@@ -541,8 +541,12 @@ core3 baseline is 56,278 cycles per frame (50.0%) and the board measured
 
 An adaptive three-cell edge was tried on 2026-11-23 to follow the curve: it
 measured 111,243 cycles/frame without the third-cell clearing and 120,979
-with it, over the 112,500 budget, so the game could not hold 60 Hz. Its font
-save/restore also corrupted the Forth stack. It was reverted. Instead the
+with it, over the 112,500 budget, so the game could not hold 60 Hz. It was
+reverted. The board run also found that the renderer used R13 for the horizon
+and the report helper used it for 65,535, but R13 is the stack pointer: the
+Forth stack was corrupted, which is why `s" pole"` underflowed after
+`polebench`. The horizon now comes from `ST_HORIZON` into R4/R2, and the
+report limit uses R12; the underflow is gone. Instead the
 curve's per-band centre shift is halved from 6 to 3: the edge now moves 7 or
 13 pixels per band instead of 4 or 16, and the ten-pixel diagonal leaves at
 most a three-pixel step. The curves are gentler but keep their shape, and the
