@@ -460,7 +460,7 @@ and `fcmp32`. `tests/softfloat.test.js` checks:
 
 Measured size: **1,816 words** from `f_unpack` through `fsqrt_ret`,
 occupying `0x5800..0x5F18`. The P4 dispatch and `fexp32`/`flog32` follow to
-`fpu_lib_end` at `0x630A`, inside the extended 0x7000 image window. The
+`fpu_lib_end` at `0x634B`, inside the extended 0x7000 image window. The
 non-D16D nano data-stack top is `0x5FF0`, so the core leaves about 213 words
 of headroom: usable for tests and shallow Forth code, but tight for a deep
 stack. The D16SEG profile puts the data stack in SS=0x2000, which avoids the
@@ -531,8 +531,8 @@ top); compiled, it emits `LIT low LIT high`. Anything that does not match the
 grammar falls back to the ordinary word scanner.
 
 `FEXP`/`FLOG` are implemented by `fexp32`/`flog32` at `0x6000`: Cody-Waite
-range reduction plus a degree-7 polynomial for exp, and the atanh series for
-log. `tests/transcendental.test.js` checks them directly against
+range reduction plus an unpacked degree-7 Horner polynomial for exp (one
+`fmul24` and a small exact add per term), and the atanh series for log. `tests/transcendental.test.js` checks them directly against
 `Math.exp`/`Math.log`: within one ulp for `exp` and two ulps for `log` on
 normal results, plus the special values; a representative set also has to
 produce identical bits on the RTL core.
@@ -577,18 +577,19 @@ of two.
 | FMUL | 350–700 | 52–104 µs |
 | FDIV | 700–1400 | 104–207 µs |
 | FSQRT | 900–1800 | 133–267 µs |
-| FEXP / FLOG | 2,950–12,500 (measured) | 0.44–1.85 ms |
+| FEXP / FLOG | FEXP 6,530–8,720; FLOG 2,960–12,490 (measured) | 0.44–1.85 ms |
 
 The spec's table (~60 cycles FADD, ~150 FDIV) is optimistic by close to an
 order of magnitude. The trap overhead is a minority of the total — which is
 an argument that the trap is cheap and the library is the work.
 
 The FEXP/FLOG row is measured, not estimated, with
-`scripts/bench_transcendental.mjs`: FEXP takes 8,766–12,099 free-run cycles for
-normal inputs (77 instructions at zero), FLOG takes 2,959–12,491, and the CPI
-is 1.24–1.31. These numbers exclude the ILL trap entry/exit. Negative FEXP
-arguments cost more because the polynomial's intermediate subtractions take
-the exact left-aligned path more often.
+`scripts/bench_transcendental.mjs`: after switching the Horner loop to unpacked
+operands, FEXP takes 6,528–8,721 free-run cycles for normal inputs (78
+instructions at zero), FLOG takes 2,959–12,491, and the CPI is 1.27–1.31.
+These numbers exclude the ILL trap entry/exit. Positive and negative FEXP
+arguments now cost about the same; the old exact-subtraction path no longer
+dominates the negative cases.
 
 Usable for teaching and demos; not for real-time.
 

@@ -2431,10 +2431,11 @@ ill_fpu_ret_lr:
 ; calls preserve SP; LR is saved in cell 0 because f_unpack/f_pack are leaf
 ; routines that return through LR. Results use the usual R6:R7 pair.
 ;
-; exp: k = round(x / ln2), r = x - k*ln2 with Cody-Waite split constants,
-; exp(r) by a degree-7 Horner polynomial, then 2^k by adding k to the
-; exponent field. log: normalise to m in [0.75, 1.5), z = (m-1)/(m+1), and
-; the atanh series through z^9.
+; exp: k = round(x / ln2), r = x - k*ln2 with Cody-Waite split constants.
+; The degree-7 Horner loop keeps r, p and the coefficients unpacked: each
+; term is one fmul24 plus a small exact shift/add and a final f_round. 2^k
+; is applied by adding k to the exponent field. log: normalise to m in
+; [0.75, 1.5), z = (m-1)/(m+1), and the atanh series through z^9.
 
 .org 0x6000
 fexp32:
@@ -2679,253 +2680,333 @@ fe_c6b:
     NOP
     ST R6, SP, 8               ; r
     ST R7, SP, 9
-    ; p = 1/5040
-    LDI 0x3950
-    MOV R6, R0
-    LDI 0x0D
-    MOV R7, R0
-    SL R7, 8
-    LDI 0x01
-    OR R7, R0
-    ST R6, SP, 5
-    ST R7, SP, 6
-    ; p = 1/720 + r*p
+    ; ---- unpack r once; the Horner loop keeps p unpacked ----
     LD R6, SP, 8
     LD R7, SP, 9
-    LD R8, SP, 5
-    LD R9, SP, 6
     MOV R11, PC
-fe_c7a:
-    LDI fmul32 - fe_c7a
+fe_u_r:
+    LDI f_unpack - fe_u_r
     ADD R11, R0
     LINK
     JMP R11
     NOP
-    LDI 0x3AB6
-    MOV R8, R0
-    LDI 0x0B
-    MOV R9, R0
-    SL R9, 8
-    LDI 0x61
-    OR R9, R0
-    MOV R11, PC
-fe_c8a:
-    LDI fadd32 - fe_c8a
-    ADD R11, R0
-    LINK
-    JMP R11
+    ST R0, SP, 10              ; r significand high
+    ST R1, SP, 11              ; r significand low
+    ST R11, SP, 12             ; r exponent
+    ST R10, SP, 13             ; r sign
+    ; r == 0 -> exp(r) = 1
+    CMP R0, 0
+    JNZ fe_poly_init
     NOP
-    ST R6, SP, 5
-    ST R7, SP, 6
-    ; p = 1/120 + r*p
-    LD R6, SP, 8
-    LD R7, SP, 9
-    LD R8, SP, 5
-    LD R9, SP, 6
-    MOV R11, PC
-fe_c7b:
-    LDI fmul32 - fe_c7b
-    ADD R11, R0
-    LINK
-    JMP R11
-    NOP
-    LDI 0x3C08
-    MOV R8, R0
-    LDI 0x88
-    MOV R9, R0
-    SL R9, 8
-    LDI 0x89
-    OR R9, R0
-    MOV R11, PC
-fe_c8b:
-    LDI fadd32 - fe_c8b
-    ADD R11, R0
-    LINK
-    JMP R11
-    NOP
-    ST R6, SP, 5
-    ST R7, SP, 6
-    ; p = 1/24 + r*p
-    LD R6, SP, 8
-    LD R7, SP, 9
-    LD R8, SP, 5
-    LD R9, SP, 6
-    MOV R11, PC
-fe_c7:
-    LDI fmul32 - fe_c7
-    ADD R11, R0
-    LINK
-    JMP R11
-    NOP
-    LDI 0x3D2A
-    MOV R8, R0
-    LDI 0xAA
-    MOV R9, R0
-    SL R9, 8
-    LDI 0xAB
-    OR R9, R0
-    MOV R11, PC
-fe_c8:
-    LDI fadd32 - fe_c8
-    ADD R11, R0
-    LINK
-    JMP R11
-    NOP
-    ST R6, SP, 5
-    ST R7, SP, 6
-    ; p = 1/6 + r*p
-    LD R6, SP, 8
-    LD R7, SP, 9
-    LD R8, SP, 5
-    LD R9, SP, 6
-    MOV R11, PC
-fe_c9:
-    LDI fmul32 - fe_c9
-    ADD R11, R0
-    LINK
-    JMP R11
-    NOP
-    LDI 0x3E2A
-    MOV R8, R0
-    LDI 0xAA
-    MOV R9, R0
-    SL R9, 8
-    LDI 0xAB
-    OR R9, R0
-    MOV R11, PC
-fe_c10:
-    LDI fadd32 - fe_c10
-    ADD R11, R0
-    LINK
-    JMP R11
-    NOP
-    ST R6, SP, 5
-    ST R7, SP, 6
-    ; p = 1/2 + r*p
-    LD R6, SP, 8
-    LD R7, SP, 9
-    LD R8, SP, 5
-    LD R9, SP, 6
-    MOV R11, PC
-fe_c11:
-    LDI fmul32 - fe_c11
-    ADD R11, R0
-    LINK
-    JMP R11
-    NOP
-    LDI 0x3F00
-    MOV R8, R0
-    LSI R9, 0
-    MOV R11, PC
-fe_c12:
-    LDI fadd32 - fe_c12
-    ADD R11, R0
-    LINK
-    JMP R11
-    NOP
-    ST R6, SP, 5
-    ST R7, SP, 6
-    ; p = 1 + r*p
-    LD R6, SP, 8
-    LD R7, SP, 9
-    LD R8, SP, 5
-    LD R9, SP, 6
-    MOV R11, PC
-fe_c13:
-    LDI fmul32 - fe_c13
-    ADD R11, R0
-    LINK
-    JMP R11
+    CMP R1, 0
+    JNZ fe_poly_init
     NOP
     LDI 0x3F80
-    MOV R8, R0
-    LSI R9, 0
-    MOV R11, PC
-fe_c14:
-    LDI fadd32 - fe_c14
-    ADD R11, R0
-    LINK
-    JMP R11
-    NOP
-    ST R6, SP, 5
-    ST R7, SP, 6
-    ; p = 1 + r*p
-    LD R6, SP, 8
-    LD R7, SP, 9
-    LD R8, SP, 5
-    LD R9, SP, 6
-    MOV R11, PC
-fe_c15:
-    LDI fmul32 - fe_c15
-    ADD R11, R0
-    LINK
-    JMP R11
-    NOP
-    LDI 0x3F80
-    MOV R8, R0
-    LSI R9, 0
-    MOV R11, PC
-fe_c16:
-    LDI fadd32 - fe_c16
-    ADD R11, R0
-    LINK
-    JMP R11
-    NOP
-    ; p *= 2^k by adding k to the biased exponent.
-    MOV R2, R6
-    SR R2, 7
-    LDI 0xFF
-    MOV R3, R0
-    AND R2, R3                 ; biased exponent
-    LD R1, SP, 7               ; k
-    ADD R2, R1
-    CMP R2, 0
-    JNN fe_exp_nonneg
-    NOP
-    MOV R11, PC
-fe_j_zero1:
-    LDI fe_zero - fe_j_zero1
-    ADD R11, R0
-    MOV PC, R11
-    NOP
-fe_exp_nonneg:
-    CMP R2, 0
-    JNZ fe_exp_pos
-    NOP
-    MOV R11, PC
-fe_j_zero2:
-    LDI fe_zero - fe_j_zero2
-    ADD R11, R0
-    MOV PC, R11
-    NOP
-fe_exp_pos:
-    LDI 255
-    MOV R3, R0
-    CMP R2, R3
-    JC fe_exp_ok
-    NOP
-    MOV R11, PC
-fe_j_inf1:
-    LDI fe_inf - fe_j_inf1
-    ADD R11, R0
-    MOV PC, R11
-    NOP
-fe_exp_ok:
-    LDI 0x7F
     MOV R4, R0
-    MOV R3, R6
-    AND R3, R4                 ; low mantissa bits
-    MOV R4, R2
-    SL R4, 7
-    OR R3, R4
-    MOV R4, R6
-    SR R4, 15
-    SL R4, 15                  ; sign
-    OR R3, R4
-    MOV R6, R3
-    CMP R0, R0
-    JZ fe_ret
+    LSI R5, 0
+    LDI 127
+    MOV R3, R0
+    MOV R11, PC
+fe_j_scale0:
+    LDI fe_scale - fe_j_scale0
+    ADD R11, R0
+    MOV PC, R11
     NOP
+
+fe_poly_init:
+    ; p = c0 = 1/5040, unpacked from the coefficient table
+    MOV R11, PC
+fe_poly_c0:
+    LDI fe_poly_table - fe_poly_c0
+    ADD R11, R0
+    LDS R4, CS, R11
+    ADD R11, 1
+    LDS R5, CS, R11
+    ADD R11, 1
+    LDS R3, CS, R11
+    ADD R11, 1
+    ST R11, SP, 14             ; next coefficient
+    LDI 7
+    ST R0, SP, 15              ; remaining stages
+
+fe_poly_loop:
+    ; t = r * p
+    LD R0, SP, 10
+    LD R1, SP, 11
+    MOV R7, R0                 ; keep r high across the LDI
+    MOV R11, PC
+fe_poly_mul:
+    LDI fmul24 - fe_poly_mul
+    ADD R11, R0
+    MOV R0, R7
+    LINK
+    JMP R11
+    NOP
+    ; t exponent = r_exp + p_exp - 127 + increment
+    LD R8, SP, 12
+    ADD R8, R3
+    LDI 127
+    MOV R1, R0
+    SUB R8, R1
+    ADD R8, R10
+    MOV R3, R8
+    MOV R11, PC
+fe_poly_round_t:
+    LDI f_round - fe_poly_round_t
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    MOV R8, R3                 ; t exponent after rounding
+    ; load c = (mantissa, exponent)
+    LD R11, SP, 14
+    LDS R0, CS, R11
+    ADD R11, 1
+    LDS R1, CS, R11
+    ADD R11, 1
+    LDS R9, CS, R11
+    ADD R11, 1
+    ST R11, SP, 14
+    ; d = c_exp - t_exp
+    MOV R10, R9
+    SUB R10, R8
+    LSI R11, 8
+    CMP R10, R11
+    JC fe_poly_fast            ; d < 8
+    NOP
+    MOV R11, PC
+fe_j_slow:
+    LDI fe_poly_slow - fe_j_slow
+    ADD R11, R0
+    MOV PC, R11
+    NOP
+
+fe_poly_fast:
+    ; A = c_mant << d in R6:R7 (d < 8, so it fits)
+    MOV R6, R0
+    MOV R7, R1
+    CMP R10, 0
+    JZ fe_poly_aligned
+    NOP
+fe_poly_shift_c:
+    MOV R2, R7
+    SR R2, 15
+    SL R6, 1
+    OR R6, R2
+    SL R7, 1
+    SUB R10, 1
+    JNZ fe_poly_shift_c
+    NOP
+fe_poly_aligned:
+    LD R10, SP, 13             ; r sign
+    CMP R10, 0
+    JNZ fe_poly_sub
+    NOP
+    ; A + t
+    ADD R7, R5
+    JC fe_poly_add_carry
+    NOP
+    ADD R6, R4
+    CMP R2, R2
+    JZ fe_poly_norm
+    NOP
+fe_poly_add_carry:
+    ADD R6, R4
+    ADD R6, 1
+    CMP R2, R2
+    JZ fe_poly_norm
+    NOP
+fe_poly_sub:
+    ; A - t (A > t)
+    MOV R2, R7
+    SUB R2, R5
+    JC fe_poly_sub_borrow
+    NOP
+    MOV R7, R2
+    MOV R2, R6
+    SUB R2, R4
+    MOV R6, R2
+    CMP R2, R2
+    JZ fe_poly_norm
+    NOP
+fe_poly_sub_borrow:
+    MOV R7, R2
+    MOV R2, R6
+    SUB R2, 1
+    SUB R2, R4
+    MOV R6, R2
+
+fe_poly_norm:
+    ; S in R6:R7 at exponent t_exp (R8). Shift right while S >= 2^24,
+    ; collecting the guard and sticky bits.
+    LDI 0x100
+    MOV R1, R0                 ; 0x100
+    LSI R9, 0                  ; guard
+    LSI R10, 0                 ; sticky
+    LSI R11, 1                 ; first shifted-out bit
+    LSI R3, 0                  ; right-shift count
+fe_poly_norm_loop:
+    CMP R6, R1
+    JC fe_poly_norm_done
+    NOP
+    LSI R0, 1
+    MOV R2, R7
+    AND R2, R0                 ; out bit
+    CMP R11, 0
+    JZ fe_poly_norm_sticky
+    NOP
+    MOV R9, R2                 ; guard
+    LSI R11, 0
+    CMP R0, R0
+    JZ fe_poly_norm_shift
+    NOP
+fe_poly_norm_sticky:
+    OR R10, R2                 ; sticky
+fe_poly_norm_shift:
+    MOV R0, R6
+    LSI R2, 1
+    AND R0, R2
+    SL R0, 15
+    SR R6, 1
+    SR R7, 1
+    OR R7, R0
+    ADD R3, 1
+    CMP R0, R0
+    JZ fe_poly_norm_loop
+    NOP
+fe_poly_norm_done:
+    ; The subtraction case can land below 2^23 only when d=0; shift left
+    ; once then, with no discarded bits.
+    LSI R0, 8
+    SL R0, 4                   ; 0x80
+    CMP R6, R0
+    JNC fe_poly_round_p
+    NOP
+    MOV R0, R7
+    SR R0, 15
+    SL R6, 1
+    OR R6, R0
+    SL R7, 1
+    SUB R3, 1
+fe_poly_round_p:
+    ; exponent = t_exp + shift; round to nearest with the guard/sticky
+    ADD R8, R3
+    MOV R4, R6
+    MOV R5, R7
+    MOV R6, R9
+    MOV R7, R10
+    MOV R3, R8
+    MOV R11, PC
+fe_poly_round_p_call:
+    LDI f_round - fe_poly_round_p_call
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+
+fe_poly_next:
+    LD R11, SP, 15
+    SUB R11, 1
+    ST R11, SP, 15
+    CMP R11, 0
+    JNZ fe_poly_loop
+    NOP
+
+fe_scale:
+    ; p *= 2^k, then pack. f_pack handles underflow/overflow edges.
+    LD R1, SP, 7               ; k
+    ADD R3, R1
+    MOV R7, PC
+fe_final_pack:
+    LDI f_pack - fe_final_pack
+    ADD R7, R0
+    MOV R0, R4
+    MOV R1, R5
+    LSI R10, 0
+    MOV R11, R3
+    LINK
+    JMP R7
+    NOP
+    MOV R11, PC
+fe_j_ret_final:
+    LDI fe_ret - fe_j_ret_final
+    ADD R11, R0
+    MOV PC, R11
+    NOP
+
+fe_poly_slow:
+    ; d >= 8: the exact left shift no longer fits R6:R7. Pack t and c and
+    ; use the general add; this only happens for |r| below about 1e-5.
+    ; The trampoline clobbered R0, so reload the current coefficient.
+    LD R11, SP, 14
+    SUB R11, 3
+    LDS R0, CS, R11
+    ADD R11, 1
+    LDS R1, CS, R11
+    ST R0, SP, 3               ; c_mant high
+    ST R1, SP, 4               ; c_mant low
+    LD R10, SP, 13
+    MOV R11, R8
+    MOV R7, PC
+fe_poly_pack_t:
+    LDI f_pack - fe_poly_pack_t
+    ADD R7, R0
+    MOV R0, R4
+    MOV R1, R5
+    LINK
+    JMP R7
+    NOP
+    ST R6, SP, 8               ; t packed
+    ST R7, SP, 9
+    LSI R10, 0
+    MOV R11, R9
+    MOV R7, PC
+fe_poly_pack_c:
+    LDI f_pack - fe_poly_pack_c
+    ADD R7, R0
+    LD R0, SP, 3
+    LD R1, SP, 4
+    LINK
+    JMP R7
+    NOP
+    MOV R8, R6
+    MOV R9, R7
+    LD R6, SP, 8
+    LD R7, SP, 9
+    MOV R11, PC
+fe_poly_add:
+    LDI fadd32 - fe_poly_add
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    MOV R11, PC
+fe_poly_unpack_p:
+    LDI f_unpack - fe_poly_unpack_p
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    MOV R4, R0
+    MOV R5, R1
+    MOV R3, R11
+    MOV R11, PC
+fe_j_next:
+    LDI fe_poly_next - fe_j_next
+    ADD R11, R0
+    MOV PC, R11
+    NOP
+
+fe_poly_table:
+    .word 0x00D0, 0x0D01, 114  ; 1/5040
+    .word 0x00B6, 0x0B61, 117  ; 1/720
+    .word 0x0088, 0x8889, 120  ; 1/120
+    .word 0x00AA, 0xAAAB, 122  ; 1/24
+    .word 0x00AA, 0xAAAB, 124  ; 1/6
+    .word 0x0080, 0x0000, 126  ; 1/2
+    .word 0x0080, 0x0000, 127  ; 1
+    .word 0x0080, 0x0000, 127  ; 1
+
 
 fe_range_big:
     LD R10, SP, 14
