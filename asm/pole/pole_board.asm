@@ -8,9 +8,9 @@
 ; The report goes out over the UART and is drawn into the visible tilemap, so
 ; the number can be read off the screen as well as off the serial console:
 ;
-;   POLE frames=01024 ms=08300 cyc16=12345 cyc_per_frame=054693 core3=055862
+;   POLE frames=01024 ms=08300 cyc16=12345 cyc_per_frame=054693 core3=056278
 ;
-; The core3 baseline is 55,862 cycles/frame, measured by scripts/bench_pole.mjs
+; The core3 baseline is 56,278 cycles/frame, measured by scripts/bench_pole.mjs
 ; with the dirty skip on the RTL core with combinational memory. The board
 ; number includes the
 ; PSRAM cache misses, so it is expected to be higher.
@@ -157,7 +157,7 @@ str_cpf:
     .text " cyc_per_frame="
 .org 0x05B0
 str_core3:
-    .text " core3=055862"
+    .text " core3=056278"
 
 ; ---------------------------------------------------------------------------
 ; The driver.
@@ -712,7 +712,7 @@ print_dec32:
     LDI 0
     MOV R6, R0
     LDI -1
-    MOV R13, R0                 ; the count limit (65535)
+    MOV R12, R0                 ; the count limit (65535)
 pd32_count:
     ; is the value at least 10000?
     CMP R4, 0
@@ -742,7 +742,7 @@ pd32_borrow:
     SUB R4, 1                   ; and the high word takes the borrow
 pd32_next:
     ADD R6, 1
-    CMP R6, R13
+    CMP R6, R12
     JNZ pd32_count
     NOP
 pd32_rest:

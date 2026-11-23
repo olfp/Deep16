@@ -10,7 +10,7 @@
 ; tests/pole-asm.test.js compares the map this code writes with the model's,
 ; cell for cell.
 ;
-; Measured cost on the core3 RTL model: 13,268 instructions and 55,862 cycles
+; Measured cost on the core3 RTL model: 13,362 instructions and 56,278 cycles
 ; per frame with the dirty skip, out of the 112,500 cycles a 60 Hz frame has at
 ; 6.75 MHz. About 55% of the instructions are the per-cell fill loop below,
 ; which writes up to 1,867 cells at four instructions each; the skip removes
@@ -43,7 +43,6 @@
 ;   R10  the phase, then the left edge offset
 ;   R11  the accumulated curve offset, then the call target
 ;   R12  the curve increment, then the row base
-;   R13  the horizon
 
 .equ SEG_TILE -0x0F00
 .equ SEG_CTRL -0x0E00
@@ -131,9 +130,7 @@ pole_render:
     LDI SCR_PHASE
     MOV R2, R0
     ST R10, R2, 0              ; the row loop needs the phase as well
-    LDI ST_HORIZON
-    MOV R2, R0
-    LD R13, R2, 0              ; the horizon in pixels
+    ; R13 is the stack pointer, so the horizon is loaded where it is used
 
     ; ---- point the write port at the back bank --------------------------
     LDI ST_BANK
@@ -161,13 +158,16 @@ pole_render:
     MOV R5, R0                 ; the pattern mask
 
 band_loop:
+    LDI ST_HORIZON
+    MOV R4, R0
+    LD R4, R4, 0               ; the horizon (R6 is clobbered by mul_shr8)
     ; dy = row*15 + 7 - horizon
     MOV R2, R1
     MOV R3, R1
     SL R3, 4
     SUB R3, R2
     ADD R3, 7
-    SUB R3, R13
+    SUB R3, R4
     JN band_done               ; above the horizon: no more road
 
     ; half_base = (HALF_Q16 * dy) >> 16 - the high word of the product
@@ -271,12 +271,14 @@ row_loop:
 row_draw:
 
     ; dy = row*15 + 7 - horizon
-    MOV R2, R1
+    LDI ST_HORIZON
+    MOV R2, R0
+    LD R2, R2, 0               ; the horizon
     MOV R3, R1
     SL R3, 4
-    SUB R3, R2
+    SUB R3, R1
     ADD R3, 7
-    SUB R3, R13
+    SUB R3, R2
     JN row_sky
 
     ; ---- the road row ---------------------------------------------------
