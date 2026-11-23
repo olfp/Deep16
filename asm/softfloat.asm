@@ -2431,9 +2431,10 @@ ill_fpu_ret_lr:
 ; calls preserve SP; LR is saved in cell 0 because f_unpack/f_pack are leaf
 ; routines that return through LR. Results use the usual R6:R7 pair.
 ;
-; exp: k = round(x / ln2), r = x - k*ln2, exp(r) by a degree-5 Horner
-; polynomial, then 2^k by adding k to the exponent field. log: normalise to
-; m in [0.75, 1.5), z = (m-1)/(m+1), and the atanh series through z^9.
+; exp: k = round(x / ln2), r = x - k*ln2 with Cody-Waite split constants,
+; exp(r) by a degree-7 Horner polynomial, then 2^k by adding k to the
+; exponent field. log: normalise to m in [0.75, 1.5), z = (m-1)/(m+1), and
+; the atanh series through z^9.
 
 .org 0x6000
 fexp32:
@@ -2477,10 +2478,10 @@ fe_j_ret1:
 fe_one_done:
 
 fe_special:
-    LD R0, SP, 10
     LD R1, SP, 11
     LDI 0x80
     MOV R2, R0
+    LD R0, SP, 10
     CMP R0, R2
     JNZ fe_nan
     NOP
@@ -2539,8 +2540,19 @@ fe_range:
     MOV R2, R0
     LD R11, SP, 15
     CMP R11, R2
-    JNC fe_range_big
+    JNC fe_range_big_near
     NOP
+    CMP R0, R0
+    JZ fe_range_continue
+    NOP
+fe_range_big_near:
+    MOV R11, PC
+fe_range_big_near_l:
+    LDI fe_range_big - fe_range_big_near_l
+    ADD R11, R0
+    MOV PC, R11
+    NOP
+fe_range_continue:
     ; y = x * log2(e)
     LD R6, SP, 1
     LD R7, SP, 2
@@ -2604,16 +2616,19 @@ fe_c4:
     LINK
     JMP R11
     NOP
-    ; kmul = kf * ln2
+    ; Cody-Waite reduction: ln2 = ln2_hi + ln2_lo. ln2_hi has enough
+    ; trailing zero bits that k*ln2_hi is exact for |k| <= 255, so the
+    ; rounding error no longer grows with k.
     MOV R6, R2
     MOV R7, R3
+    ST R6, SP, 12              ; kf
+    ST R7, SP, 13
+    ; t = x - kf*ln2_hi
     LDI 0x3F31
     MOV R8, R0
     LDI 0x72
     MOV R9, R0
-    SL R9, 8
-    LDI 0x18
-    OR R9, R0
+    SL R9, 8                   ; 0x7200
     MOV R11, PC
 fe_c5:
     LDI fmul32 - fe_c5
@@ -2621,7 +2636,6 @@ fe_c5:
     LINK
     JMP R11
     NOP
-    ; r = x - kmul
     MOV R8, R6
     MOV R9, R7
     LD R6, SP, 1
@@ -2633,16 +2647,102 @@ fe_c6:
     LINK
     JMP R11
     NOP
+    ST R6, SP, 8
+    ST R7, SP, 9
+    ; r = t - kf*ln2_lo
+    LD R6, SP, 12
+    LD R7, SP, 13
+    LDI 0x35BF
+    MOV R8, R0
+    LDI 0xBE
+    MOV R9, R0
+    SL R9, 8
+    LDI 0x8E
+    OR R9, R0
+    MOV R11, PC
+fe_c5b:
+    LDI fmul32 - fe_c5b
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    MOV R8, R6
+    MOV R9, R7
+    LD R6, SP, 8
+    LD R7, SP, 9
+    MOV R11, PC
+fe_c6b:
+    LDI fsub32 - fe_c6b
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
     ST R6, SP, 8               ; r
     ST R7, SP, 9
-    ; p = 1/120
-    LDI 0x3C08
+    ; p = 1/5040
+    LDI 0x3950
     MOV R6, R0
-    LDI 0x88
+    LDI 0x0D
     MOV R7, R0
     SL R7, 8
-    LDI 0x89
+    LDI 0x01
     OR R7, R0
+    ST R6, SP, 5
+    ST R7, SP, 6
+    ; p = 1/720 + r*p
+    LD R6, SP, 8
+    LD R7, SP, 9
+    LD R8, SP, 5
+    LD R9, SP, 6
+    MOV R11, PC
+fe_c7a:
+    LDI fmul32 - fe_c7a
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    LDI 0x3AB6
+    MOV R8, R0
+    LDI 0x0B
+    MOV R9, R0
+    SL R9, 8
+    LDI 0x61
+    OR R9, R0
+    MOV R11, PC
+fe_c8a:
+    LDI fadd32 - fe_c8a
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    ST R6, SP, 5
+    ST R7, SP, 6
+    ; p = 1/120 + r*p
+    LD R6, SP, 8
+    LD R7, SP, 9
+    LD R8, SP, 5
+    LD R9, SP, 6
+    MOV R11, PC
+fe_c7b:
+    LDI fmul32 - fe_c7b
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
+    LDI 0x3C08
+    MOV R8, R0
+    LDI 0x88
+    MOV R9, R0
+    SL R9, 8
+    LDI 0x89
+    OR R9, R0
+    MOV R11, PC
+fe_c8b:
+    LDI fadd32 - fe_c8b
+    ADD R11, R0
+    LINK
+    JMP R11
+    NOP
     ST R6, SP, 5
     ST R7, SP, 6
     ; p = 1/24 + r*p
@@ -3186,10 +3286,10 @@ fl_c18:
     NOP
 
 fl_special:
-    LD R0, SP, 3
     LD R1, SP, 4
     LDI 0x80
     MOV R2, R0
+    LD R0, SP, 3
     CMP R0, R2
     JNZ fl_nan
     NOP

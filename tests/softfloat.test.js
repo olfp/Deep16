@@ -96,6 +96,64 @@ test('u2f is exact for all 65,536 unsigned 16-bit values', () => {
   checkConversion('u2f', false);
 });
 
+// Direct test of the shared rounding helper: guard/sticky combinations,
+// ties-to-even, a carry out of the low word, and significand overflow.
+function roundProgram(hi, lo, exp, guard, sticky) {
+  return `
+.org 0
+    LDI f_round
+    MOV R9, R0
+    LDI 0x0200
+    MOV R8, R0
+    LD R4, R8, 0
+    LD R5, R8, 1
+    LD R3, R8, 2
+    LD R6, R8, 3
+    LD R7, R8, 4
+    LINK
+    JMP R9
+    NOP
+    LDI 0x0300
+    MOV R8, R0
+    ST R4, R8, 0
+    ADD R8, 1
+    ST R5, R8, 0
+    ADD R8, 1
+    ST R3, R8, 0
+    HALT
+.org 0x0200
+    .word 0x${hi.toString(16)}
+    .word 0x${lo.toString(16)}
+    .word 0x${exp.toString(16)}
+    .word ${guard}
+    .word ${sticky}
+`;
+}
+
+test('f_round rounds to nearest, ties to even, and renormalises overflow', () => {
+  const cases = [
+    // hi, lo, exp, guard, sticky -> hi, lo, exp
+    [0x8000, 0x0000, 127, 0, 0, 0x8000, 0x0000, 127], // exact
+    [0x8000, 0x0000, 127, 0, 1, 0x8000, 0x0000, 127], // sticky, no guard
+    [0x8000, 0x0000, 127, 1, 0, 0x8000, 0x0000, 127], // tie, even
+    [0x8000, 0x0001, 127, 1, 0, 0x8000, 0x0002, 127], // tie, odd rounds up
+    [0x8000, 0x0001, 127, 1, 1, 0x8000, 0x0002, 127], // above half
+    [0x8000, 0xFFFF, 127, 1, 1, 0x8001, 0x0000, 127], // carry into high
+    [0x00FF, 0xFFFE, 127, 1, 0, 0x00FF, 0xFFFE, 127], // tie, even, near max
+    [0x00FF, 0xFFFF, 127, 1, 1, 0x0080, 0x0000, 128], // overflow renormalises
+    [0x00FF, 0xFFFF, 127, 1, 0, 0x0080, 0x0000, 128], // tie, odd, overflow
+  ];
+  for (const [hi, lo, exp, guard, sticky, wantHi, wantLo, wantExp] of cases) {
+    const { sim } = runJsProgram(roundProgram(hi, lo, exp, guard, sticky));
+    assert.equal(sim.memory[0x300], wantHi,
+                 `f_round(${hex(f32(hi, lo))}, ${exp}, ${guard}, ${sticky}) high`);
+    assert.equal(sim.memory[0x301], wantLo,
+                 `f_round(${hex(f32(hi, lo))}, ${exp}, ${guard}, ${sticky}) low`);
+    assert.equal(sim.memory[0x302], wantExp,
+                 `f_round(${hex(f32(hi, lo))}, ${exp}, ${guard}, ${sticky}) exponent`);
+  }
+});
+
 // A binary-op harness: data words at 0x0200, result at 0x0300.
 function binaryProgram(routine, a, b) {
   return `

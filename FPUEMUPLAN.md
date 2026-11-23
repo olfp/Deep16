@@ -460,7 +460,7 @@ and `fcmp32`. `tests/softfloat.test.js` checks:
 
 Measured size: **1,816 words** from `f_unpack` through `fsqrt_ret`,
 occupying `0x5800..0x5F18`. The P4 dispatch and `fexp32`/`flog32` follow to
-`fpu_lib_end` at `0x62B5`, inside the extended 0x7000 image window. The
+`fpu_lib_end` at `0x630A`, inside the extended 0x7000 image window. The
 non-D16D nano data-stack top is `0x5FF0`, so the core leaves about 213 words
 of headroom: usable for tests and shallow Forth code, but tight for a deep
 stack. The D16SEG profile puts the data stack in SS=0x2000, which avoids the
@@ -469,7 +469,7 @@ collision but needs the slice loader.
 D16D uses the D16SEG map: the return stack is at `0x2FF0`, the dictionary is
 in PSRAM, and flat `0x5800` is free. The BIOS copy extension makes the whole
 library reachable at `CS=0x3000` offset `0x0E00`; `checkImage` accepts a BIOS
-that runs up to the `0x6000` window edge for an FPU image instead of stopping
+that runs up to the `0x7000` window edge for an FPU image instead of stopping
 at the `0x5800` return-stack base. `tests/d16d-fpu.test.js` covers FADD,
 FMUL, FDIV, FSQRT, FCMP and a repeated trap through that path, and the flash
 boot bench checks the `0x5800` word at physical `0x30E00`.
@@ -530,8 +530,11 @@ ignored. Interpreted, the literal pushes its two cells (high on
 top); compiled, it emits `LIT low LIT high`. Anything that does not match the
 grammar falls back to the ordinary word scanner.
 
-`FEXP`/`FLOG` are implemented by `fexp32`/`flog32` at `0x6000`: range
-reduction plus a degree-5 polynomial for exp, and the atanh series for log.
+`FEXP`/`FLOG` are implemented by `fexp32`/`flog32` at `0x6000`: Cody-Waite
+range reduction plus a degree-7 polynomial for exp, and the atanh series for
+log. `tests/transcendental.test.js` checks them directly against
+`Math.exp`/`Math.log`: within one ulp for `exp` and two ulps for `log` on
+normal results, plus the special values.
 The flash loader copies the same words to BIOS offset `0x1600`, so the ILL
 handler can run them. `fexp`/`flog` are Forth words in the `0x417D` block.
 `tests/forth-float.test.js` boots the D16SEG nano kernel and types real Forth

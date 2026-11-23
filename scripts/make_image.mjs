@@ -167,9 +167,16 @@ export function buildImage() {
       throw new Error(`the float literal build ends at 0x${sym.fpu_lit_build_end.toString(16)}, ` +
                       `over the power-of-ten table at 0x${sym.f_ten_powers.toString(16)}`);
     }
-    if (sym.f_ten_powers_end > sym.fpu_dot_base) {
-      throw new Error(`the power-of-ten table ends at 0x${sym.f_ten_powers_end.toString(16)}, ` +
-                      `over the f. cells at 0x${sym.fpu_dot_base.toString(16)}`);
+    if (sym.f_ten_powers < sym.fpu_lit_parse_end) {
+      throw new Error(`the power-of-ten table starts at 0x${sym.f_ten_powers.toString(16)}, ` +
+                      `over the parser that ends at 0x${sym.fpu_lit_parse_end.toString(16)}`);
+    }
+    if (sym.f_ten_powers_neg <= sym.f_ten_powers_end) {
+      throw new Error('the power-of-ten tables overlap');
+    }
+    if (sym.f_ten_powers_neg_end > WINDOW) {
+      throw new Error(`the negative power-of-ten table ends at 0x${sym.f_ten_powers_neg_end.toString(16)}, ` +
+                      'over the image window');
     }
     if (sym.fpu_dot_cells_end > sym.sf_parse) {
       throw new Error(`the f. cells end at 0x${sym.fpu_dot_cells_end.toString(16)}, ` +

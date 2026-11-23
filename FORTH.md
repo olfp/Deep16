@@ -231,8 +231,8 @@ half on top); compiled, it emits `LIT low LIT high`. Anything that does not
 match the grammar (`1.`, `1e`, `1..5`) falls back to the ordinary word scan
 and is reported as an undefined word.
 
-`fexp` and `flog` use the FPU trap and are accurate to a few ulps for
-ordinary arguments. They follow the same special-value policy: `exp(+inf)` is
+`fexp` and `flog` use the FPU trap and stay within one ulp (`fexp`) or two
+ulps (`flog`) for normal results. They follow the same special-value policy: `exp(+inf)` is
 `+inf`, `exp(-inf)` is `+0`, `log(0)` is `-inf`, `log(x<0)` and `log(NaN)` are
 the canonical NaN, and denormals flush to zero.
 
