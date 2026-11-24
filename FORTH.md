@@ -207,6 +207,15 @@ high half on top**, the same order as a double. Float literals use the usual
 | `fover` | `( f1 f2 -- f1 f2 f1 )` | copy the second float |
 | `f.` | `( f -- )` | print a fixed-point decimal |
 
+The surface covers every public soft-float routine: the arithmetic and
+comparison traps, conversions, memory access, the four shufflers, literals
+and `f.`. `u2f` is the one library routine without a word of its own; the
+literal builder calls it internally and the public conversion is signed
+`s>f`. Comparisons are deliberately the reduced set `f<`, `f=`, `f0<`;
+`f>`, `f<=`, `f>=` and `f<>` compose from them. `f-` flips the second sign
+and uses `FADD`, because there is no FSUB trap. Only
+`fdup`/`fdrop`/`fswap`/`fover` are provided as shufflers.
+
 The arithmetic words go through the ILL trap, so they work the same way in
 the flat kernel and in D16D's BIOS segment. They round to nearest, ties to
 even, matching IEEE-754 and JS `Math.fround`. `s>f`/`f>s` call the conversion

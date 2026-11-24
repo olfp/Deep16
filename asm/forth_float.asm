@@ -17,6 +17,11 @@
 ; Registers: R5 is >IN and R6 is TIB. Binary words park >IN in R7 across the
 ; trap (the handler saves/restores R7), and s>f/f>s park TIB in R9 around the
 ; direct library call. R8 (the cursor) is never touched.
+;
+; Coverage: every public soft-float routine has a word. u2f is internal (the
+; literal builder); the public conversion is s>f. Comparisons are f<, f=,
+; f0<; the other relations compose. f- uses FADD with the B sign flipped
+; because there is no FSUB trap. Only fdup/fdrop/fswap/fover are shufflers.
 
 .ifdef FPU_WORDS
 .org 0x417D

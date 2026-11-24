@@ -552,6 +552,10 @@ The flash loader copies the same words to BIOS offset `0x1600`, so the ILL
 handler can run them. `fexp`/`flog` are Forth words in the `0x417D` block.
 `tests/forth-float.test.js` boots the D16SEG nano kernel and types real Forth
 lines for every implemented word, including literals, `f.` and the shufflers.
+The surface intentionally exposes the reduced comparison set `f<`, `f=`,
+`f0<`; the other relations compose. `u2f` is used only by the literal
+builder (the public conversion is `s>f`), and `f-` is `FADD` with the second
+sign flipped because there is no FSUB trap.
 
 ---
 
