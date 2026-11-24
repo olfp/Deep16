@@ -3534,75 +3534,115 @@ flp_slow:
     JZ flp_j_next_entry
     NOP
 flp_slow_pack:
-    ; d <= 24: round t first, then pack t and c and use fadd32.
+    ; d <= 24: align c left by d into W2:W1:W0 and add the truncated
+    ; product exactly. The product fraction only feeds sticky.
     LD R11, SP, 10
     SUB R11, 3
     LDS R0, CS, R11
     ADD R11, 1
     LDS R1, CS, R11
-    ST R0, SP, 14              ; c_mant high (x is no longer needed)
-    ST R1, SP, 15              ; c_mant low
-    MOV R3, R8
-    LD R6, SP, 3
-    LD R7, SP, 4
+    ; W2:W1:W0 = c_mant << d
+    LSI R11, 0
+    MOV R6, R0
+    MOV R7, R1
+    CMP R10, 0
+    JZ flp48_shifted
+    NOP
+flp48_shift:
+    MOV R2, R6
+    SR R2, 15
+    SL R11, 1
+    OR R11, R2
+    MOV R2, R7
+    SR R2, 15
+    SL R6, 1
+    OR R6, R2
+    SL R7, 1
+    SUB R10, 1
+    JNZ flp48_shift
+    NOP
+flp48_shifted:
+    ; add T (R4:R5) to the low 32 bits
+    ADD R7, R5
+    JC flp48_add_low_carry
+    NOP
+    ADD R6, R4
+    JC flp48_add_hi_carry
+    NOP
+    CMP R2, R2
+    JZ flp48_top
+    NOP
+flp48_add_low_carry:
+    ADD R6, R4
+    ADD R6, 1
+    JC flp48_add_hi_carry
+    NOP
+    CMP R2, R2
+    JZ flp48_top
+    NOP
+flp48_add_hi_carry:
+    ADD R11, 1
+flp48_top:
+    ; shift left until bit 47 (W2 bit 15) is set
+flp48_norm:
+    MOV R2, R11
+    SR R2, 15
+    CMP R2, 0
+    JNZ flp48_norm_done
+    NOP
+    MOV R2, R6
+    SR R2, 15
+    SL R11, 1
+    OR R11, R2
+    MOV R2, R7
+    SR R2, 15
+    SL R6, 1
+    OR R6, R2
+    SL R7, 1
+    SUB R8, 1
+    CMP R2, R2
+    JZ flp48_norm
+    NOP
+flp48_norm_done:
+    ; The top 24 bits now sit at bits 47..24, so the exponent gains 24.
+    LDI 24
+    MOV R2, R0
+    ADD R8, R2
+    ; sig = (W2 << 8) | (W1 >> 8); guard = W1 bit 7
+    MOV R4, R11
+    SR R4, 8
+    MOV R5, R11
+    SL R5, 8
+    MOV R2, R6
+    SR R2, 8
+    OR R5, R2
+    MOV R2, R6
+    SR R2, 7
+    LSI R0, 1
+    AND R2, R0
+    MOV R3, R2                 ; guard
+    ; sticky = (W1 & 0x7F) | W0 | product guard/sticky
+    LDI 0x7F
+    MOV R2, R0
+    MOV R1, R6
+    AND R1, R2
+    OR R1, R7
+    LD R0, SP, 3
+    LD R2, SP, 4
+    OR R0, R2
+    OR R1, R0
+    MOV R6, R3                 ; guard
+    MOV R7, R1                 ; sticky
+    MOV R3, R8                 ; exponent
     MOV R11, PC
-flp_round_t:
-    LDI f_round - flp_round_t
+flp48_round:
+    LDI f_round - flp48_round
     ADD R11, R0
     LINK
     JMP R11
     NOP
-    MOV R8, R3                 ; t exponent rounded
-    LD R11, SP, 10
-    SUB R11, 1
-    LDS R9, CS, R11            ; c_exp
-    ; pack t
-    LSI R10, 0
-    MOV R11, R8
-    MOV R7, PC
-flp_pack_t:
-    LDI f_pack - flp_pack_t
-    ADD R7, R0
-    MOV R0, R4
-    MOV R1, R5
-    LINK
-    JMP R7
-    NOP
-    ST R6, SP, 1               ; t packed (x is gone)
-    ST R7, SP, 2
-    ; pack c
-    LSI R10, 0
-    MOV R11, R9
-    MOV R7, PC
-flp_pack_c:
-    LDI f_pack - flp_pack_c
-    ADD R7, R0
-    LD R0, SP, 14
-    LD R1, SP, 15
-    LINK
-    JMP R7
-    NOP
-    MOV R8, R6
-    MOV R9, R7
-    LD R6, SP, 1
-    LD R7, SP, 2
-    MOV R11, PC
-flp_add:
-    LDI fadd32 - flp_add
-    ADD R11, R0
-    LINK
-    JMP R11
-    NOP
-    MOV R11, PC
-flp_unpack_p:
-    LDI f_unpack - flp_unpack_p
-    ADD R11, R0
-    LINK
-    JMP R11
-    NOP
-    MOV R4, R0
-    MOV R5, R1
-    MOV R3, R11
+    CMP R2, R2
+    JZ flp_j_next_entry
 flp_j_next_entry:
     MOV R11, PC
 flp_j_next:
