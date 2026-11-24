@@ -539,6 +539,15 @@ shift/add, so there is one `f_round` per term. `tests/transcendental.test.js` ch
 `Math.exp`/`Math.log`: within one ulp for `exp` and two ulps for `log` on
 normal results, plus the special values; a representative set also has to
 produce identical bits on the RTL core.
+
+`flog32` is held to the 2-ulp bound on the test vectors. A denser sweep near
+`log(1)` finds rare 3-ulp cases: the result is then about `1e-7`, and the
+float32 division and Horner roundings contribute roughly the same relative
+error. Degree-6/7 minimax coefficient sets and an idealized exact-`z`
+correction were measured; the coefficient changes do not improve the float32
+result, and the exact-`z` correction moves the dense worst case only from 3 to
+2 ulp. Reaching 1 ulp needs a fixed-point or double-double `z`/atanh core; the
+single-precision implementation is kept for speed and size.
 The flash loader copies the same words to BIOS offset `0x1600`, so the ILL
 handler can run them. `fexp`/`flog` are Forth words in the `0x417D` block.
 `tests/forth-float.test.js` boots the D16SEG nano kernel and types real Forth

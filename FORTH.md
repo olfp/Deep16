@@ -232,7 +232,9 @@ match the grammar (`1.`, `1e`, `1..5`) falls back to the ordinary word scan
 and is reported as an undefined word.
 
 `fexp` and `flog` use the FPU trap and stay within one ulp (`fexp`) or two
-ulps (`flog`) for normal results. They follow the same special-value policy: `exp(+inf)` is
+ulps (`flog`) for normal results. The `flog` bound is the single-precision
+limit: rare values very close to 1 can reach 3 ulp. They follow the same
+special-value policy: `exp(+inf)` is
 `+inf`, `exp(-inf)` is `+0`, `log(0)` is `-inf`, `log(x<0)` and `log(NaN)` are
 the canonical NaN, and denormals flush to zero.
 

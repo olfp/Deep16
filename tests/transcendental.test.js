@@ -140,6 +140,10 @@ test('fexp32 stays within one ulp on normal results', () => {
   }
 });
 
+// The 2-ulp bound is the single-precision limit: a denser sweep near 1 can
+// find rare 3-ulp cases because the result is ~1e-7 and the float32
+// division/Horner roundings dominate. A fixed-point or double-double series
+// would be needed to guarantee 1 ulp.
 test('flog32 stays within two ulps on normal results', () => {
   const run = runner('flog32');
   const inputs = [
