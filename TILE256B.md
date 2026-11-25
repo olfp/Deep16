@@ -114,8 +114,8 @@ Pole still uses 18 groups (0 and 17 are the player halves). Phase 3 updated
 its map cells to the clean format, but its sprite groups are not ported, so it
 is developer-only and **not in the default slice set**. `make_slices.mjs`
 excludes `pole` and `polebench` unless `--with-pole` is passed; the menu's R
-binding and the `pole` app name are removed. `SLICES_WITH_POLE=1 npm run
-flash:slices` builds a local developer image, and `s" pole" game-run` (or
+binding and the `pole` app name are removed. `npm run flash:slices:pole`
+builds a local developer image, and `s" pole" game-run` (or
 `s" polebench" game-run`) launches it from the prompt. The source, unit tests
 and `bench_pole_board` remain in the repo.
 

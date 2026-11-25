@@ -234,9 +234,9 @@ bank before entering the game, because the three art sets overlap (14 + 24 +
 
 Pole is **developer-only** and is not in the default slice image: its 18
 sprite groups do not fit the 16-group bank. Build a local image with
-`node scripts/make_slices.mjs --with-pole` (or `SLICES_WITH_POLE=1 npm run
-flash:slices`) and launch it with `s" pole" game-run`; the menu no longer binds
-R. It carries its own raw art blocks at `0x1000`/`0x1400`/`0x2600` and copies
+`node scripts/make_slices.mjs --with-pole` (or `npm run flash:slices:pole`),
+then launch it with `s" pole" game-run`; the menu no longer binds R. It
+carries its own raw art blocks at `0x1000`/`0x1400`/`0x2600` and copies
 them in itself, because its tile block is not a `0x0A57` art pack and the
 menu's standard tile copy skips it. Its segment layout is:
 
