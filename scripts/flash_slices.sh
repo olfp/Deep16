@@ -8,6 +8,9 @@
 # is untouched, so this is safe with the BP = 0x38 / lower-2-MB block protect
 # in place.
 #
+# Pole and polebench are omitted by default; set SLICES_WITH_POLE=1 for a local
+# developer image.
+#
 # `--external-flash` is what makes openFPGALoader accept a raw .bin and write
 # the board's SPI flash through the FPGA's BSCAN bridge; `-f` selects flash
 # mode. Without --external-flash it insists on a Gowin .fs bitstream.
@@ -18,7 +21,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-node scripts/make_slices.mjs ${SLICES_WITHOUT_POLE:+--without-pole}
+POLE_FLAG=""
+if [ "${SLICES_WITH_POLE:-}" = "1" ]; then POLE_FLAG="--with-pole"; fi
+node scripts/make_slices.mjs $POLE_FLAG
 command -v openFPGALoader >/dev/null 2>&1 || { echo "openFPGALoader not found" >&2; exit 1; }
 
 openFPGALoader -f --external-flash --file-type bin \

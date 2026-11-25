@@ -45,3 +45,18 @@ test('missing printable glyphs fall back to the space glyph', () => {
   // 0x7F was not in the source; it must be blank, not undefined.
   assert.deepEqual(words.slice((0x7F - 0x20) * 8, (0x7F - 0x20) * 8 + 8), Array(8).fill(0));
 });
+
+test('the extended page appends the seven German glyphs after ASCII', () => {
+  const codes = [0xC4, 0xD6, 0xDC, 0xDF, 0xE4, 0xF6, 0xFC];
+  const source = 'STARTFONT 2.1\n' + codes.map((code, i) =>
+    `STARTCHAR g${i}\nENCODING ${code}\nBBX 8 15 0 -3\nBITMAP\n` +
+    Array(15).fill('ff').join('\n') + '\nENDCHAR\n').join('') + 'ENDFONT\n';
+  const words = fontWords(parseBdf(source), { latin1: true });
+  assert.equal(words.length, 128 * 8);
+  for (let i = 0; i < codes.length; i++) {
+    assert.deepEqual(words.slice((96 + i) * 8, (96 + i) * 8 + 8),
+      [...Array(7).fill(0xFFFF), 0x00FF],
+      `slot ${96 + i} holds ${codes[i].toString(16)}`);
+  }
+  assert.deepEqual(words.slice(103 * 8), Array(25 * 8).fill(0), 'unused slots stay blank');
+});

@@ -21,6 +21,7 @@
 .equ SEG_SPR  -0x0C00          ; 0xF400: sprite bank
 .equ SEG_OAM  -0x0A00          ; 0xF600: OAM + palette
 .equ SEG_UART -0x0FFC          ; 0xF004: UART/status
+.equ PS2_DECODE 0x1F9C         ; ps2_decode offset in the BIOS segment
 
 .equ G_START_MODE 0x04D5
 .equ G_MODE       0x04D6
@@ -54,20 +55,20 @@
 .equ G_BIRD_GROUP 0x04F5       ; G_BIRD_COLOR * 8, the flat OAM group base
 
 ; Game-art tiles, baked at 96.. from the free art pack.
-.equ T_PIPE_L     0x0C00
-.equ T_PIPE_M     0x0C20
-.equ T_PIPE_R     0x0C40
-.equ T_CAPU_L     0x0C60
-.equ T_CAPU_M     0x0C80
-.equ T_CAPU_R     0x0CA0
-.equ T_CAPD_L     0x0CC0
-.equ T_CAPD_M     0x0CE0
-.equ T_CAPD_R     0x0D00
-.equ T_GRASS      0x0D20
-.equ T_DIRT       0x0D40
-.equ T_CLOUD_L    0x0D60
-.equ T_CLOUD_M    0x0D80
-.equ T_CLOUD_R    0x0DA0
+.equ T_PIPE_L     96
+.equ T_PIPE_M     97
+.equ T_PIPE_R     98
+.equ T_CAPU_L     99
+.equ T_CAPU_M     100
+.equ T_CAPU_R     101
+.equ T_CAPD_L     102
+.equ T_CAPD_M     103
+.equ T_CAPD_R     104
+.equ T_GRASS      105
+.equ T_DIRT       106
+.equ T_CLOUD_L    107
+.equ T_CLOUD_M    108
+.equ T_CLOUD_R    109
 .equ RESTORE_TAB  0x0500
 .equ RESTORE_PAL  0x05E0
 
@@ -210,7 +211,6 @@ draw_text_loop:
     JZ draw_text_done
     NOP
     SUB R0, R1
-    SL R0, 5
     LSI R3, 1
     SL R3, 15
     OR R0, R3
@@ -348,6 +348,16 @@ menu_wait:
     LDI 0x22                 ; 0xF0062 keyboard data
     MOV R2, R0
     LDS R1, ES, R2
+    ; The FIFO carries raw events now. The menu runs in the BIOS segment, so
+    ; it calls the decoder directly; an unmapped key is skipped.
+    LDI PS2_DECODE
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    AND R1, R1
+    JZ menu_wait
+    NOP
 
     LDI 0x46
     MOV R3, R0
@@ -381,12 +391,6 @@ menu_wait:
     MOV R3, R0
     CMP R1, R3
     JZ menu_frogger
-    NOP
-    ; R / r, after the A-Z fold above
-    LDI 0x72
-    MOV R3, R0
-    CMP R1, R3
-    JZ menu_pole
     NOP
     LDI 0x51
     MOV R3, R0
@@ -462,14 +466,6 @@ menu_frogger:
     MOV PC, R0
     NOP
 
-menu_pole:
-    LDI str_name_pole
-    MOV R1, R0
-    LSI R9, 0
-    LDI menu_launch
-    MOV PC, R0
-    NOP
-
 menu_after:
     LDI SEG_DEMO
     MVS DS, R0
@@ -526,11 +522,6 @@ frogger_draw:
     LDI menu_after_g
     MOV PC, R0
     NOP
-
-; The pole name lives in the gap before the app-name block.
-.org 0x4C0
-str_name_pole:
-    .text "pole"
 
 ; App names BDOS looks up, and the start mode the launcher passes on.
 .org 0x4E0

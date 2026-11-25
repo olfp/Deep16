@@ -8,6 +8,7 @@ import vm from 'node:vm';
 import path from 'node:path';
 import { ROOT } from './helpers.js';
 import { flappyArtPack, pacmanArtPack, froggerArtPack } from '../scripts/make_tile_font.mjs';
+import { layoutWords } from '../scripts/make_ps2map.mjs';
 
 process.env.D16NANO = '1';
 process.env.D16D = '1';
@@ -31,7 +32,7 @@ const frogger = fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'frogger_demo
 
 const packs = { flappy: flappyArtPack(), pacman: pacmanArtPack(), frogger: froggerArtPack() };
 const sources = { kernel, softfloat, forthFloat, showcase, flappy, flappyDefs,
-                  pacmanMap, pacmanGame, frogger, packs };
+                  pacmanMap, pacmanGame, frogger, packs, layouts: layoutWords() };
 
 test('browser builder matches the Node D16D image word for word', () => {
   const node = buildImage();

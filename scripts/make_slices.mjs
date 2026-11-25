@@ -8,6 +8,10 @@
 //
 //   node scripts/make_slices.mjs                 # artifacts/image/slices.bin
 //   node scripts/make_slices.mjs --out=FILE
+//   node scripts/make_slices.mjs --with-pole     # local developer image
+//
+// Pole is omitted by default: its 18 sprite groups do not fit the 16-group
+// bank. The sources and unit tests stay in the repo.
 //
 // Header word 0: bit15 WP, bits14:12 magic 5, bits11:8 flags/rate, bits7:0
 // type. Cell 1 link (0xFFFF none), cells 2..7 name (12 chars, 2/cell, low
@@ -147,7 +151,10 @@ function directory(entries) {
 }
 
 export function buildSlices(options = {}) {
-  const includePole = options.includePole !== false;
+  // Pole uses 18 sprite groups and cannot run on the 16-group bank. It is
+  // developer-only until ported, so the shipped image leaves it out by
+  // default; pass --with-pole or includePole:true for a local build.
+  const includePole = options.includePole === true;
   const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
   const start = read('forth/start.fth');
   const essentials = read('screens/flash/essentials.fth');
@@ -191,9 +198,9 @@ export function buildSlices(options = {}) {
   const frogger = buildFrogger();
   const froggerFirst = flappyFirst + flappySlices.length;
   const froggerSlices = binarySlices(frogger.words, froggerFirst, 'frogger', 0, frogger.seg, 1);
-  // The Pole road renderer and its on-board timing harness. It is loaded into
-  // segment 0x7000, which is free in the D16D segment map. The board image can
-  // leave them out with --without-pole while the sources stay in the repo.
+  // The Pole road renderer and its on-board timing harness. They are loaded
+  // into segment 0x7000, which is free in the D16D segment map. They are
+  // opt-in (--with-pole) until Pole is ported to 16 sprite groups.
   let pole = null;
   let poleSlices = [];
   let poleFirst = froggerFirst + froggerSlices.length;
@@ -290,7 +297,7 @@ if (isMain) {
   const arg = process.argv.find((a) => a.startsWith('--out='));
   const out = path.resolve(ROOT, arg ? arg.slice(6) : 'artifacts/image/slices.bin');
   const { bytes, manifest } = buildSlices({
-    includePole: !process.argv.includes('--without-pole'),
+    includePole: process.argv.includes('--with-pole'),
   });
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(out, bytes);

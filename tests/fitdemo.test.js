@@ -91,7 +91,7 @@ test('fitdemo is a built-in word that paints the FiT tile and sprite windows', (
   assert.equal(readTileText(sim.memory, 3, 29), 'FiT tile + sprite demo');
   assert.equal(readTileText(sim.memory, 5, 26), '80x24 tiles / 32x32 sprites');
   assert.equal(readTileText(sim.memory, 12, 21), 'fitdemo: custom tile map + sprite OAM');
-  assert.equal(engine.tilemap[0][9 * TILE_COLS + 70], 0x0FE0,
+  assert.equal(engine.tilemap[0][9 * TILE_COLS + 70], 127,
                'the stripe uses art tile 127');
 
   // Tile 127 is a red/green checker: alternating 4bpp rows at the top of the

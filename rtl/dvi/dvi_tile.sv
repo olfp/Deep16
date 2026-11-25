@@ -13,9 +13,9 @@
 //   * an 82x26 tilemap of pure 16-bit tile addresses (80x24 visible plus one
 //     tile of margin on every side, so hardware scroll_x/scroll_y never runs
 //     off the map),
-//   * 128 tiles of 32 words: 15 rows x 2 words of 4bpp pixels (30 words), a
+//   * 256 tiles of 32 words: 15 rows x 2 words of 4bpp pixels (30 words), a
 //     palette pointer in word 30 and a flags word in word 31,
-//   * a 24-entry sprite pattern bank (6,144 words) plus eight OAM slots,
+//   * a 16-entry sprite pattern bank (4,096 words) plus eight OAM slots,
 //   * a 16-entry RGB332 palette,
 //   * a line-buffer renderer: while line N is scanned out, line N+1 is built
 //     from the tilemap/tile bank into the other buffer. The pixel path is a
@@ -25,7 +25,7 @@
 // parser writes tile addresses ((ch - 0x20) * 32) instead of ASCII bytes.
 //
 // BSRAM: tilemap 2,132 x 16-bit = 3 blocks, tile bank 4,096 x 16-bit,
-// sprite bank 6,144 x 16-bit, line buffer 3 x 640 x 8-bit = 1 block. The
+// sprite bank 4,096 x 16-bit, line buffer 3 x 640 x 8-bit = 1 block. The
 // palette is one 64 x 16-bit block split into three 16-entry banks.
 module dvi_tile #(
   parameter int H_ACTIVE   = 640,   // source canvas: 80 x 24 x 8 x 15
@@ -44,8 +44,8 @@ module dvi_tile #(
   parameter int CELL_H     = 15,
   parameter int TILE_COLS  = 82,
   parameter int TILE_ROWS  = 26,
-  parameter int TILE_COUNT = 128,
-  parameter int TILE_AW    = 12
+  parameter int TILE_COUNT = 256,
+  parameter int TILE_AW    = 13
 ) (
   input  logic        clk_render, // 24.75 MHz fill/render clock
   input  logic        clk_pixel,  // 74.25 MHz scan/TMDS clock
@@ -88,11 +88,11 @@ module dvi_tile #(
 
   localparam int TM_WORDS   = TILE_COLS * TILE_ROWS;                // 2,132
   localparam int TM_AW      = 12;
-  // The CPU windows match the arrays exactly: 128 x 32 words is 12 bits, and
-  // 24 groups x 256 words is 13 bits, so every address in a window is valid.
-  localparam int TILE_WORDS = TILE_COUNT * 32;                      // 4,096
-  localparam int SPR_GROUPS = 24;
-  localparam int SPR_WORDS  = SPR_GROUPS * 256;                    // 6,144
+  // The CPU windows match the arrays exactly: 256 x 32 words is 13 bits, and
+  // 16 groups x 256 words is 12 bits, so every address in a window is valid.
+  localparam int TILE_WORDS = TILE_COUNT * 32;                      // 8,192
+  localparam int SPR_GROUPS = 16;
+  localparam int SPR_WORDS  = SPR_GROUPS * 256;                    // 4,096
   localparam int NSPR       = 8;                                  // visible sprites
   localparam int OAM_DESCS  = 64;                                 // descriptor bank
   localparam int OAM_WORDS  = OAM_DESCS * 2;                      // 128 words
@@ -232,7 +232,7 @@ module dvi_tile #(
   logic [7:0]   spon_bits, spbh_bits, sphf_bits;
 
   // Sprite bank read port (one word fetched per loader request).
-  logic [12:0] spr_raddr;
+  logic [11:0] spr_raddr;
   logic [15:0] spr_q;
 
 
@@ -245,8 +245,8 @@ module dvi_tile #(
   // (cpu_ctrl) update the cursor, the circular row offset and the two smooth
   // scroll registers; all other writes go to the window selected by cpu_tgt:
   //   0 tilemap   0xF1000..  (2,132 words)
-  //   1 tile bank 0xF3000..  (128 x 32 words, all writable)
-  //   2 sprites   0xF4000..  (24 groups x 16 patterns x 16 words, 6,144)
+  //   1 tile bank 0xF3000..  (256 x 32 words, page-selected writes)
+  //   2 sprites   0xF4000..  (16 groups x 16 patterns x 16 words, 4,096)
   //   3 OAM/pal   0xF6000..  (OAM 0x00..0x0F, palette 0x80..0x27F:
   //                           8 sets x 4 banks x 16 entries)
   logic [4:0] row_off;
@@ -277,6 +277,7 @@ module dvi_tile #(
   logic [6:0]  scroll_win_col;
   logic [9:0] raster_line;       // control 7: line compare for the raster IRQ
   logic       map_wpage;  // CPU writes target this bank
+  logic       tile_wpage; // CPU tile-bank page: 0 = tiles 0..127, 1 = 128..255
   logic       map_dpage;  // fill/render reads this bank
   logic       map_dpage_next;
   /* verilator lint_off UNUSEDSIGNAL */
@@ -295,8 +296,8 @@ module dvi_tile #(
       case (cpu_tgt)
         2'd0: if (cpu_addr[11:0] < 12'(TM_WORDS))
                 tilemap[(map_wpage ? 13'(TM_WORDS) : 13'd0) + 13'(cpu_addr[11:0])] <= cpu_data;
-        2'd1: tilefont[cpu_addr[11:0]] <= cpu_data;
-        2'd2: sprite[cpu_addr[12:0]] <= cpu_data;
+        2'd1: tilefont[(tile_wpage ? 13'd4096 : 13'd0) + 13'(cpu_addr[11:0])] <= cpu_data;
+        2'd2: sprite[cpu_addr[11:0]] <= cpu_data;
         2'd3: begin
           if (cpu_addr < 13'(OAM_WORDS))
             scene_mem[{3'b0, cpu_addr[6:0]}] <= cpu_data;
@@ -344,6 +345,7 @@ module dvi_tile #(
       scroll_x_next <= 4'd0;
       scroll_y  <= 5'd0;
       map_wpage <= 1'b0;
+      tile_wpage <= 1'b0;
       map_dpage_next <= 1'b0;
       pal_set <= 3'd0;
       oam_base <= 6'd0;
@@ -375,10 +377,11 @@ module dvi_tile #(
         end
         4'hA: begin
           // 0xF200A: bits 7:2 OAM base descriptor, bits 10:8 palette set,
-          // bit 11 fixed 24-column left scroll window.
+          // bit 11 fixed 24-column left scroll window, bit 12 CPU tile page.
           oam_base <= cpu_data[7:2];
           pal_set  <= cpu_data[10:8];
           scroll_win_en <= cpu_data[11];
+          tile_wpage <= cpu_data[12];
         end
         4'hC: begin
           if (cpu_data[7:3] == 5'd31) begin
@@ -520,28 +523,34 @@ module dvi_tile #(
   logic [4:0]  ftrow;
   logic [3:0]  fgy;
   logic [4:0]  frow;
-  logic [11:0] fcell;
+  logic [12:0] fcell;
   logic [15:0] frow0, frow1;
   logic [6:0]  ncol;
   logic [2:0]  nstate;
-  logic [11:0] fncell;
+  logic [12:0] fncell;
   logic [15:0] fnrow0, fnrow1;
 
   wire [11:0] fill_base = row82(frow);
   wire [11:0] fill_cell_addr = fill_base + 12'(fcol);
   wire [11:0] next_cell_addr = fill_base + 12'(ncol);
-  wire [11:0] fill_row_addr = fcell + {7'b0, fgy, 1'b0};
-  // Text cells carry the glyph index in bits 11:5; the 1bpp page address is
-  // index*8 + page*768 + (row >> 1). Art cells keep the raw 32-word tile
-  // address and the 4bpp two-word row.
-  wire [11:0] txt_row_addr = {2'b00, fcell[11:5], 3'b0} +
-                             12'h020 +                       // tile 0 is blank art
-                             (fsty[0] ? 12'h300 : 12'h000) +
-                             {9'b0, fgy[3:1]};
-  wire [11:0] txt_next_row_addr = {2'b00, fncell[11:5], 3'b0} +
-                                  12'h020 +
-                                  (fnsty[0] ? 12'h300 : 12'h000) +
-                                  {9'b0, fgy[3:1]};
+  wire [12:0] fill_row_addr = fcell + {8'b0, fgy, 1'b0};
+  // Text cells carry the glyph index in cell bits 8:0. fcell holds the low
+  // eight cell bits shifted left five, so fcell[11:5] is the glyph (0..127).
+  // Glyphs 0..95 use the two 768-word ASCII pages at 0x020/0x320. Glyphs
+  // 96..127 (the German extras) live at 0x1000/0x1040 in the free upper half,
+  // so game art tiles 26..127 do not overwrite the regular console page.
+  wire       txt_ext      = fcell[11] & fcell[10];   // glyph >= 96
+  wire       txt_next_ext = fncell[11] & fncell[10];
+  wire [12:0] txt_row_addr = txt_ext
+    ? 13'h1000 + {5'b0, fcell[9:5], 3'b0} +
+      (fsty[0] ? 13'h040 : 13'h000) + {10'b0, fgy[3:1]}
+    : 13'h020 + {3'b0, fcell[11:5], 3'b0} +
+      (fsty[0] ? 13'h300 : 13'h000) + {10'b0, fgy[3:1]};
+  wire [12:0] txt_next_row_addr = txt_next_ext
+    ? 13'h1000 + {5'b0, fncell[9:5], 3'b0} +
+      (fnsty[0] ? 13'h040 : 13'h000) + {10'b0, fgy[3:1]}
+    : 13'h020 + {3'b0, fncell[11:5], 3'b0} +
+      (fnsty[0] ? 13'h300 : 13'h000) + {10'b0, fgy[3:1]};
 
   wire fill_stall = (fstate == F_PIX) && (fpix == 4'd7) &&
                     (fx != 10'(H_ACTIVE - 1)) && (nstate != N_READY);
@@ -568,16 +577,16 @@ module dvi_tile #(
   // ---- fill address mux --------------------------------------------------
   always_comb begin
     tm_raddr = 12'd0;
-    tf_raddr = 12'd0;
+    tf_raddr = 13'd0;
     case (fstate)
       F_FIRST_CELL: tm_raddr = fill_cell_addr;
       F_FIRST_ROW0: tf_raddr = fpal[3] ? txt_row_addr : fill_row_addr;
-      F_FIRST_ROW1: tf_raddr = fpal[3] ? txt_row_addr : fill_row_addr + 12'd1;
+      F_FIRST_ROW1: tf_raddr = fpal[3] ? txt_row_addr : fill_row_addr + 13'd1;
       F_PIX: begin
         case (nstate)
           N_CELL: tm_raddr = next_cell_addr;
-          N_ROW0: tf_raddr = fnpal[3] ? txt_next_row_addr : fncell + {7'b0, fgy, 1'b0};
-          N_ROW1: tf_raddr = fnpal[3] ? txt_next_row_addr : fncell + {7'b0, fgy, 1'b0} + 12'd1;
+          N_ROW0: tf_raddr = fnpal[3] ? txt_next_row_addr : fncell + {8'b0, fgy, 1'b0};
+          N_ROW1: tf_raddr = fnpal[3] ? txt_next_row_addr : fncell + {8'b0, fgy, 1'b0} + 13'd1;
           default: ;
         endcase
       end
@@ -695,12 +704,12 @@ module dvi_tile #(
       ftrow <= 5'd0;
       fgy <= 4'd0;
       frow <= 5'd0;
-      fcell <= 12'd0;
+      fcell <= 13'd0;
       frow0 <= 16'd0;
       frow1 <= 16'd0;
       ncol <= 7'd0;
       nstate <= N_IDLE;
-      fncell <= 12'd0;
+      fncell <= 13'd0;
       fnrow0 <= 16'd0;
       fnrow1 <= 16'd0;
       // `armed` and `free_seen` are configuration-initialised, not reset. On a
@@ -740,9 +749,11 @@ module dvi_tile #(
             fstate <= F_FIRST_CELL_Q;
           end
           F_FIRST_CELL_Q: begin
-            fcell <= {tm_q[11:5], 5'b0};   // mask the style bits out of the tile
+            // Clean cell: art tile is cell[7:0]; text glyph is cell[11:5]
+            // after the tile*32 shift. Style is cell[11:9].
+            fcell <= {tm_q[7:0], 5'b0};
             fpal  <= tm_q[15:12];
-            fsty  <= tm_q[2:0];
+            fsty  <= tm_q[11:9];
             fstate <= F_FIRST_ROW0;
           end
           F_FIRST_ROW0: begin
@@ -779,9 +790,9 @@ module dvi_tile #(
                 nstate <= N_CELL_Q;
               end
               N_CELL_Q: begin
-                fncell <= {tm_q[11:5], 5'b0};
+                fncell <= {tm_q[7:0], 5'b0};
                 fnpal  <= tm_q[15:12];
-                fnsty  <= tm_q[2:0];
+                fnsty  <= tm_q[11:9];
                 nstate <= N_ROW0;
               end
               N_ROW0: begin
@@ -864,7 +875,7 @@ module dvi_tile #(
   //
   // OAM: 64 descriptors of two words in scene_mem[0..127]:
   //   w0 = {behind, vflip, hflip, 1'b0, enable, xsign, x[9:0]}
-  //   w1 = {group[4:0], 1'b0, y[9:0]}  (flat group 0..23; 24..31 disabled)
+  //   w1 = {group[4:0], 1'b0, y[9:0]}  (flat group 0..15; 16..31 disabled)
   // Visible slot n reads descriptor (oam_base + n) % 64, so one control-5 store
   // swaps the whole set. The base is loaded into a 6-bit counter at the line
   // start (the counter wraps at 64), so the address path has no adder and the
@@ -883,24 +894,25 @@ module dvi_tile #(
   logic [2:0]  lspr;
   logic [3:0]  lw;
   logic [9:0]  lline;
-  logic [4:0]  lgrp;
+  logic [3:0]  lgrp;
   logic        lcap;
   logic [4:0]  lrow;
-  logic [12:0] laddr;
+  logic [11:0] laddr;
   logic [15:0] loam0, loam1;
 
   wire [6:0]  om_addr = {oam_desc, oam_phase};
   wire [4:0]  loam_group = loam1[15:11];
-  wire        loam_group_ok = (loam_group < 5'd24);
+  wire        loam_group_ok = (loam_group < 5'd16);
 
   assign spr_raddr = laddr;
 
-  logic [8:0] ltile;
+  logic [7:0] ltile;
   always_comb begin
-    ltile = {lgrp, 4'b0} + {5'b0, lrow[4:3], 2'b0} + {7'b0, lw[2:1]};
-    laddr = 13'd0;
+    ltile = 8'({1'b0, lgrp, 4'b0} + {5'b0, lrow[4:3], 2'b0} +
+                   {7'b0, lw[2:1]});
+    laddr = 12'd0;
     if (lstate == L_REQ)
-      laddr = 13'({ltile, 4'd0} + {9'd0, lrow[2:0], 1'b0} + {12'd0, lw[0]});
+      laddr = 12'({ltile, 4'd0} + {9'd0, lrow[2:0], 1'b0} + {12'd0, lw[0]});
   end
 
   always_ff @(posedge clk_render) begin
@@ -910,7 +922,7 @@ module dvi_tile #(
       oam_desc <= 6'd0;
       for (int i = 0; i < NSPR; i++)
         for (int j = 0; j < 8; j++) spw[i][j] <= 16'd0;
-      lgrp <= 5'd0; lcap <= 1'b0; lrow <= 5'd0;
+      lgrp <= 4'd0; lcap <= 1'b0; lrow <= 5'd0;
       for (int i = 0; i < NSPR; i++) begin
         spx0_bits[i*11 +: 11] <= 11'd0;
         spon_bits[i] <= 1'b0; spbh_bits[i] <= 1'b0; sphf_bits[i] <= 1'b0;
@@ -939,7 +951,7 @@ module dvi_tile #(
           lstate <= L_SPR;
         end
         L_SPR: begin
-          lgrp <= loam_group;
+          lgrp <= loam_group[3:0];
           if (!loam0[11] || !loam_group_ok || (lline < loam1[9:0]) ||
               ((lline - loam1[9:0]) >= 10'd32)) begin
             spon_bits[lspr] <= 1'b0;

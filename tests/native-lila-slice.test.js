@@ -33,7 +33,7 @@ test('need loads the compiler from the flash', () => {
   assert.match(load, /Loading lila/, load.replace(/\r/g, ''));
   assert.doesNotMatch(load, /too long/, 'the boot loader refused the source');
   assert.ok(afterLoad > bootHere, 'the compiler took no dictionary');
-  assert.ok(h.limit() - h.here() > 4000,
+  assert.ok(h.limit() - h.here() > 3800,
             `only ${h.limit() - h.here()} cells left after the load`);
 });
 

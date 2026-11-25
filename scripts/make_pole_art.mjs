@@ -10,8 +10,8 @@
 // image made of 4x4 8x8 patterns, 16 words per pattern.
 //
 // The art area of the tile bank is slots 96..127 (0..95 is the console font).
-// The renderer writes tile *word addresses* into the map, so tile n lives at
-// bank word n*32 and the cell word is n << 5.
+// The renderer writes tile indices into the map, so tile n lives at bank word
+// n*32 and the cell word is n.
 //
 // The sprite art is top-left aligned inside its 32x32 group: the renderer
 // places the group so that the box's top-left corner is (x, y), with y set so
@@ -560,9 +560,9 @@ export function poleSpriteGrids() {
   return groups.sort((a, b) => a.group - b.group);
 }
 
-// The tile art as one block of bank words. The tile bank is 128 tiles of 32
-// words, so the art tiles (96..127) are the last 1024 words of the bank and
-// the copy is a single block move.
+// The tile art as one block of bank words. The tile bank holds 256 tiles of
+// 32 words; Pole's art tiles (96..127) start at word 0xC00 and the copy is a
+// single 1,024-word block move.
 export function poleTileWords() {
   const words = [];
   for (const tile of poleTileGrids()) {

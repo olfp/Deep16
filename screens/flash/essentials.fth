@@ -40,8 +40,8 @@ variable spi-div-val drop
 : cf-protect ( -- ) cf-wren  2 cs! 1 spi! 0x38 spi!  0 cs! cf-wait ;
 : cf-unprotect ( -- ) cf-wren  2 cs! 1 spi! 0x00 spi!  0 cs! cf-wait ;
 
-\ The console attribute cell: 0x8000 | text pair << 12. The editor needs it
-\ without loading graphics, so it lives here with the console-adjacent words.
+\ The console attribute cell: 0x8000 | text pair << 12 | style << 9. The editor
+\ needs it without loading graphics, so it lives here with the console words.
 0x3C1F constant text-attr
 
 create dir-tmp 8 cells allot

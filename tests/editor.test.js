@@ -58,8 +58,8 @@ test('the editor loads a slice, edits it, saves it and exits', () => {
   const cell = (row, col) => sim.memory[0xF1000 + row * 82 + col] & 0xFFFF;
   const firstLine = slices.bytes.subarray(
     hello.first * SLICE_BYTES + 16, hello.first * SLICE_BYTES + 16 + 80);
-  assert.equal(cell(0, 0), 0x8000 | ((firstLine[0] - 32) * 32), 'row 0 starts with the file');
-  assert.equal(cell(0, 2), 0x8000 | ((firstLine[4] - 32) * 32), 'row 0 col 2');
+  assert.equal(cell(0, 0), 0x8000 | (firstLine[0] - 32), 'row 0 starts with the file');
+  assert.equal(cell(0, 2), 0x8000 | (firstLine[4] - 32), 'row 0 col 2');
 
   // '!' landed at the end of the first line.
   const off = SCREEN_BASE + hello.first * SLICE_BYTES;
@@ -70,4 +70,32 @@ test('the editor loads a slice, edits it, saves it and exits', () => {
   const lineEnd = words.slice(8, 8 + 200).indexOf(10);
   assert.ok(lineEnd > 0, 'the first line has a newline');
   assert.equal(words[8 + lineEnd - 1], '!'.charCodeAt(0), 'the edit was written back');
+});
+
+test('the editor draws and saves a German character', () => {
+  const sim = boot();
+  typeKeys(sim, 'hello\n');
+  for (const k of [0x05, 0xE4, 0x13, 0x11]) sim.kbdBuffer.push(k);
+
+  let steps = 0;
+  while (sim.running && steps < 30_000_000) { sim.step(); steps++; }
+  assert.equal(sim.running, false, 'the editor returned to the halt at 0x0200');
+
+  let found = false;
+  for (let r = 0; r < 24 && !found; r++) {
+    for (let c = 0; c < 80; c++) {
+      if ((sim.memory[0xF1000 + r * 82 + c] & 0x1FF) === 100) { found = true; break; }
+    }
+  }
+  assert.ok(found, 'the ä uses glyph slot 100 on the screen');
+
+  const off = SCREEN_BASE + hello.first * SLICE_BYTES;
+  let saved = false;
+  for (let i = 0; i < 2040; i++) {
+    if ((sim.spiFlash.mem[off + i * 2] | (sim.spiFlash.mem[off + i * 2 + 1] << 8)) === 0xE4) {
+      saved = true;
+      break;
+    }
+  }
+  assert.ok(saved, 'the saved slice carries the Latin-1 byte 0xE4');
 });

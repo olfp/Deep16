@@ -117,7 +117,7 @@ fit alongside this without a diet).
 ## FiT graphics (text mode, first board build)
 
 **FiT** — *Frogger inspired tile-based* — is the name of this graphics layer:
-the 82×26 tilemap, two 1bpp text pages plus 32-word 4bpp art, the eight 32×32 sprites, the
+the 82×26 tilemap, two 1bpp text pages plus 32-word 4bpp art, 16 sprite pattern groups, the
 three palette banks and the pair-mode text styles. `dvi_tile` is the module
 that implements it.
 
@@ -130,26 +130,28 @@ with:
 
 * an **82 x 26 tilemap of 16-bit cells** (80 x 24 visible plus two extra
   columns and two extra rows of scroll margin; 2,132 words = 3 BSRAM blocks).
-  `bit 15 = 0` is an art cell whose low 12 bits are a 32-word-aligned tile
-  address; `bit 15 = 1` is a text pair cell,
-  `0x8000 | (pair << 12) | style | glyph address`.
-* **128 tiles of 32 words** (all CPU-writable): 30 words of
+  `bit 15 = 0` is an art cell whose bits 14:0 are the tile index (the
+  256-tile build uses bits 8:0); `bit 15 = 1` is a text cell,
+  `0x8000 | (pair << 12) | (style << 9) | glyph`.
+* **256 tiles of 32 words** (all CPU-writable): 30 words of
   8x15 4bpp pixels. Words 30–31 are reserved; the build writes a palette
   pointer and flags there, currently zero, and the renderer reads only words
-  0–29. Text glyphs are `(ch - 0x20) * 32`; art cells use the raw tile
-  address.
+  0–29. Text glyphs are `(ch - 0x20)`; art cells use the raw tile index.
+  Control 5 bit 12 pages the 4 KiB CPU window over tiles 0–127/128–255.
 * **eight palette sets** of three 16-entry RGB332 banks (text `0xF6080`,
   art `0xF6090`, sprite `0xF60A0`, plus a spare bank) in one 1,024 x 16 BSRAM.
   Control 5 bits 10:8 pick the set. Text cells use `pix[0]` to select entry
   `2p` (paper) or `2p+1` (ink); mode-0 tiles read the art bank; every sprite
   reads the sprite bank.
 * **two 1-bit text pages**: tile 0 is a blank 32-word art tile; the regular
-  1bpp page starts at word 32 (96 glyphs x 8 words) and the italic page at word
-  800. Text cells address `32 + index*8 + page*768 + row/2`; art tiles stay at
-  `0x0C00`. The cell's low bits are style: bit 2 underline, bit 1 bold smear,
-  bit 0 italic page. The tile address is 32-word aligned, so the fill masks
-  bits 4:0 out of the art fetch. No BIOS change is needed: it already ORs the
-  whole `text_attr` word into the cell.
+  1bpp page starts at word 32 (96 ASCII glyphs x 8 words) and the italic page
+  at word 800. The seven German glyphs (Ä Ö Ü ß ä ö ü) sit at slots 96..102 in
+  the free upper half: regular at `0x1000`, italic at `0x1040`. Glyphs 0..95
+  address `32 + index*8 + page*768 + row/2`; glyphs 96..102 address
+  `0x1000 + (index-96)*8 + page*0x40 + row/2`. Art tiles stay at `0x0C00`.
+  The cell's style field is bits 11:9: bit 2 underline, bit 1 bold smear, bit 0
+  italic page. The fill reads the glyph from bits 8:0. No BIOS change is
+  needed: it already ORs the whole `text_attr` word into the cell.
 * a **line-buffer renderer**: line N is scanned from one 640-byte buffer while
   line N+1 is built from the tilemap/tile bank into the other. The scan is a
   plain 640x8 read, so palette lookups cannot stall the pixel clock.
@@ -240,8 +242,8 @@ a tile pixel cost the same lookup:
   `w1 = {group[4:0], free, y[9:0]}`. Only eight are visible at a time; slot
   `n` reads descriptor `(oam_base + n) % 64`, and control 5 bits 7:2 hold the
   base.
-* **Pattern bank** at `0xF4000..0xF57FF`: 24 groups x 16 8x8 4bpp patterns
-  (6,144 words). A 32x32 sprite is 16 tiles; `tile = group*16 + (row/8)*4 +
+* **Pattern bank** at `0xF4000..0xF4FFF`: 16 groups x 16 8x8 4bpp patterns
+  (4,096 words). A 32x32 sprite is 16 tiles; `tile = group*16 + (row/8)*4 +
   column`, `word = tile*16 + (row%8)*2 + half`. The window is flat: the OAM
   group and the CPU offset are the same absolute index, and control 5 is a
   legacy no-op.
@@ -319,8 +321,9 @@ Flash Initialization.
 
 The FiT tile build uses **UW ttyp0 8x15**:
 
-- `ttyp0-8x15.hex` — the regular 1bpp page (96 glyphs, 8 words per glyph)
-- `ttyp0-8x15-italic.hex` — the designed italic page
+- `ttyp0-8x15.hex` — 128 source slots: 96 ASCII + seven German glyphs + blanks,
+  8 words per glyph
+- `ttyp0-8x15-italic.hex` — the same slots from the designed italic page
 
 Each word holds two rows, low byte even, high byte odd, MSB leftmost. The
 regular page sits at tile-bank word 32 and the italic at word 800; tile 0 is

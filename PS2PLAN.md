@@ -6,6 +6,12 @@ is retired: the sender and the init live in the BIOS, `binit` runs them, and
 the `ps2host` slice is gone. The receiver, the open-drain host GPIO and the
 board pinout are unchanged; see `HARDWARE.md`.
 
+> **Phase C (in progress):** the Set-2 to ASCII mapping has moved out of the
+> receiver and into the BIOS software decoder; DE and US layouts are data, and
+> the pROM is gone. Synthesis and board verification are still outstanding. The
+> design and checklist are in [`PS2LAYOUT.md`](PS2LAYOUT.md); this file still
+> covers the host init and sender.
+
 ## 1. Why the keyboard needs a host and not just a receiver
 
 The port was receive-only until 2026-11-06. Some keyboards (the Periboard 409P)

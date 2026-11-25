@@ -46,7 +46,7 @@ It boots the segmented D16D image with the soft-float library, types the
 compiler in, runs the fixture program, compares the output with what
 `lua5.4` 5.4.8 prints, and asserts that the run leaves the data stack at
 depth 0. The compiler takes about 8.5k dictionary cells after the kernel
-boots, leaving about 4.1k free.
+boots, leaving about 3.9k free.
 
 ## On the device
 

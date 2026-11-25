@@ -84,8 +84,8 @@ The `D16SEG` build fixes the layout instead of the constant — see §4.4.
 | `0x0F00A0`–`0x0F00AF` | I2S: DATA/CTRL/STATUS (D16nano) |
 | `0x0F1000` | display window (screen RAM or tilemap, build-specific) |
 | `0x0F2000`–`0x0F200E` | tile control registers (tile build only) |
-| `0x0F3000`–`0x0F3FFF` | tile bank, all 128 tiles (tile build only) |
-| `0x0F4000`–`0x0F57FF` | sprite pattern bank, all 24 groups (tile build only) |
+| `0x0F3000`–`0x0F3FFF` | tile bank window, 128 tiles per page; control 5 bit 12 selects tiles 0–127/128–255 (tile build only) |
+| `0x0F4000`–`0x0F4FFF` | sprite pattern bank, all 16 groups (tile build only) |
 | `0x0F6000`–`0x0F60FF` | OAM / palette window (tile build only) |
 | `0x0F8000` | BIOS entry in the 1 MiB screen build |
 | `0x0FFFF0`–`0x0FFFFF` | 16-word boot ROM |
@@ -189,6 +189,10 @@ loader. The dictionary then continues at `0x6000`.
 | `ill_handler` | `0x5000` | ILL trap handler |
 | `word_divtest` | `0x5300` | `divtest` code |
 | `divtest_ok_str` | `0x532E` | `divtest ok` string |
+| `ps2_layout` | `0x57DC` | active PS/2 layout index (DE 0, US 1) |
+| `ps2_save_r2` / `ps2_save_r9` | `0x57DD` / `0x57DE` | f5 state parked across the decoder |
+| `ps2_decode` | `0x699C` | raw event -> ASCII (BIOS segment; `ps2_decode_end` follows) |
+| PS/2 layout tables | `0x6A90` | `layoutWords()`: 256 words per layout, DE/US today |
 | `ps2_r5` | `0x57E0` | PS/2 sender's saved R5/R6/LR/count cells |
 | `sfx_sv` | `0x57F0` | SFX saved R4-R12 cells; `sfx_frames` at `0x57F9` |
 | `word_serialread` | `0x4400` | machine-speed UART block read for XMODEM (delegates to BDOS 10 at `0x4800`) |
@@ -212,8 +216,6 @@ far-jumps to the segment the slice names with `R10`/`R11` as the return pair.
 | Pac-Man | 22–25 | `0x2000` |
 | Flappy | 26–33 | `0x5000` |
 | Frogger | 34–38 | `0x0600` |
-| Pole (racer) | 39–43 | `0x7000` |
-| Pole benchmark (polebench) | 62–66 | `0x7000` |
 
 The Frogger slice carries its own art: a tile pack at `0x1000` (magic
 `0x0A57`, count, then index + 32 words per tile) and a sprite pack at
@@ -230,11 +232,13 @@ Each of those blocks carries its tile art at segment offset `0x1000` (magic
 bank before entering the game, because the three art sets overlap (14 + 24 +
 79 tiles in 79 usable slots). The bitstream bakes only the console font.
 
-The Pole slice is the racer: the menu launches it with **R** (or
-`s" pole" game-run` from the prompt). It carries its own raw art blocks at
-`0x1000`/`0x1400`/`0x2600` and copies them in itself, because its tile block
-is not a `0x0A57` art pack and the menu's standard tile copy skips it. Its
-segment layout is:
+Pole is **developer-only** and is not in the default slice image: its 18
+sprite groups do not fit the 16-group bank. Build a local image with
+`node scripts/make_slices.mjs --with-pole` (or `SLICES_WITH_POLE=1 npm run
+flash:slices`) and launch it with `s" pole" game-run`; the menu no longer binds
+R. It carries its own raw art blocks at `0x1000`/`0x1400`/`0x2600` and copies
+them in itself, because its tile block is not a `0x0A57` art pack and the
+menu's standard tile copy skips it. Its segment layout is:
 
 | Offset | Contents |
 |---|---|
@@ -272,7 +276,7 @@ coarse start and fine phase.
 BIOS function 6 (`gfx`) checks the header,
 parks the Forth R5/R6, jumps to the entry, and on return clears the
 tilemap/scroll/OAM/cursor. The board's kernel calls it during boot, so the
-menu is the power-on screen (Flappy, Pac-Man, Frogger, Pole, Forth, or Flappy
+menu is the power-on screen (Flappy, Pac-Man, Frogger, Forth, or Flappy
 automatically after ten seconds).
 
 ### 4.2 D16nano stack cells
@@ -426,18 +430,36 @@ tile build stays RX-only.
 | Address | Name | Access | Meaning |
 |---|---|---|---|
 | `0xF0060` | `KBD_STATUS` | R | b0 data available |
-| `0xF0062` | `KBD_DATA` | R | pop a key |
+| `0xF0062` | `KBD_DATA` | R | pop a key or a raw event |
 | `0xF0064` | `ECHO_FLAG` | R/W | screen/keyboard echo |
 
-The keyboard FIFO is 16 entries. It is used by the simulation and the
-screen/IDE front end, and on the D16nano board it is also written by the PS/2
-receiver (`rtl/ps2_rx.sv`): every decoded ASCII byte is pushed into this FIFO
-*and* into the UART RX FIFO, so both the architectural keyboard port and the
-UART console see the key. The D16nano BIOS still polls the UART, so the PS/2
-path needs no BIOS change. `0xF0064` is ordinary RAM in the 1 MiB screen build
-but **not backed** on the 24K UART boards: reads return `0xFFFF`, writes are
-dropped. The D16nano kernel keeps its console/quiet state in kernel cells
-(`boot_quiet`, `line_out`).
+The keyboard FIFO is 16 entries of 16 bits. On the D16nano board the PS/2
+receiver (`rtl/ps2_rx.sv`) pushes a **raw make event**:
+
+| Bits | Meaning |
+|---|---|
+| 15 | 1 = raw event, 0 = legacy ASCII in bits 7:0 |
+| 14 | extended (`E0` prefix) |
+| 13 | Caps Lock |
+| 12 | Alt / AltGr |
+| 11 | Ctrl |
+| 10 | Shift |
+| 9 | reserved (break, 0 today) |
+| 8 | reserved |
+| 7:0 | Set-2 make code |
+
+The BIOS decoder (`ps2_decode`, image `0x699C`) maps the event through the
+layout tables at image `0x6A90`; DE is layout 0 and US is 1. The active index
+is the word at DS `0x57DC` (the image initialises it to 0). An ASCII host, such
+as the browser IDE or the WASM core, keeps pushing bytes with bit 15 clear and
+the decoder passes them through. The menu calls the decoder directly; games
+and `getch`/`getstr` reach it through BIOS. The PS/2 -> UART RX bridge and
+control-6 bit 11 are gone, so the UART is the separate `serial`/XMODEM stream.
+The old 2048 × 8 pROM is gone as well, freeing one BSRAM block.
+
+`0xF0064` is ordinary RAM in the 1 MiB screen build but **not backed** on the
+24K UART boards: reads return `0xFFFF`, writes are dropped. The D16nano kernel
+keeps its console/quiet state in kernel cells (`boot_quiet`, `line_out`).
 
 ### 7.3 D16nano cycle counter and display status
 
@@ -456,7 +478,7 @@ This is the benchmark time base; it is not a writable register.
 ### 7.4 FiT tile engine (`D16nano`/`DVI_TILE`)
 
 **FiT** (*Frogger inspired tile-based*) is the 82×26 tile/sprite layer: tilemap,
-4bpp tile bank, eight 32×32 sprites, palette banks and text styles. The
+4bpp tile bank, 16 sprite groups, palette banks and text styles. The
 programming guide is [`doc/FiT-Graphics-howto.md`](doc/FiT-Graphics-howto.md).
 
 Each window has a fixed base; the CPU write is forwarded to the tile engine
@@ -464,31 +486,33 @@ and is also a normal PSRAM/Forth store at the same address.
 
 | Address | Window | Contents |
 |---|---|---|
-| `0xF1000`–`0xF1853` | tilemap | 82×26 16-bit cells: `{mode, pair[2:0], tile[11:0]}`; visible 80×24 plus two margin columns and two margin rows; two banks |
+| `0xF1000`–`0xF1853` | tilemap | 82×26 16-bit cells: mode 1 text `{1, pair[2:0], style[2:0], glyph[8:0]}`, mode 0 art `{0, tile[14:0]}`; visible 80×24 plus two margin columns and two margin rows; two banks |
 | `0xF2000` | control 0 | `{row[4:0], col[6:0], enable}` cursor |
 | `0xF2002` | control 1 | 26-row circular row offset (0..25); 24 visible rows |
 | `0xF2004` | control 2 | smooth `scroll_x` (0..15), latched with control 4 at the frame boundary; 8 = centre for four-direction play |
 | `0xF2006` | control 3 | smooth `scroll_y` (0..30); 15 = centre for four-direction play |
 | `0xF2008` | control 4 | b0 write bank, b1 display bank (display bank and `scroll_x` swap at the render frame boundary) |
-| `0xF200A` | control 5 | scene select: b7:2 OAM base descriptor 0–63, b10:8 palette set 0–7, b11 column scroll window enable (bound and side in control 6 row 31); b1:0 are ignored |
+| `0xF200A` | control 5 | scene select: b7:2 OAM base descriptor 0–63, b10:8 palette set 0–7, b11 column scroll window enable (bound and side in control 6 row 31), b12 tile-bank CPU write page (0 = tiles 0–127, 1 = 128–255); b1:0 are ignored |
 | `0xF200C` | control 6 | per-row fine scroll: `{en, row[4:0], fine[2:0]}`; latched at the frame boundary. Row 31 is not a tile row: it sets the scroll window `{col[6:0], side}`, where `side` 0 keeps columns `0..col` static (left panel) and 1 keeps the rest static (right panel) |
 | `0xF200E` | control 7 | raster line compare 0..359 (`b9:0`); one SIC bit-3 pulse per frame |
-| `0xF3000`–`0xF3FFF` | tile bank | CPU window over **all 128 tiles** × 32 words: 30 words of 8×15 4bpp, words 30–31 reserved (currently zero) |
-| `0xF4000`–`0xF57FF` | sprite bank | **all 24 groups** × 16 patterns × 16 words = 6,144 words, contiguous; the OAM group is absolute. Control 5 is a compatibility no-op. |
+| `0xF3000`–`0xF3FFF` | tile bank | CPU window over **128 of the 256 tiles** × 32 words (page in control 5 b12): 30 words of 8×15 4bpp, words 30–31 reserved (currently zero). Tiles 128–131 hold the German regular/italic glyph extras |
+| `0xF4000`–`0xF4FFF` | sprite bank | **all 16 groups** × 16 patterns × 16 words = 4,096 words, contiguous; the OAM group is absolute. Control 5 is a compatibility no-op. |
 | `0xF6000`–`0xF607F` | OAM | 64 descriptors × 2 words: `w0={behind,vflip,hflip,free,enable,xsign,x[9:0]}`, `w1={group[4:0],free,y[9:0]}`. Visible slot `n` = descriptor `(base+n) mod 64` |
 | `0xF6080`–`0xF627F` | palettes | 8 sets × 4 banks × 16 entries: set `s`, bank `b` (0 text, 1 art, 2 sprite, 3 spare), entry `e` at `0xF6080 + s*64 + b*16 + e`. Set 0 is the old text/art/sprite layout |
 | rest of `0xF6280`–`0xF62FF` | — | reserved |
 
-Tile cell convention: mode 0 (`bit 15 = 0`) is the old art cell, where
-`bits 11:0` are a 32-word-aligned tile address and the 4bpp pixel index reads
-the art palette. Mode 1 (`bit 15 = 1`) is a text pair cell:
-`0x8000 | (pair << 12) | style | ((character - 0x20) * 32)`; `pix[0]` selects
-paper (entry `2p`) or ink (entry `2p+1`) from the text bank. The low five bits
-are style: bit 2 is generated underline, bit 1 the bold smear and bit 0 the
-italic 1-bit font page; the tile address is 32-word aligned, so the fill masks
-bits 4:0 out of the fetch. Text cells address the 1bpp pages at tile-bank word
-`32 + index*8 + page*768 + row/2`; tile 0 is the blank 32-word art tile and the
-art tiles stay at `0x0C00`. The
+Tile cell convention: mode 0 (`bit 15 = 0`) is an art cell, where bits 14:0
+are the tile index (`tile * 32` is the bank word) and the 4bpp pixel index
+reads the art palette. The current 256-tile build uses bits 7:0 and requires
+bits 14:8 to be zero. Mode 1 (`bit 15 = 1`) is a text cell:
+`0x8000 | (pair << 12) | (style << 9) | (character - 0x20)`; `pix[0]` selects
+paper (entry `2p`) or ink (entry `2p+1`) from the text bank. Bits 11:9 are
+style: bit 2 is generated underline, bit 1 the bold smear and bit 0 the
+italic 1-bit font page; the glyph index is in bits 8:0. Glyphs 0..95 address
+the 1bpp pages at tile-bank word `32 + glyph*8 + page*768 + row/2`; the seven
+German glyphs at slots 96..102 address `0x1000 + (glyph-96)*8 + page*0x40 +
+row/2`. Tile 0 is the blank 32-word art tile and the baked art starts at
+`0x0C00` (tile 96). The
 console's current pair/style lives at `0x3C1F` (`text_attr`), and the graphics
 words `PAL!`, `ART-PAL!`, `SPRITE-PAL!`, `ATTR`, `STYLE`, `ATTR!`, `ATTR@` and
 `STYLE@` drive it.
@@ -668,12 +692,10 @@ The upper, writable 2 MB of the config flash (`0x200000`–`0x3FFFFF`, sectors
 | `0x216000`–`0x219FFF` | slices 22–25: Pac-Man (8064 words incl. its tile pack, segment `0x2000`) |
 | `0x21A000`–`0x221FFF` | slices 26–33: Flappy (4560 words incl. pack, segment `0x5000`) |
 | `0x222000`–`0x226FFF` | slices 34–38: Frogger (9993 words incl. its tile and sprite packs, segment `0x0600`) |
-| `0x227000`–`0x22BFFF` | slices 39–43: Pole racer and its art (9776-word span, segment `0x7000`) |
-| `0x22C000` | slice 44: `hello.fth` |
-| `0x22D000` | slice 45: `ping` μ-law sample |
-| `0x22E000`–`0x233FFF` | slices 46–51: `swoosh` 2-second μ-law sample (linked) |
-| `0x234000`–`0x23DFFF` | slices 52–61: `lila` (the on-device LILA compiler) |
-| `0x23E000`–`0x242FFF` | slices 62–66: `polebench`, the on-board Pole timing harness |
+| `0x227000` | slice 39: `hello.fth` |
+| `0x228000` | slice 40: `ping` μ-law sample |
+| `0x229000`–`0x22EFFF` | slices 41–46: `swoosh` 2-second μ-law sample (linked) |
+| `0x22F000`–`0x238FFF` | slices 47–56: `lila` (the on-device LILA compiler) |
 
 `scripts/make_slices.mjs` builds `artifacts/image/slices.bin`;
 `npm run flash:slices` writes it at `0x200000`. The lower 2 MB (bitstream and

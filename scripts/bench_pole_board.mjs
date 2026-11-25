@@ -61,7 +61,7 @@ export function parseReport(line) {
 export function poleSliceInfo() {
   const pole = buildPoleBench();
   checkPole(pole);
-  const { manifest } = buildSlices();
+  const { manifest } = buildSlices({ includePole: true });
   return { pole, manifest, entry: manifest.objects.polebench };
 }
 

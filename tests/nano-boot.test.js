@@ -19,6 +19,18 @@ assert.equal(kernel.success, true, kernel.errors?.join('; '));
 const sym = kernel.symbols;
 const slices = buildSlices();
 
+// The flat nano image grows its dictionary from 0x6000, which is the same
+// address as the D16SEG decoder tail. This harness is the flat map, so put the
+// decoder back after the boot script has allocated its buffers; the board's
+// segmented map keeps it in the BIOS segment and needs no repair.
+function restoreDecoder(sim) {
+  for (const c of kernel.memoryChanges) {
+    if (c.address >= 0x699c || c.address === sym.ps2_layout) {
+      sim.memory[c.address] = c.value & 0xffff;
+    }
+  }
+}
+
 const sim = new globalThis.Deep16Simulator();
 sim.loadProgram(buildMemory(kernel));
 sim.spiFlash.mem.set(slices.bytes, SCREEN_BASE);
@@ -118,6 +130,7 @@ test('a newer slice boots on a kernel without the BDOS SPI words', () => {
   assert.match(out, /Loading edit/);
   assert.doesNotMatch(out, /undefined word/, 'the fallback covers the missing words');
 
+  restoreDecoder(older);
   for (const ch of 'cf-id\r') older.kbdBuffer.push(ch === '\r' ? 13 : ch.charCodeAt(0));
   const from = out.length;
   for (let i = 0; i < 20_000_000 && !out.slice(from).includes('85 60 16'); i++) pump(1);

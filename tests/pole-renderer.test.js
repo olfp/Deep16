@@ -82,7 +82,7 @@ test('rendering uses the FiT map banks, OAM, art palette, and sprite palette', (
   // A visible cell is an art-mode cell in the 96..127 game-art range.
   const cell = engine.tilemap[engine.mapDisplay][6 * engine.MAP_COLS + 20];
   assert.equal(cell & 0x8000, 0, 'road cells must use art mode');
-  assert.ok(((cell >> 5) & 0x7F) >= 96, 'road cells must use game-art tiles');
+  assert.ok((cell & 0x1FF) >= 96, 'road cells must use game-art tiles');
   assert.ok(engine.palette[0x10] !== 0, 'the art palette must be populated');
   assert.ok(engine.palette[0x20 + 1] !== 0, 'the sprite palette must be populated');
 

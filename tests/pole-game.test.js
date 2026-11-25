@@ -2,7 +2,7 @@
 // and check that the HUD reaches the tilemap and the car accelerated.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { loadBrowserScripts, MEM_WORDS } from './helpers.js';
+import { loadBrowserScripts, MEM_WORDS, installFakeBiosGetch } from './helpers.js';
 import { assemblePoleGame } from '../scripts/pole_program.mjs';
 
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
@@ -26,6 +26,7 @@ function boot() {
   sim.registers[11] = 0x0200;
   sim.registers[15] = 0;
   sim.running = true;
+  installFakeBiosGetch(sim);
   return sim;
 }
 
@@ -48,7 +49,7 @@ test('pole renders the HUD and quits on Esc', () => {
   assert.ok(sim.memory[(SEG << 4) + G_SPEED] > 0, 'Up accelerated the car');
 
   const cell = (row, col) => sim.memory[0xF1000 + row * 82 + col] & 0xFFFF;
-  assert.equal(cell(0, 0), 0x8000 | ((0x4C - 32) * 32), 'row 0 starts with LAP');
-  assert.equal(cell(0, 1), 0x8000 | ((0x41 - 32) * 32), 'row 0 has A');
-  assert.equal(cell(0, 2), 0x8000 | ((0x50 - 32) * 32), 'row 0 has P');
+  assert.equal(cell(0, 0), 0x8000 | (0x4C - 32), 'row 0 starts with LAP');
+  assert.equal(cell(0, 1), 0x8000 | (0x41 - 32), 'row 0 has A');
+  assert.equal(cell(0, 2), 0x8000 | (0x50 - 32), 'row 0 has P');
 });

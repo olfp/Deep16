@@ -228,7 +228,7 @@ test('the report is drawn into the visible tilemap as well', () => {
   for (let col = 0; col < 82; col++) {
     const word = sim.memory[TILE_BASE + REPORT_ROW * MAP_COLS + col] & 0xFFFF;
     if (!(word & 0x8000)) break;
-    screen += String.fromCharCode(0x20 + ((word >> 5) & 0x7F));
+    screen += String.fromCharCode(0x20 + (word & 0x1FF));
   }
   assert.equal(screen, line.replace(/\n$/, ''),
     'the screen and the UART have to show the same report');

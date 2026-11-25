@@ -21,14 +21,14 @@ import { buildSlices, SCREEN_BASE, SLICE_WORDS } from '../scripts/make_slices.mj
 
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
 
-const WINDOW = 0x6000;
+const WINDOW = 0x7000;
 const DS_SEG = 0x1000;
 const SS_SEG = 0x2000;
 const BIOS_SEG = 0x3000;
 const DS_LO = 0x3000;          // first image word copied to DS
 const DS_HI = 0x57dc;          // last one flash_boot copies
 const BIOS_LO = 0x4a00;        // the BIOS/demo block in the flat image
-const BIOS_HI = 0x5fff;        // includes the soft-float library at 0x5800
+const BIOS_HI = 0x6fff;        // FPU, the PS/2 decoder and the layout tables
 // The return stack is a DS window: LD/ST through DS is the only way the kernel
 // reaches it, so it cannot be a segment of its own.
 const RSTACK_TOP = 0x2ff0;
@@ -249,7 +249,7 @@ test('type-slice pages 23 lines and waits for a key', () => {
 test('edit-slice draws the first tile row without scrolling', () => {
   const TILE = 0xF1000;
   const cell = (r, c) => sim.memory[TILE + r * 82 + c] & 0x0FFF;
-  const glyph = (ch) => (ch.charCodeAt(0) - 0x20) * 32;
+  const glyph = (ch) => (ch.charCodeAt(0) - 0x20);
   const s = scratch(1);
   line(`${s} 0x0C slice-create`);
   line('slice-buf 8 cells + 2040 65 fill');
@@ -533,20 +533,20 @@ test('the palette words write the three banks and the console pair', () => {
 
   // STYLE preserves the pair; ATTR preserves the style; ATTR! sets both.
   line('4 style');
-  assert.equal(ds(sym.text_attr), 0xD004, 'STYLE adds underline bit 2');
+  assert.equal(ds(sym.text_attr), 0xD800, 'STYLE adds underline bit 2');
   assert.equal(number(line('style@ . cr'), 'style@ . cr'), 4);
   line('2 style');
-  assert.equal(ds(sym.text_attr), 0xD002, 'STYLE replaces underline with bold bit 1');
+  assert.equal(ds(sym.text_attr), 0xD400, 'STYLE replaces underline with bold bit 1');
   line('5 6 attr!');
-  assert.equal(ds(sym.text_attr), 0xD006, 'ATTR! sets pair 5 and both style bits');
+  assert.equal(ds(sym.text_attr), 0xDC00, 'ATTR! sets pair 5 and both style bits');
   assert.equal(number(line('attr@ . cr'), 'attr@ . cr'), 5);
   assert.equal(number(line('style@ . cr'), 'style@ . cr'), 6);
   line('0 attr');
-  assert.equal(ds(sym.text_attr), 0x8006, 'ATTR keeps the style bits');
+  assert.equal(ds(sym.text_attr), 0x8C00, 'ATTR keeps the style bits');
   line('0 style');
   assert.equal(ds(sym.text_attr), 0x8000, 'STYLE 0 clears the style bits');
   line('1 style');
-  assert.equal(ds(sym.text_attr), 0x8001, 'STYLE adds the italic page bit 0');
+  assert.equal(ds(sym.text_attr), 0x8200, 'STYLE adds the italic page bit 0');
   assert.equal(number(line('style@ . cr'), 'style@ . cr'), 1);
   line('0 style');
   assert.ok(sim.running);

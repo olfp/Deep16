@@ -28,10 +28,10 @@ the existing tile graphics with a small optional scroll extension.
 |---|---|
 | Visible canvas | 640 x 360, 80 x 24 cells of 8 x 15 px |
 | Tilemap | 82 x 26 words, **two banks**, 2,132 words each |
-| Tile bank | 128 tiles x 32 words, 4bpp; glyphs 0-95 CPU-writable, art 96-127 baked |
+| Tile bank | 256 tiles x 32 words, 4bpp; tiles 0-127 in page 0, 128-255 in page 1 |
 | Art slots | 32 total, 14 used by the birds/showcase, **18 free** |
 | Global scroll | `scroll_x` 0..15 and `scroll_y` 0..30, latched at the frame boundary |
-| Sprites | 8 x 32 x 32, 4bpp, 24 pattern groups, shared 16-entry palette |
+| Sprites | 8 visible, 32 x 32, 4bpp, 16 pattern groups, shared 16-entry palette |
 | CPU | 13.5 MHz; tilemap window at `0xF1000`, control at `0xF2000` |
 | Resources | 42 CLS, 343 logic cells (LUT/ALU), 3,832 FF and 3 BSRAM free |
 
@@ -114,7 +114,7 @@ A minimal set is 15-17 tiles:
 That fits the 18 free art slots. If the game needs more, it can load its own
 tiles into the 96 glyph slots at `0xF3000` and keep a compact HUD font in the
 rest; a standalone game does not need the console font while it runs. The whole
-128-tile bank is CPU-writable, so the font can be replaced at runtime.
+256-tile bank is CPU-writable in two pages, so the font can be replaced at runtime.
 
 Keep art cells in **mode 0** (the top nibble zero). COLORTEXT pair mode is for
 text; it would reduce a 4bpp car or log to two colours.

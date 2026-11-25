@@ -258,7 +258,7 @@ test('the renderer points at the art the slice carries', () => {
   const artTiles = new Set(poleTileGrids().map((t) => t.index));
   const seen = new Set();
   for (const cell of frame.cells) {
-    const tile = (cell >> 5) & 0x7F;
+    const tile = cell & 0x1FF;
     seen.add(tile);
   }
   for (const tile of seen) {

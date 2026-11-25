@@ -43,7 +43,7 @@ sim.spiFlash.mem.set(slices.bytes, SCREEN_BASE);
     for (let c = 0; c < 80; c++) {
       const tile = sim.memory[TILEMAP + r * COLS + c] & 0xFFFF;
       const blank = (tile & 0x0FFF) === SPACE_TILE;
-      out += blank ? ' ' : String.fromCharCode(((tile >> 5) & 0x7F) + 0x20);
+      out += blank ? ' ' : String.fromCharCode((tile & 0x1FF) + 0x20);
     }
     return out.replace(/\s+$/, '');
   };

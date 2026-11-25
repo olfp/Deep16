@@ -13,7 +13,7 @@ import { buildSlices, SCREEN_BASE } from '../scripts/make_slices.mjs';
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
 
 const kernel = assemble(fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8'),
-                        { defines: { CONSOLE_UART: 1, D16NANO: 1, D16D: 1,
+                        { defines: { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1, D16D: 1,
                                      CONSOLE_MIRROR: 1 } });
 const showcase = buildShowcase();
 const slices = buildSlices();
@@ -21,7 +21,7 @@ const GB = 0x50000;                    // Flappy's slice segment 0x5000
 
 const TILE = 0xF1000;
 const cell = (row, col) => TILE + row * 82 + col;
-const glyph = (ch) => (ch.charCodeAt(0) - 0x20) * 32;
+const glyph = (ch) => (ch.charCodeAt(0) - 0x20);
 const FRAME_PERIOD = 0x1000;
 
 function boot() {
@@ -29,12 +29,16 @@ function boot() {
   const sim = new Deep16Simulator();
   const mem = buildMemory(kernel);
   for (const [addr, value] of showcase.words) mem[SHOWCASE_SEG_BASE + addr] = value;
+  // The board map is segmented: copy the data and BIOS blocks the loader
+  // scatters, including the PS/2 decoder in the BIOS tail.
+  for (let w = 0x3000; w <= 0x57dc; w++) mem[(0x1000 << 4) + w] = mem[w];
+  for (let w = 0x4a00; w <= 0x6fff; w++) mem[(0x3000 << 4) + (w - 0x4a00)] = mem[w];
   sim.loadProgram(mem);
   sim.spiFlash.mem.set(slices.bytes, SCREEN_BASE);   // BDOS loads the games
-  sim.memory[kernel.symbols.boot_ptr] = 0;   // no baked demo script
+  sim.memory[(0x1000 << 4) + kernel.symbols.boot_ptr] = 0;   // no baked demo script
   sim.segmentRegisters.CS = 0xFFFF;
-  sim.segmentRegisters.DS = 0x0000;
-  sim.segmentRegisters.SS = 0x0000;
+  sim.segmentRegisters.DS = 0x1000;
+  sim.segmentRegisters.SS = 0x2000;
   sim.segmentRegisters.ES = 0x0000;
   sim.running = true;
   return sim;
@@ -125,7 +129,7 @@ test('a game may use R13/SP and still leave the Forth stack intact', () => {
   let text = '';
   steps += runText(sim, () => text.includes('> '), 1500000, (t) => { text += t; });
   const sp = sim.registers[13];
-  const spTop = sim.memory[kernel.symbols.sp_top];
+  const spTop = sim.memory[(0x1000 << 4) + kernel.symbols.sp_top];
   assert.equal(sp, spTop, 'the console starts on the kernel stack top');
 
   for (const ch of 'gfx\r') sim.kbdBuffer.push(ch.charCodeAt(0));
@@ -150,7 +154,7 @@ test('a game may use R13/SP and still leave the Forth stack intact', () => {
   }
   assert.ok(back, 'the game returned to the menu');
   assert.equal(sim.registers[13], sp, 'SP is back after the game');
-  assert.equal(sim.segmentRegisters.DS, 0, 'DS is back after the game');
+  assert.equal(sim.segmentRegisters.DS, 0x1000, 'DS is back after the game');
 });
 
 test('Q in the gfx menu returns to a working Forth prompt', () => {

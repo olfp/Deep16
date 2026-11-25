@@ -90,22 +90,27 @@ test('the loader writes tiles, sprites and palettes through the CPU windows', ()
 
   assert.deepEqual(counts, { tiles: TILE_WORDS, sprites: SPRITE_WORDS, palettes: PALETTE_WORDS });
 
-  // All 128 tile slots, including the upper bank that used to be read-only.
-  for (const i of [0, 96 * 32, 127 * 32 + 31]) {
-    assert.equal(sim.memory[0xF3000 + i], parsed.tiles[i]);
-  }
-  assert.equal(engine.writes.filter(([a]) => a >= 0xF3000 && a <= 0xF3FFF).length, TILE_WORDS);
+  // Page 0 reaches tiles 0..127 directly; page 1 writes tiles 128..255.
+  const pageWrites = engine.writes.filter(([a]) => a === 0xF200A);
+  assert.equal(pageWrites.length, 2, 'tile page set and cleared');
+  assert.equal(pageWrites[0][1] & 0x1000, 0x1000, 'page 1 selected for the high half');
+  const tileWrites = engine.writes.filter(([a]) => a >= 0xF3000 && a <= 0xF3FFF);
+  assert.equal(tileWrites.length, TILE_WORDS);
+  assert.equal(tileWrites[0][1], parsed.tiles[0], 'tile 0 starts page 0');
+  assert.equal(tileWrites[4095][1], parsed.tiles[4095], 'tile 127 ends page 0');
+  assert.equal(tileWrites[4096][1], parsed.tiles[4096], 'tile 128 starts page 1');
+  assert.equal(tileWrites[TILE_WORDS - 1][1], parsed.tiles[TILE_WORDS - 1], 'tile 255 ends it');
 
-  // All 24 sprite groups land in the flat 0xF4000..0xF57FF window; the legacy
+  // All 16 sprite groups land in the flat 0xF4000..0xF4FFF window; the legacy
   // page register is not used at all.
-  const landed = engine.writes.filter(([a]) => a >= 0xF4000 && a <= 0xF57FF);
+  const landed = engine.writes.filter(([a]) => a >= 0xF4000 && a <= 0xF4FFF);
   assert.equal(landed.length, SPRITE_WORDS);
   for (const [addr, value] of landed) {
     assert.equal(value, parsed.sprites[addr - 0xF4000], `sprite offset 0x${(addr - 0xF4000).toString(16)}`);
   }
-  assert.equal(engine.writes.filter(([a]) => a === 0xF200A).length, 0, 'no page register writes');
-  // The last group (23, offset 0x1700) survives in the flat JS memory.
-  for (const i of [4096, SPRITE_WORDS - 1]) {
+  assert.equal(engine.writes.filter(([a]) => a === 0xF200A).length, 2, 'tile page set and cleared');
+  // The last group (15) survives in the flat JS memory.
+  for (const i of [0, SPRITE_WORDS - 1]) {
     assert.equal(sim.memory[0xF4000 + i], parsed.sprites[i]);
   }
 
@@ -129,7 +134,7 @@ test('load runs flash install and the CPU-window load together', () => {
   const engine = { writes: 0, write() { this.writes++; } };
   const { parsed, counts } = loader.load(engine, sim, assets);
   assert.equal(counts.tiles, parsed.tiles.length);
-  assert.equal(engine.writes, TILE_WORDS + SPRITE_WORDS + PALETTE_WORDS);
+  assert.equal(engine.writes, TILE_WORDS + SPRITE_WORDS + PALETTE_WORDS + 2);
   assert.deepEqual(Buffer.from(sim.spiFlash.mem.slice(ASSET_BASE, ASSET_BASE + 4)).toString('ascii'), 'D16G');
 });
 
@@ -137,7 +142,7 @@ test('buildAssetScript carries the counts and base', () => {
   const script = buildAssetScript();
   assert.match(script, /const Deep16FlashAssets/);
   assert.match(script, /base: 0x300000/);
-  assert.match(script, /tileWords: 4096/);
-  assert.match(script, /spriteWords: 6144/);
+  assert.match(script, /tileWords: 8192/);
+  assert.match(script, /spriteWords: 4096/);
   assert.match(script, /paletteWords: 48/);
 });

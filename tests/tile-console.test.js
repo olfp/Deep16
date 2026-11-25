@@ -22,7 +22,7 @@ const TILEMAP = 0xF1000;     // ES:0x1000 with ES = 0xF000
 const COLS = 82;             // map stride; 80 visible plus two margin columns
 const ROWS = 24;             // visible rows
 const MAP_ROWS = 26;         // physical rows in the ring (two scroll margins)
-const SPACE_TILE = 0;        // tile 0 is the space glyph
+const SPACE_TILE = 0x8000;   // text cell for glyph 0 (space)
 
 const kernel = assemble(fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8'),
                         { defines: { CONSOLE_UART: 1, D16NANO: 1 } });
@@ -76,16 +76,16 @@ test('a bottom-row line feed clears the row that scrolls in', () => {
   // hidden margin row. It must hold the prompt and nothing else.
   const physical = (ROWS - 1 + 1) % MAP_ROWS;
   const first = cell(physical, 0);
-  assert.notEqual(first & 0x0FFF, 0x500, 'the Hello tile must have been cleared, not wrapped');
+  assert.notEqual(first & 0x1FF, 40, 'the Hello glyph must have been cleared, not wrapped');
   let text = '';
   for (let c = 0; c < 20; c++) {
     const tile = cell(physical, c);
-    const blank = (tile & 0x0FFF) === SPACE_TILE;
-    text += blank ? ' ' : String.fromCharCode(((tile >> 5) & 0x7F) + 0x20);
+    const blank = (tile & 0x1FF) === 0;
+    text += blank ? ' ' : String.fromCharCode((tile & 0x1FF) + 0x20);
   }
   assert.equal(text.trimEnd(), '>', `bottom row after the scroll is ${JSON.stringify(text)}`);
   for (let c = 2; c < COLS - 1; c++) {
-    assert.equal(cell(physical, c) & 0x0FFF, SPACE_TILE, `cell ${c} of the scrolled-in row is not blank`);
+    assert.equal(cell(physical, c) & 0x1FF, 0, `cell ${c} of the scrolled-in row is not blank`);
   }
 
   // The next line feed must scroll again; the old bug also wedged the offset
@@ -102,7 +102,7 @@ test('a bottom-row line feed clears the row that scrolls in', () => {
 });
 
 test('the text attribute carries underline, bold and italic into the tilemap cell', () => {
-  const styled = (ch, style) => 0x8000 | style | ((ch.charCodeAt(0) - 0x20) * 32);
+  const styled = (ch, style) => 0x8000 | (style << 9) | (ch.charCodeAt(0) - 0x20);
   const has = (value) => {
     for (let r = 0; r < MAP_ROWS; r++)
       for (let c = 0; c < COLS; c++)
@@ -110,18 +110,33 @@ test('the text attribute carries underline, bold and italic into the tilemap cel
     return false;
   };
 
-  sim.memory[sym.text_attr] = 0x8000 | 4;    // underline
+  sim.memory[sym.text_attr] = 0x8000 | (4 << 9);    // underline
   press('A');
   assert.ok(has(styled('A', 4)), 'underline bit reached the cell');
 
-  sim.memory[sym.text_attr] = 0x8000 | 2;    // bold
+  sim.memory[sym.text_attr] = 0x8000 | (2 << 9);    // bold
   press('B');
   assert.ok(has(styled('B', 2)), 'bold bit reached the cell');
 
-  sim.memory[sym.text_attr] = 0x8000 | 1;    // italic page
+  sim.memory[sym.text_attr] = 0x8000 | (1 << 9);    // italic page
   press('C');
   assert.ok(has(styled('C', 1)), 'italic page bit reached the cell');
 
   sim.memory[sym.text_attr] = 0x8000;
   press('\n');                               // clear the ABC line buffer
+});
+
+test('German keyboard characters use the extra glyph slots', () => {
+  // Put the console at the top-left and start from the plain pair/style.
+  sim.memory[sym.bios_tile_row] = 0;
+  sim.memory[sym.bios_tile_off] = 0;
+  sim.memory[sym.bios_tile_col] = 0;
+  sim.memory[sym.text_attr] = 0x8000;
+  const chars = 'ÄÖÜßäöü';
+  for (const ch of chars) press(ch);
+  const slots = [96, 97, 98, 99, 100, 101, 102];
+  for (let i = 0; i < chars.length; i++) {
+    assert.equal(cell(0, i) & 0x81FF, 0x8000 | slots[i],
+      `${chars[i]} should be glyph slot ${slots[i]}`);
+  }
 });

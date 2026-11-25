@@ -6,6 +6,11 @@ here constant dict-base
 unused 0x4000 u> constant psram?
 
 : ver ." DeepForth 1.1  BIOS 1.0  FPGA 1.1" cr ;
+
+\ PS/2 layout: 0 = DE, 1 = US. The BIOS decoder reads the same DS cell.
+0x57DC constant layout-cell
+: layout@ ( -- n )  layout-cell @ ;
+: layout! ( n -- )  0 max 4 min layout-cell ! ;
 : free ( -- d )    unused 0 ;
 : .addr ( u -- )    hex 0 u.r decimal ;
 : u. ( u -- )     0 u.r ;

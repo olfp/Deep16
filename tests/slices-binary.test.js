@@ -1,8 +1,9 @@
-// The type-4 binary slice: Pac-Man, Flappy, Frogger, Pole and the Pole
-// on-board timing harness stored in config flash instead of being baked into
-// the image. Payload cell 0 is the magic, then version, entry offset and word
-// count, then the block words (which include the tile pack at 0x1000). A
-// block may span linked continuation slices.
+// The type-4 binary slice: Pac-Man, Flappy and Frogger stored in config flash
+// instead of being baked into the image. Pole and its timing harness are
+// opt-in because Pole still needs a 16-group sprite port. Payload cell 0 is
+// the magic, then version, entry offset and word count, then the block words
+// (which include the tile pack at 0x1000). A block may span linked
+// continuation slices.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -37,7 +38,7 @@ test('the pacman block is a valid binary slice', () => {
 
 for (const [name, build] of [['pole', buildPole], ['polebench', buildPoleBench]]) {
   test(`the ${name} block is a valid binary slice`, () => {
-    const { words, manifest } = buildSlices();
+    const { words, manifest } = buildSlices({ includePole: true });
     const man = manifest.objects[name];
     assert.ok(man, `the directory lists ${name}`);
     assert.ok(man.count >= 1, 'at least one slice');
@@ -60,15 +61,15 @@ for (const [name, build] of [['pole', buildPole], ['polebench', buildPoleBench]]
   });
 }
 
-test('the image can be built without the pole objects', () => {
-  const full = buildSlices();
-  const lean = buildSlices({ includePole: false });
-  assert.equal(lean.manifest.objects.pole, undefined);
-  assert.equal(lean.manifest.objects.polebench, undefined);
-  assert.equal(lean.manifest.slices, full.manifest.slices - 10,
-    'the two five-slice pole blocks are left out');
+test('the default image excludes the pole objects', () => {
+  const shipped = buildSlices();
+  const full = buildSlices({ includePole: true });
+  assert.equal(shipped.manifest.objects.pole, undefined);
+  assert.equal(shipped.manifest.objects.polebench, undefined);
+  assert.equal(full.manifest.slices, shipped.manifest.slices + 10,
+    'opting in adds the two five-slice pole blocks');
   // The directory must not name them either.
-  const dir = lean.words.slice(0, SLICE_WORDS);
+  const dir = shipped.words.slice(0, SLICE_WORDS);
   const names = [];
   for (let i = 0; i < 255; i++) {
     const type = dir[8 + i * 8] & 0xff;
@@ -99,7 +100,7 @@ test('the directory lists the apps and their flags', () => {
     entries.push({ type, flags: (dir[8 + i * 8] >> 8) & 0xf, name: name.join('') });
   }
   const apps = entries.filter((e) => e.flags === 1).map((e) => e.name);
-  assert.deepEqual(apps.sort(), ['editor', 'flappy', 'frogger', 'pacman', 'pole', 'polebench']);
+  assert.deepEqual(apps.sort(), ['editor', 'flappy', 'frogger', 'pacman']);
   assert.ok(entries.some((e) => e.name === 'games' && e.type === TYPES.TEXT));
   assert.equal(entries.some((e) => e.name === 'ps2host'), false, 'the sender lives in the BIOS');
 });

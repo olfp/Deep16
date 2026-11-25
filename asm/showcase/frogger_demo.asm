@@ -52,19 +52,19 @@
 .equ SEG_OAM  -0x0A00          ; 0xF600 OAM + palette
 .equ SEG_UART -0xFFC           ; 0xF004 UART/status
 
-; tile values (tile index << 5)
-.equ T_WATER  0x720           ; 57 water
-.equ T_ROAD   0x740           ; 58 asphalt
-.equ T_LOG    0x760           ; 59..68 log: cap, cap, middle, cap, cap
-.equ T_TURTLE 0x8A0           ; 69..76 turtle
-.equ T_CAR_B  0x9A0           ; 77..84 blue car
-.equ T_CAR_Y  0xAA0           ; 85..92 yellow car
-.equ T_FIRE   0xBA0           ; 93..104 fire truck, six cells
-.equ T_TRUCK  0xD20           ; 105..120 truck, eight cells
-.equ T_GRASS  0xFC0           ; 126 ground
-.equ T_BAR    0xFE0           ; 127 time-bar cell
-.equ T_HEDGE  0x4C0           ; 38 hedge wall (home row)
-.equ T_BAY    0x340           ; 26..37 home bay: six cells, two rows
+; tile values (art cells carry the tile index directly)
+.equ T_WATER  57           ; 57 water
+.equ T_ROAD   58           ; 58 asphalt
+.equ T_LOG    59           ; 59..68 log: cap, cap, middle, cap, cap
+.equ T_TURTLE 69           ; 69..76 turtle
+.equ T_CAR_B  77           ; 77..84 blue car
+.equ T_CAR_Y  85           ; 85..92 yellow car
+.equ T_FIRE   93           ; 93..104 fire truck, six cells
+.equ T_TRUCK  105           ; 105..120 truck, eight cells
+.equ T_GRASS  126           ; 126 ground
+.equ T_BAR    127           ; 127 time-bar cell
+.equ T_HEDGE  38           ; 38 hedge wall (home row)
+.equ T_BAY    26           ; 26..37 home bay: six cells, two rows
 .equ T_PANEL  0x000           ; blank tile; palette art entry 0 is the panel
 
 ; BIOS sound effects (function 9 starts with a frame count, function 10 ticks
@@ -124,6 +124,7 @@
 .equ FR_HUD2   0xA3D           ; the same fields again next frame
 .equ FR_MSG    0xA3E           ; MSG_* panel prompt
 .equ FR_DIR    0xA3F           ; DIR_* facing of the last hop
+.equ FR_LR     0xA40           ; fr_keys' return address across a BIOS SWI
 
 .org 0
 fr_entry:
@@ -921,7 +922,6 @@ fr_paint:
     MOV R2, R0
     ADD R2, R11
     LDS R2, DS, R2
-    SL R2, 5                   ; object columns * 32 words
     ADD R8, R2
 fr_p_row0:
 
@@ -957,7 +957,6 @@ fr_ps_cell:
     NOP
     AND R4, R7                 ; slice inside the object
     MOV R2, R4
-    SL R2, 5
     ADD R2, R8
     LDI fr_ps_store
     MOV PC, R0
@@ -1013,7 +1012,6 @@ fr_pl_cap_r:
     MOV PC, R0
     NOP
 fr_pl_emit:
-    SL R2, 5
     ADD R2, R8
     LDI fr_pl_store
     MOV PC, R0
@@ -1288,7 +1286,6 @@ fr_ph_col:
     MOV R4, R0
     ADD R5, R4
     MOV R6, R5
-    SL R6, 5
 fr_ph_store:
     STS R6, ES, R3
     ADD R3, 1
@@ -1341,7 +1338,6 @@ fr_t_loop:
     LDI 0x20
     MOV R2, R0
     SUB R1, R2
-    SL R1, 5
     OR R1, R5
     STS R1, ES, R3
     ADD R3, 1
@@ -1511,7 +1507,6 @@ fr_n_emit:
     LDI 0x10                   ; glyph for '0' + digit
     MOV R4, R0
     ADD R3, R4
-    SL R3, 5
     LDI 0x2000                 ; the text-cell bit, 0x8000
     MOV R4, R0
     SL R4, 2
@@ -1548,7 +1543,6 @@ fr_digit1:
     LDI 0x10
     MOV R4, R0
     ADD R5, R4
-    SL R5, 5
     LDI 0x2000
     MOV R4, R0
     SL R4, 2
@@ -1646,19 +1640,17 @@ fr_w_loop:
     NOP
 
 fr_keys:
-    MOV R12, LR
-    LDI SEG_UART
-    MVS ES, R0
-    LDI 0x20
+    ; Park LR in game data: the BIOS SWI may clobber R12.
+    LDI FR_LR
     MOV R2, R0
-    LDS R1, ES, R2
-    LSI R3, 1
-    AND R1, R3
+    ST LR, R2, 0
+    LDI 4                      ; BIOS getch decodes the raw FIFO event
+    SWI
+    SMV R1, AR0
+    LDI -1
+    CMP R1, R0
     JZ fr_k_done
     NOP
-    LDI 0x22
-    MOV R2, R0
-    LDS R1, ES, R2
     LDI 0x71
     MOV R3, R0
     CMP R1, R3
@@ -1883,7 +1875,9 @@ fr_k_exit:
     MOV PC, R0
     NOP
 fr_k_done:
-    MOV LR, R12
+    LDI FR_LR
+    MOV R2, R0
+    LD LR, R2, 0
     JMP LR
     NOP
 

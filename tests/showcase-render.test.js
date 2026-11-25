@@ -61,9 +61,9 @@ test('the frog hops on keys', () => {
 test('the home row is five bays in a hedge', () => {
   const r = renderScene({ scene: 'frogger', frames: 1, warmup: 200000 });
   const cell = (bank, row, col) => r.engine.tilemap[bank][row * 82 + col];
-  const hedge = 38 << 5;
-  const bayTop = 26 << 5;
-  const bayBottom = 32 << 5;
+  const hedge = 38;
+  const bayTop = 26;
+  const bayBottom = 32;
   for (const bank of [0, 1]) {
     for (const row of [0, 1]) {
       // Nine hedge cells at each end of the playfield.
@@ -74,7 +74,7 @@ test('the home row is five bays in a hedge', () => {
         const base = 33 + bay * 8;
         for (let c = 0; c < 6; c++) {
           assert.equal(cell(bank, row, base + c),
-            (row === 0 ? bayTop : bayBottom) + c * 32, `bay ${bay} col ${c}`);
+            (row === 0 ? bayTop : bayBottom) + c, `bay ${bay} col ${c}`);
         }
         assert.equal(cell(bank, row, base + 6), hedge, `gap after bay ${bay}`);
       }

@@ -351,17 +351,18 @@ module deep16_board (
   // ---- PS/2 keyboard ---------------------------------------------------
   // The keyboard's 5 V open-collector clock/data lines reach the FPGA through
   // the external level shifter board; the pins here are the 3.3 V side. The
-  // receiver runs in the CPU clock domain and its ASCII output feeds both the
-  // UART RX FIFO (the D16nano console) and the architectural keyboard FIFO
-  // (0xF0060/0xF0062), so the existing BIOS and game input paths need no
-  // change.
+  // receiver runs in the CPU clock domain and emits raw make events to the
+  // architectural keyboard FIFO (0xF0060/0xF0062). The BIOS software decoder
+  // maps them through the selected layout; see PS2LAYOUT.md.
 `ifdef D16NANO
   localparam int PS2_CLK_HZ = 6_750_000;
 `else
   localparam int PS2_CLK_HZ = 13_500_000;
 `endif
   logic       ps2_valid, ps2_frame_error, ps2_frame;
-  logic [7:0] ps2_ascii;
+  logic       ps2_extended;
+  logic [7:0] ps2_scan;
+  logic [3:0] ps2_modifiers;
   logic       ps2_clk_drive, ps2_data_drive;   // 1 = pull the line low
   logic       ps2_frame_toggle;                // toggles on every good frame
 
@@ -376,7 +377,9 @@ module deep16_board (
     .ps2_clk     (ps2_clk),
     .ps2_data    (ps2_data),
     .valid       (ps2_valid),
-    .ascii       (ps2_ascii),
+    .extended    (ps2_extended),
+    .scan_code   (ps2_scan),
+    .modifiers   (ps2_modifiers),
     .frame_error (ps2_frame_error),
     .frame_valid (ps2_frame)
 `ifdef D16NANO
@@ -386,7 +389,11 @@ module deep16_board (
   );
   /* verilator lint_on PINMISSING */
 
-  wire ps2_key = ps2_valid && (ps2_ascii != 8'h00);
+  // A raw event carries its modifier snapshot and E0 prefix. Bit 15 marks it
+  // as raw so ASCII pushed by a host (IDE/WASM) can still pass through the
+  // software decoder unchanged.
+  wire [15:0] ps2_event = {1'b1, ps2_extended, ps2_modifiers, 1'b0, 1'b0, ps2_scan};
+  wire        ps2_key   = ps2_valid;
 
   // The BIOS binit waits for the keyboard's ACK and BAT by watching this bit
   // change; it costs one flop and needs no return path into software.
@@ -404,28 +411,20 @@ module deep16_board (
 
   // PS/2 host GPIO: control 6 (0x200C) only uses bit 8; bits 9 and 10 are free
   // and are snooped here before the tile FIFO.  bit 9 = drive CLK low,
-  // bit 10 = drive DATA low.
-  // Control 6 bit 11 is the legacy PS/2 -> UART bridge gate. It resets off:
-  // the console and games read the keyboard FIFO, and the UART is the separate
-  // serial stream for `serial`/`xmodem`. The disabled push mux stays in the
-  // netlist, which is the form that still fits; a hard tie changed the
-  // placement and lost 15 CLS.
-  logic uart_push_en;
+  // bit 10 = drive DATA low. Bit 11 is reserved (it was the legacy
+  // PS/2 -> UART bridge gate, removed with the hardware ASCII decoder).
   always_ff @(posedge clk_cpu) begin
     if (rst) begin
       ps2_clk_drive  <= 1'b0;
       ps2_data_drive <= 1'b0;
-      uart_push_en   <= 1'b0;
     end else if (tile_we && tile_ctrl && (tile_addr == 13'h00C)) begin
       ps2_clk_drive  <= tile_data[9];
       ps2_data_drive <= tile_data[10];
-      uart_push_en   <= tile_data[11];
     end
   end
 `else
   assign ps2_clk_drive  = 1'b0;
   assign ps2_data_drive = 1'b0;
-  logic uart_push_en = 1'b0;
 `endif
   logic        o_done, o_result, o_busy;
   logic [31:0] cache_hits, cache_misses, cache_penalty;
@@ -458,17 +457,15 @@ module deep16_board (
     .o_result (o_result),
     .o_busy   (o_busy),
 
-    // PS/2 keys arrive on both doors: the D16nano BIOS polls the UART RX
-    // FIFO, while the 0xF0060/62 port stays available for software that uses
-    // the architectural keyboard interface. On this build only one of them is
-    // read, so a key is not consumed twice.
+    // The PS/2 receiver is the only board key source. Its raw events go to
+    // the architectural keyboard FIFO; the UART is a separate serial stream.
     .kbd_push      (ps2_key),
-    .kbd_push_data ({8'h00, ps2_ascii}),
+    .kbd_push_data (ps2_event),
     .kbd_clear     (rst),
 
     // the console is the pins; the host push/take path is a simulation facility
-    .uart_rx_push       (ps2_key && uart_push_en),
-    .uart_rx_push_data  ({8'h00, ps2_ascii}),
+    .uart_rx_push       (1'b0),
+    .uart_rx_push_data  (16'h0000),
     .uart_tx_take       (1'b0),
     .uart_host_ctrl_we  (1'b0),
     .uart_host_ctrl_data(16'h0000),

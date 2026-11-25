@@ -1,10 +1,13 @@
 #!/usr/bin/env node
 // scripts/make_tile_font.mjs - build the tile bank's text pages and art.
 //
-// Text is two 1-bit pages, 8 words per glyph (two rows per word, MSB leftmost):
-// tile 0 is a blank 32-word art tile, the regular page starts at word 32 and
-// the italic page at word 800. A text cell's bits 11:5 are the glyph index;
-// the fill reads 32 + index*8 + page*768 + (row >> 1).
+// Text is two 96-glyph 1-bit pages, 8 words per glyph (two rows per word, MSB
+// leftmost): tile 0 is a blank 32-word art tile, the regular page starts at
+// word 32 and the italic page at word 800. A text cell's bits 11:5 are the
+// glyph index; for glyphs 0..95 the fill reads 32 + index*8 + page*768 +
+// (row >> 1). The seven German glyphs live at slots 96..102 in the free upper
+// half: regular at word 0x1000 and italic at 0x1040. Keeping them out of the
+// 0x620..0xBFF gap leaves the game art slots where they were.
 //
 // The 32 game-art tiles stay 32 words of 4bpp pixels at tile address 0x0C00:
 //   words  0..29   15 rows x 2 words, four 4bpp pixels per word
@@ -25,24 +28,27 @@ import { froggerArtTiles } from './make_frogger_art.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 export const TILE_WORDS = 32;
-export const FONT_TILES = 96;       // printable ASCII 0x20..0x7F
-export const FONT_PAGE_WORDS = FONT_TILES * 8;   // 1bpp: 8 words per glyph
+export const FONT_SLOTS = 128;      // source slots: ASCII 96 + seven German + blanks
+export const FONT_ASCII = 96;       // the two 768-word pages stay ASCII-only
+export const FONT_PAGE_WORDS = FONT_ASCII * 8; // 1bpp: 8 words per glyph
+export const FONT_EXTRA_BASE = 0x1000; // regular extras at tile 128
+export const FONT_EXTRA_ITALIC = 0x1040; // italic extras at tile 130
 export const FONT_BASE = 32;        // tile 0 is the blank 32-word art tile
 export const FONT_PAGE_COUNT = 2;   // regular, then the italic page
-export const ART_BASE = FONT_TILES * TILE_WORDS; // 3,072, unchanged
-export const TILE_COUNT = 128;      // 96 font slots + 32 game-art tiles
+export const ART_BASE = 96 * TILE_WORDS; // 3,072: the baked art stays at tile 96
+export const TILE_COUNT = 256;      // 96 font slots + 160 art slots
 export const TILE_BANK_WORDS = TILE_WORDS * TILE_COUNT;
 
 // One 8x15 glyph, two rows per 16-bit word, low byte even row, MSB leftmost.
-export function readFontWords(file = path.join(ROOT, 'rtl', 'dvi', 'font8x15.hex')) {
+export function readFontWords(file = path.join(ROOT, 'rtl', 'dvi', 'ttyp0-8x15.hex')) {
   const words = [];
   for (const raw of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
     const line = raw.trim();
     if (!line || line.startsWith('/') || line.startsWith('#')) continue;
     words.push(parseInt(line, 16) & 0xFFFF);
   }
-  if (words.length !== FONT_TILES * 8) {
-    throw new Error(`${file}: expected ${FONT_TILES * 8} font words, got ${words.length}`);
+  if (words.length !== FONT_SLOTS * 8) {
+    throw new Error(`${file}: expected ${FONT_SLOTS * 8} font words, got ${words.length}`);
   }
   return words;
 }
@@ -88,9 +94,16 @@ export function fontPage(fontWords, { italic = false } = {}) {
   return out;
 }
 
-// Two 1bpp pages at 0..1,535, then the 32 art tiles at 3,072. The gap stays
-// zero; the art base is unchanged so the game constants do not move. The
-// regular and italic pages come from ttyp0-8x15*.hex by default.
+// The two 768-word pages at 32 and 800, then the 32 baked art tiles at 3,072.
+// The seven German glyphs sit outside the pages at 0x1000 (regular) and 0x1040
+// (italic), in the free upper half of the 256-tile bank.
+export function extraPage(fontWords) {
+  const out = [];
+  const base = FONT_ASCII * 8;
+  for (let i = 0; i < 7 * 8; i++) out.push(fontWords[base + i] & 0xFFFF);
+  return out;
+}
+
 export function tileFontWords(fontWords, italicWords = fontPage(fontWords, { italic: true })) {
   const out = new Array(TILE_WORDS * TILE_COUNT).fill(0);
   const regular = fontPage(fontWords);
@@ -98,6 +111,12 @@ export function tileFontWords(fontWords, italicWords = fontPage(fontWords, { ita
   for (let i = 0; i < FONT_PAGE_WORDS; i++) {
     out[FONT_BASE + i] = regular[i];
     out[FONT_BASE + FONT_PAGE_WORDS + i] = italic[i];
+  }
+  const extraRegular = extraPage(fontWords);
+  const extraItalic = extraPage(italicWords);
+  for (let i = 0; i < extraRegular.length; i++) {
+    out[FONT_EXTRA_BASE + i] = extraRegular[i];
+    out[FONT_EXTRA_ITALIC + i] = extraItalic[i];
   }
   // The game art is not baked any more: Flappy, Pac-Man and Frogger each carry
   // a tile pack in their slice and the menu copies it into the bank on launch.

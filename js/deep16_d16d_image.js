@@ -137,7 +137,8 @@ class Deep16D16DImage {
   }
 
   static build({ kernel, softfloat = null, forthFloat = null, showcase, flappy, flappyDefs,
-                 pacmanMap, pacmanGame, frogger, defines = {}, bakePacman = false, packs = {} } = {}) {
+                 pacmanMap, pacmanGame, frogger, defines = {}, bakePacman = false, packs = {},
+                 layouts = null, layoutBase = 0x6a90 } = {}) {
     if (typeof kernel !== 'string' || !kernel.trim()) throw new Error('D16D image needs kernel source');
     if (typeof showcase !== 'string') throw new Error('D16D image needs the showcase source');
     if (bakePacman && forthFloat !== null) {
@@ -203,6 +204,18 @@ class Deep16D16DImage {
         const pa = PACMAN_BASE + change.address;
         if (pa < WINDOW) words[pa] = change.value & 0xFFFF;
         else outOfWindow.add(pa);
+      }
+    }
+
+    // PS/2 layout data lives in the free BIOS-image tail. The browser build
+    // receives it from the generator; without it the ASCII host path still
+    // works, but the image is not the board image.
+    if (layouts) {
+      for (let i = 0; i < layouts.length; i++) {
+        const a = layoutBase + i;
+        if (a >= WINDOW) throw new Error(`PS/2 layout table over the image at 0x${a.toString(16)}`);
+        if (words[a] !== 0xFFFF) throw new Error(`PS/2 layout table overwrites 0x${a.toString(16)}`);
+        words[a] = layouts[i] & 0xFFFF;
       }
     }
 

@@ -14,7 +14,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { loadBrowserScripts } from './helpers.js';
+import { loadBrowserScripts, installFakeBiosGetch } from './helpers.js';
 import { buildShowcase, checkShowcase, SHOWCASE_SEG_BASE
 } from '../scripts/make_showcase.mjs';
 import { birdSpriteWords } from '../scripts/make_bird_sprite.mjs';
@@ -74,8 +74,7 @@ function start(mode) {
   sim.memory[UART_STATUS] = 0;
   // Stand-alone game: no kernel/BIOS. A RETI at a free address makes the
   // BIOS sound SWI calls no-ops; the menu/boot tests use the real vector.
-  sim.memory[2] = 0xE000;
-  sim.memory[0xE000] = 0xFFF3;
+  installFakeBiosGetch(sim);
   sim.memory[G_PLAYS] = 0;
   sim.cycleCount = 0;
   // The slice installs its 6,144-word sprite pack before the game loop. Let
@@ -175,10 +174,10 @@ test('the reset picks a bird, its palette and the legacy write page', () => {
   assert.equal(r.sim.memory[PAL_BODY], BIRD_COLOURS[page][0], 'body palette entry');
   assert.equal(r.sim.memory[PAL_BELLY], BIRD_COLOURS[page][1], 'belly palette entry');
 
-  // The bird OAM group is absolute: page * 8 + a pose in 3..7.
+  // The selected page is loaded at groups 0..7; the bird uses 3..7.
   const birdW1 = r.sim.memory[OAM_BASE + 1];
   const birdGroup = (birdW1 >> 11) & 0x1f;
-  assert.ok(birdGroup >= page * 8 + 3 && birdGroup <= page * 8 + 7,
+  assert.ok(birdGroup >= 3 && birdGroup <= 7,
             `bird group ${birdGroup} for page ${page}`);
 
   // The four cloud sprites are behind the map, in absolute group 2, enabled.
@@ -259,7 +258,7 @@ test('Flappy reinstalls its sprite bank after another game', () => {
   // slice carries the bird/Pac-Man pack at 0x2000 and copies it back on entry.
   const sim = new globalThis.Deep16Simulator();
   placeFlappy(sim);
-  for (let i = 0; i < flappySprites.length; i++) sim.memory[0xF4000 + i] = 0xAAAA;
+  for (let i = 0; i < 4096; i++) sim.memory[0xF4000 + i] = 0xAAAA;
   sim.d16nano = true;
   sim.registers[9] = 0;
   sim.registers[10] = 0x04A0;
@@ -267,15 +266,18 @@ test('Flappy reinstalls its sprite bank after another game', () => {
   sim.registers[15] = 0;
   sim.segmentRegisters = { CS: 0x5000, DS: 0x5000, SS: 0, ES: 0 };
   sim.memory[UART_STATUS] = 0;
-  sim.memory[2] = 0xE000;
-  sim.memory[0xE000] = 0xFFF3;
+  installFakeBiosGetch(sim);
   sim.memory[G_PLAYS] = 0;
   sim.cycleCount = 0;
   sim.running = true;
   for (let i = 0; i < 0x20000 && (sim.memory[G_BIRD_Y] & 0xFFFF) === 0xFFFF; i++)
     sim.step();
-  for (let i = 0; i < flappySprites.length; i++) {
-    assert.equal(sim.memory[0xF4000 + i] & 0xFFFF, flappySprites[i] & 0xFFFF,
+  // Only the selected 2,048-word page is resident now.
+  const colour = sim.memory[GB + 0x4FF] & 0xFFFF;
+  assert.ok(colour <= 2, `bird colour ${colour}`);
+  for (let i = 0; i < 2048; i++) {
+    assert.equal(sim.memory[0xF4000 + i] & 0xFFFF,
+                 flappySprites[colour * 2048 + i] & 0xFFFF,
                  `sprite word ${i} restored from the slice`);
   }
 });

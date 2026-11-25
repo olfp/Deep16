@@ -1,10 +1,15 @@
 #!/usr/bin/env node
 // scripts/bdf_to_font.mjs - convert an 8x15 BDF font to the DVI font ROM.
 //
-// The DVI text console stores 96 glyphs (0x20..0x7F), 15 rows each, two rows
-// per 16-bit word: low byte = even row, high byte = odd row, MSB leftmost.
-// A BDF whose FONTBOUNDINGBOX is 8x15 (the same cell as the console) maps
-// directly; a shorter bitmap is centred vertically and padded with blank rows.
+// The DVI text console stores 96 printable ASCII glyphs (0x20..0x7F), 15 rows
+// each, two rows per 16-bit word: low byte = even row, high byte = odd row, MSB
+// leftmost. A BDF whose FONTBOUNDINGBOX is 8x15 (the same cell as the console)
+// maps directly; a shorter bitmap is centred vertically and padded with blank
+// rows.
+//
+// The FiT tile build uses 128 page slots. Pass --latin1 to append the seven
+// German glyphs at slots 96..102 after ASCII, then pad the rest blank:
+//   Ä Ö Ü ß ä ö ü -> 0xC4 0xD6 0xDC 0xDF 0xE4 0xF6 0xFC
 //
 // Usage:
 //   node scripts/bdf_to_font.mjs font.bdf rtl/dvi/font8x15.hex
@@ -46,10 +51,24 @@ export function glyphRows(g, rowCount = 15) {
   return rows;
 }
 
-export function fontWords(glyphs) {
+export const LATIN1_GLYPHS = [0xC4, 0xD6, 0xDC, 0xDF, 0xE4, 0xF6, 0xFC];
+export const PAGE_GLYPHS = 128;
+
+// The BDF source order is ASCII first, then the seven German glyphs at slots
+// 96..102, then blank padding to 128. `latin1: false` keeps the legacy 96-word
+// output used by the plain dvi_text font.
+export function fontWords(glyphs, { latin1 = false } = {}) {
+  const codes = [];
+  for (let code = 0x20; code <= 0x7F; code++) codes.push(code);
+  if (latin1) {
+    codes.push(...LATIN1_GLYPHS);
+    while (codes.length < PAGE_GLYPHS) codes.push(0);
+  }
+  const blank = { w: 8, h: 15, rows: Array(15).fill(0) };
   const words = [];
-  for (let code = 0x20; code <= 0x7F; code++) {
-    const g = glyphs.get(code) ?? glyphs.get(0x20) ?? { w: 8, h: 15, rows: Array(15).fill(0) };
+  for (const code of codes) {
+    const g = code === 0 ? blank
+      : glyphs.get(code) ?? glyphs.get(0x20) ?? blank;
     const rows = glyphRows(g);
     for (let i = 0; i < 15; i += 2) {
       words.push(rows[i] | ((i + 1 < 15 ? rows[i + 1] : 0) << 8));
@@ -71,8 +90,11 @@ if (isMain) {
     console.error(`${src}: no printable ASCII glyphs found`);
     process.exit(1);
   }
-  const words = fontWords(glyphs);
+  const latin1 = process.argv.includes('--latin1');
+  const words = fontWords(glyphs, { latin1 });
   fs.mkdirSync(path.dirname(dst), { recursive: true });
   fs.writeFileSync(dst, words.map((w) => w.toString(16).padStart(4, '0')).join('\n') + '\n');
-  console.log(`wrote ${dst}: 96 glyphs, ${words.length} words (printable ASCII in source: ${printable})`);
+  const slots = latin1 ? PAGE_GLYPHS : 96;
+  console.log(`wrote ${dst}: ${slots} glyph slots, ${words.length} words ` +
+              `(printable ASCII in source: ${printable}${latin1 ? ', Latin-1: 7' : ''})`);
 }

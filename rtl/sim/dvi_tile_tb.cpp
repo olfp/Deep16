@@ -59,7 +59,7 @@ static void write_tile(int addr, uint16_t data) {
 }
 
 // Every window shares the same write shape; the address is the offset into
-// the window (the sprite bank needs the 13th bit for its 24 groups).
+// the window (16 groups x 256 words fit in the 12-bit window).
 static void write_win(int tgt, int addr, uint16_t data) {
   top->cpu_we = 1; top->cpu_ctrl = 0; top->cpu_tgt = tgt;
   top->cpu_addr = addr & 0x1FFF; top->cpu_data = data;
@@ -176,11 +176,11 @@ int main(int argc, char** argv) {
   const int h_base = 32 + (0x48 - 0x20) * 8; // tile 0 is blank; pages at 32
   const int a_base = 32 + (0x41 - 0x20) * 8;
   const int hi_base = 32 + 768 + (0x48 - 0x20) * 8;
-  write_tile(0, 0x8000 | 0x0500);
+  write_tile(0, 0x8000 | 0x28);
   write_ctrl(0, (0 << 8) | (1 << 1) | 1);   // row 0, col 1, cursor on
   write_ctrl(2, 0);                         // row offset 0
 
-  check("tilemap[0] holds the H tile address", top->dbg_cell0, 0x8500);
+  check("tilemap[0] holds the H tile address", top->dbg_cell0, 0x8028);
 
   // The board forwards the low 13 bits of the CPU address, so a tilemap store
   // arrives with bit 12 set: 0xF1000 & 0x1FFF = 0x1000. It must still land at
@@ -200,7 +200,7 @@ int main(int argc, char** argv) {
   check("H is not blank", white ? 1 : 0, 1);
 
   // A tile at map column 1 must render at screen x=8..15.
-  write_tile(1, 0x8000 | 0x0420);
+  write_tile(1, 0x8000 | 0x21);
   write_ctrl(0, 0);              // cursor off for the renderer check
   bool cap_c1[15][8] = {}, seen_c1[15][8] = {};
   bool white_c1 = false;
@@ -243,8 +243,8 @@ int main(int argc, char** argv) {
   // Scroll: put A in tilemap row 1, then move the row offset by one. The A
   // must appear on visible row 0. The bottom visible row is map row 24, the
   // first margin row; put H there so the new ring can be observed.
-  write_tile(82, 0x8000 | 0x0420);
-  write_tile(24 * 82, 0x8000 | 0x0500);
+  write_tile(82, 0x8000 | 0x21);
+  write_tile(24 * 82, 0x8000 | 0x28);
   write_ctrl(2, 1);
   bool cap_a[15][8] = {}, seen_a[15][8] = {};
   bool white_a = false;
@@ -309,20 +309,20 @@ int main(int argc, char** argv) {
   // The console font lives in the top 32 slots; a game image may replace it.
   write_win(3, 0x92, 0x0003);              // art entry 2 = full blue
   for (int w = 0; w < 32; w++) write_win(1, 96 * 32 + w, (w < 30) ? 0x2222 : 0x0000);
-  write_tile(0, 96 * 32);                  // map cell 0 -> art tile 96
+  write_tile(0, 96);                       // map cell 0 -> art tile 96
   sample_pixel(0, 0, &r, &g, &b, &seen);
   check("tile 96 (upper bank) is CPU-writable (blue)",
         r * 1000 + g * 10 + b, 0 * 1000 + 0 * 10 + 255);
 
   for (int w = 0; w < 32; w++) write_win(1, 127 * 32 + w, (w < 30) ? 0x1111 : 0x0000);
-  write_tile(0, 127 * 32);                 // map cell 0 -> art tile 127
+  write_tile(0, 127);                      // map cell 0 -> art tile 127
   sample_pixel(0, 0, &r, &g, &b, &seen);
   check("tile 127 (last) is CPU-writable (red)",
         r * 1000 + g * 10 + b, 255 * 1000 + 0 * 10 + 0);
   write_tile(0, 0);                        // restore the solid red tile 0
 
   // ---- horizontal smooth scroll -----------------------------------------
-  write_tile(1, 0x8000 | 0x0420);          // A in map column 1
+  write_tile(1, 0x8000 | 0x21);          // A in map column 1
   write_ctrl(4, 8);                        // scroll one tile to the left
   check("scroll_x next register takes 8", top->dbg_scroll_x_next, 8);
   bool cap_a_s = false, seen_a_s[15][8] = {};
@@ -380,8 +380,8 @@ int main(int argc, char** argv) {
   // ---- column scroll window (control 5 bit 11 + control 6 row 31) --------
   // Columns 0..last stay at fine 0 even though row 0 has phase 4; the
   // playfield starts at `last + 1`.
-  write_tile(0, 0x8000 | 0x0500);          // restore the H cell
-  write_tile(2, 0x8000 | 0x0440);          // B at map column 2
+  write_tile(0, 0x8000 | 0x28);          // restore the H cell
+  write_tile(2, 0x8000 | 0x22);          // B at map column 2
   write_ctrl(0x0C, (31 << 3) | (0 << 9));  // row 31 marker: panel ends at 0
   check("window marker does not enable the row table",
         top->dbg_row_scroll_en, 0);
@@ -462,7 +462,7 @@ int main(int argc, char** argv) {
   write_win(3, 0x83, 0x0003);
   write_win(3, 0x91, 0x00E0);
 
-  write_tile(0, 0x8000 | 0x0500);           // mode 1, pair 0, H glyph
+  write_tile(0, 0x8000 | 0x28);           // mode 1, pair 0, H glyph
   int hx = -1, hy = -1;
   for (int yy = 0; yy < 15 && hx < 0; yy++) {
     for (int xx = 0; xx < 8; xx++) {
@@ -475,7 +475,7 @@ int main(int argc, char** argv) {
   sample_pixel(hx, hy, &tr, &tg, &tb, &tseen);
   check("pair 0 text ink is text-bank green", tr * 1000 + tg * 10 + tb, 0 * 1000 + 255 * 10 + 0);
 
-  write_tile(0, 0x8000 | (1 << 12) | 0x0500);   // pair 1
+  write_tile(0, 0x8000 | (1 << 12) | 0x28);   // pair 1
   sample_pixel(hx, hy, &tr, &tg, &tb, &tseen);
   check("pair 1 text ink is text-bank blue", tr * 1000 + tg * 10 + tb, 0 * 1000 + 0 * 10 + 255);
 
@@ -485,19 +485,19 @@ int main(int argc, char** argv) {
 
   // ---- COLORTEXT styles: generated underline and bold smear --------------
   // The H is ".##..##." on row 3, so (7,3) is paper and (1,3) is ink.
-  write_tile(0, 0x8000 | 0x0500);           // plain text cell
+  write_tile(0, 0x8000 | 0x28);           // plain text cell
   sample_pixel(7, 3, &tr, &tg, &tb, &tseen);
   check("plain text leaves the right edge of a stroke as paper",
         tr * 1000 + tg * 10 + tb, 0);
 
-  write_tile(0, 0x8000 | 0x0500 | 4);       // underline style bit
+  write_tile(0, 0x8000 | (4 << 9) | 0x28);       // underline style bit
   sample_pixel(0, 14, &tr, &tg, &tb, &tseen);
   check("underline forces the descender row to ink",
         tr * 1000 + tg * 10 + tb, 0 * 1000 + 255 * 10 + 0);
   sample_pixel(0, 13, &tr, &tg, &tb, &tseen);
   check("underline leaves the row above it alone", tr * 1000 + tg * 10 + tb, 0);
 
-  write_tile(0, 0x8000 | 0x0500 | 2);       // bold style bit
+  write_tile(0, 0x8000 | (2 << 9) | 0x28);       // bold style bit
   sample_pixel(7, 3, &tr, &tg, &tb, &tseen);
   check("bold smears the stroke one pixel right",
         tr * 1000 + tg * 10 + tb, 0 * 1000 + 255 * 10 + 0);
@@ -506,27 +506,27 @@ int main(int argc, char** argv) {
   // yellow ink), not just the black/white console pair.
   write_win(3, 0x86, 0x001C);
   write_win(3, 0x87, 0x00FC);
-  write_tile(0, 0x8000 | (3 << 12) | 0x0500 | 4);
+  write_tile(0, 0x8000 | (3 << 12) | (4 << 9) | 0x28);
   sample_pixel(0, 14, &tr, &tg, &tb, &tseen);
   check("underline uses pair 3's ink",
         tr * 1000 + tg * 10 + tb, 255 * 1000 + 255 * 10 + 0);
-  write_tile(0, 0x8000 | (3 << 12) | 0x0500 | 2);
+  write_tile(0, 0x8000 | (3 << 12) | (2 << 9) | 0x28);
   sample_pixel(7, 3, &tr, &tg, &tb, &tseen);
   check("bold uses pair 3's ink",
         tr * 1000 + tg * 10 + tb, 255 * 1000 + 255 * 10 + 0);
 
   // STYLE bit 0 selects the italic page at word 800.
-  write_tile(0, 0x8000 | 0x0500 | 1);
+  write_tile(0, 0x8000 | (1 << 9) | 0x28);
   bool cap_it[15][8] = {}, seen_it[15][8] = {};
   bool white_it = false;
   sample_cell(0, 0, cap_it, seen_it, &white_it);
   check("italic selects the designed italic page",
         compare_cell(tile, hi_base, cap_it, seen_it, "Hitalic") ? 1 : 0, 1);
 
-  // The style bits live in tile-address bits 4:0, which the fill must mask.
-  write_tile(0, 0x0000 | 2);                // mode 0 with a stray style bit
+  // Art cells use cell[7:0] for the tile, so reserved bits 14:8 are ignored.
+  write_tile(0, 0x0000 | 0x0100);           // mode 0 with a stray reserved bit
   sample_pixel(1, 3, &tr, &tg, &tb, &tseen);
-  check("art cells ignore the style bits in the low address bits",
+  check("art cells ignore reserved bits above the tile index",
         tr * 1000 + tg * 10 + tb, 255 * 1000 + 0 * 10 + 0);
 
   // Restore the solid red tile the double-buffer test expects.
@@ -564,7 +564,7 @@ int main(int argc, char** argv) {
   // the solid art tile 96 around it, so the behind sprite is visible at x=19
   // and hidden at x=27. TOP=0: y=90..104 is map row 6.
   for (int w = 0; w < 32; w++) write_win(1, 90 * 32 + w, 0x0000);
-  write_tile(6 * 82 + 2, 90 * 32);                             // row 6, col 2
+  write_tile(6 * 82 + 2, 90);                                  // row 6, col 2
   write_win(3, 0, 16 | 0x0800);                                // sprite 0: x=16, enable
   write_win(3, 1, 100 | (0 << 11));                            // y=100, group 0
   write_win(3, 2, 16 | 0x0800 | (1 << 15));                    // sprite 1: behind, enable
@@ -620,7 +620,7 @@ int main(int argc, char** argv) {
   // ---- tilemap double buffer and scan status -----------------------------
   // Put the H into bank 1 while bank 0 (the solid red tile) is displayed.
   write_ctrl(8, 1);                       // write page 1, display page 0
-  write_tile(0, 0x8000 | 0x0500);
+  write_tile(0, 0x8000 | 0x28);
   check("map write page is 1", top->dbg_wpage, 1);
   check("map display page still 0", top->dbg_dpage, 0);
   bool cap_old[15][8] = {}, seen_old[15][8] = {};
@@ -654,8 +654,8 @@ int main(int argc, char** argv) {
   check("vblank level is observable", vblank_seen ? 1 : 0, 1);
   check("frame toggle changes across frames", ft_changes >= 1 ? 1 : 0, 1);
 
-  // ---- flat sprite groups: all 24 in one window --------------------------
-  // The CPU window covers the whole 24-group bank (6,144 words); the OAM group
+  // ---- flat sprite groups: all 16 in one window --------------------------
+  // The CPU window covers the whole 16-group bank (4,096 words); the OAM group
   // pointer is absolute and control 5 no longer pages the pattern bank.
   write_ctrl(8, 0);                          // map write page 0
   for (int w = 0; w < 64; w++) write_win(2, 8 * 256 + w, 0x0444);   // group 8, entry 4
@@ -665,13 +665,13 @@ int main(int argc, char** argv) {
   check("group 8 written in the flat window (blue)",
         r * 1000 + g * 10 + b, 0 * 1000 + 0 * 10 + 255);
 
-  // Group 23 is the last one; the store at offset 23*256 needs the 13th
-  // address bit, so it only works with the widened window.
+  // Group 15 is the last one; the store at offset 15*256 is inside the 12-bit
+  // window. Group 16 is out of range and must not draw.
   write_win(3, 0xA5, 0x00E0);               // sprite entry 5 = full red
-  for (int w = 0; w < 64; w++) write_win(2, 23 * 256 + w, 0x0555);
-  write_win(3, 1, 160 | (23 << 11));         // y=160, absolute group 23
+  for (int w = 0; w < 64; w++) write_win(2, 15 * 256 + w, 0x0555);
+  write_win(3, 1, 160 | (15 << 11));         // y=160, absolute group 15
   sample_pixel(17, 160, &r, &g, &b, &seen);
-  check("group 23 (last) written in the flat window (red)",
+  check("group 15 (last) written in the flat window (red)",
         r * 1000 + g * 10 + b, 255 * 1000 + 0 * 10 + 0);
 
   write_win(3, 1, 160 | (0 << 11));          // same sprite, absolute group 0
@@ -679,11 +679,11 @@ int main(int argc, char** argv) {
   check("absolute group 0 selects the group 0 pattern (green)",
         r * 1000 + g * 10 + b, 0 * 1000 + 255 * 10 + 0);
 
-  // A group past the 24-group bank disables the sprite; page 3 is not a
+  // A group past the 16-group bank disables the sprite; page 3 is not a
   // valid write page and clamps to 0.
-  write_win(3, 1, 160 | (24 << 11));
+  write_win(3, 1, 160 | (16 << 11));
   sample_pixel(17, 160, &r, &g, &b, &seen);
-  check("group 24 is out of range and draws nothing",
+  check("group 16 is out of range and draws nothing",
         r * 1000 + g * 10 + b, 255 * 1000 + 0 * 10 + 0);
 
   // The legacy page has no effect on where a store lands: with page 2

@@ -502,11 +502,10 @@ rc_draw:
     MOV R4, R0
     SL R4, 1
     ADD R3, R4
-    ; the cell word = 0x8000 | ((the character - 0x20) << 5)
+    ; the cell word = 0x8000 | (character - 0x20)
     LDI 0x20
     MOV R4, R0
     SUB R1, R4
-    SL R1, 5
     LSI R5, 1
     SL R5, 15
     OR R1, R5

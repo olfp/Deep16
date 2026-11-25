@@ -4267,8 +4267,9 @@ gs_ptr:
 ; tests/boot-script.test.js fails if they drift).
 ; One `.text` per source line: each emits the characters (one cell each) and a
 ; NUL, which is what read_line walks.
-; Current console text pair (0..7). The BIOS tile writer reads this cell and
-; composes 0x8000 | pair<<12 | glyph address; the catalog's ATTR writes it.
+; Current console text pair (0..7) and style. The BIOS tile writer reads
+; this cell and composes 0x8000 | pair<<12 | style<<9 | glyph; the catalog's
+; ATTR/STYLE words write it.
 ; The high bits are precomputed here so the tile writer is one LDI/LD/OR.
 text_attr:
     .word 0x8000
@@ -12873,7 +12874,7 @@ tr_space:
 tr_ok:
     LDI 32
     SUB R11, R0
-    SL R11, 5
+tr_store:
     OR R11, R12
     MOV R10, R7
     ADD R10, R1
@@ -17815,11 +17816,16 @@ utx_char:
     CMP R1, R0
     JC utx_done
     NOP
-    ; tile address (ch - 0x20) * 32, then pair mode:
-    ; text_attr already holds 0x8000 | pair<<12, so one OR sets mode and pair.
-    LDI 0x20
-    SUB R1, R0
-    SL R1, 5
+    ; Map the byte to a text-page glyph slot. R2 is putstr's string pointer,
+    ; and R5/R6 belong to the caller, so the helper uses only R0/R1.
+    LDI utx_glyph_helper - BIOS_BASE
+    MOV R7, R0
+    LINK
+    JMP R7
+    NOP
+utx_map_done:
+    ; text_attr already holds 0x8000 | pair<<12 | style<<9, so one OR sets
+    ; mode, pair and style.
     LDI text_attr
     MOV R7, R0
     LD R4, R7, 0
@@ -18014,6 +18020,8 @@ utx_done:
     LD LR, R10, 0
     JMP LR
     NOP
+
+
 
 ; tile_cursor: publish the visible cursor and row offset to the DVI tile engine.
 tile_cursor:
@@ -18226,6 +18234,7 @@ bios_f4:
     LDI 0x0FFF
     INV R0
     MVS ES, R0
+bios_f4_poll:
     LDI CONSOLE_STATUS
     MOV R2, R0
     LDS R1, ES, R2
@@ -18240,8 +18249,21 @@ uart_getch_ready:
     LDI CONSOLE_DATA
     MOV R2, R0
     LDS R1, ES, R2
+.ifdef D16D
+    ; The D16D FIFO carries raw make events. Decode; an event with no
+    ; character (F1, an unmapped key) is consumed and the next one tried.
+    LDI ps2_decode - BIOS_BASE
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    AND R1, R1
+    JZ bios_f4_poll
+    NOP
+.else
     LDI 0x00FF
     AND R1, R0
+.endif
     MOV R0, R1              ; the byte is the answer
     RETI
     NOP
@@ -20019,8 +20041,33 @@ ug_loop:
     LDI CONSOLE_DATA
     MOV R3, R0
     LDS R1, ES, R3           ; R1 = the received byte
+.ifdef D16D
+    ; The FIFO word is a raw make event. Park the write pointer (R2) and the
+    ; echo flag (R9); the decoder preserves R10-R12, which are the line state.
+    LDI ps2_save_r2 - BIOS_BASE
+    MOV R3, R0
+    STS R2, CS, R3
+    LDI ps2_save_r9 - BIOS_BASE
+    MOV R3, R0
+    STS R9, CS, R3
+    LDI ps2_decode - BIOS_BASE
+    MOV R3, R0
+    LINK
+    JMP R3
+    NOP
+    LDI ps2_save_r9 - BIOS_BASE
+    MOV R3, R0
+    LDS R9, CS, R3
+    LDI ps2_save_r2 - BIOS_BASE
+    MOV R3, R0
+    LDS R2, CS, R3
+    AND R1, R1
+    JZ ug_loop
+    NOP
+.else
     LDI 0x00FF
     AND R1, R0
+.endif
     LDI 10
     CMP R1, R0
     JZ ug_done
@@ -20340,7 +20387,7 @@ fd_tile_loop:
     MOV R2, R0
     LDI 72
     MOV R3, R0
-    LDI 0x0FE0            ; art tile 127
+    LDI 127               ; art tile 127
     MOV R4, R0
 fd_stripe_loop:
     STS R4, ES, R2
@@ -20373,8 +20420,9 @@ fd_text_char:
 fd_text_have_char:
     LDI 32
     SUB R2, R0
-    SL R2, 5
-    OR R2, 15
+    LSI R3, 1
+    SL R3, 15
+    OR R2, R3
     STS R2, ES, R1
     ADD R1, 1
     LDI fd_text_char - 0x4000
@@ -22583,6 +22631,7 @@ sfx_pump_done:
 ; Function 12: pop the next byte the keyboard IRQ queued, or 0 when the ring is
 ; empty. The ring at 0x52C0 is filled by irq_keyboard from the hardware FIFO.
 bios_kbd_read:
+bios_kbd_read_again:
     ; Ring in DS (0x1000): 0x52C0 head, 0x52C1 tail, data at 0x52C2. Build the
     ; base as 0x12C0 + 0x4000 because the immediate is 15-bit and signed.
     LDI 0x12C0
@@ -22611,7 +22660,17 @@ bios_kbd_read:
     LSI R3, 0
 kbd_read_store:
     STS R3, DS, R2           ; head = new
-    MOV R0, R1               ; return the byte
+    ; The ring carries raw 16-bit events now. Decode; an event with no
+    ; character is dropped and the next ring cell is tried.
+    LDI ps2_decode - BIOS_BASE
+    MOV R2, R0
+    LINK
+    JMP R2
+    NOP
+    AND R1, R1
+    JZ bios_kbd_read_again
+    NOP
+    MOV R0, R1               ; return the character
     RETI
     NOP
 kbd_read_empty:
@@ -22634,6 +22693,17 @@ sfx_table:
 ; kernel dictionary nothing (dict_free must stay 0x434F).
 .org 0x57D0
 ill_pc_save_bios:
+    .word 0
+
+; The active layout is the last word of the BIOS data block. It is copied to
+; DS, so a Forth word can write it with a plain `!`; the decoder switches to
+; DS=0x1000 to read it. PS2LAYOUT.md §6.2.
+.org 0x57DC
+ps2_layout:
+    .word 0
+ps2_save_r2:
+    .word 0
+ps2_save_r9:
     .word 0
 
 .org 0x57E0
@@ -22679,3 +22749,410 @@ bios_f23:
     NOP
 
 .endif
+
+; ============================================================
+; PS/2 software decoder (PS2LAYOUT.md §6)
+;
+; The receiver emits {raw, extended, caps, alt, ctrl, shift, scan_code}.
+; This routine maps it through the selected layout. It lives in the free
+; BIOS-image tail after the FPU, so the menu (which runs before the boot
+; script) can call it directly and the image loader already copies it.
+;
+;   in:  R1 = event
+;   out: R1 = character, 0 = no character
+;   preserves R5/R6 and R10-R12; clobbers R2/R3/R4/R7/R9 (callers keep what
+;   they need), and restores the caller's DS.
+; ============================================================
+.ifdef D16D
+.equ PS2_LAYOUT_BASE,  0x6A90
+.equ PS2_LAYOUT_COUNT, 2
+
+.org 0x699C
+.code
+ps2_decode:
+    ; Legacy ASCII from the IDE/WASM host: bit 15 clear. Build 0x8000 with
+    ; shifts: LDI 0x4000 would sign-extend to 0xC000.
+    LDI 0x2000
+    MOV R2, R0
+    SL R2, 1
+    SL R2, 1
+    AND R2, R1
+    JZ ps2_legacy
+    NOP
+
+    ; code = event & 0xFF
+    LDI 0x00FF
+    MOV R4, R0
+    AND R4, R1
+
+    ; Set-2 has make codes above 0x7F (0x83 is F7). The 128-entry table has
+    ; no room for them and none of those keys type.
+    LDI 0x0080
+    MOV R2, R0
+    CMP R4, R2
+    JC ps2_code_ok
+    NOP
+    LDI ps2_none - BIOS_BASE
+    MOV PC, R0
+    NOP
+ps2_code_ok:
+
+    ; E0-prefixed keys use the fixed navigation table.
+    LDI 0x1000
+    MOV R2, R0
+    SL R2, 1
+    SL R2, 1
+    AND R2, R1
+    JZ ps2_not_ext
+    NOP
+    LDI ps2_ext - BIOS_BASE
+    MOV PC, R0
+    NOP
+ps2_not_ext:
+
+    ; Read the active layout from DS 0x57DC, then restore DS.
+    MVS R7, DS
+    LDI 0x1000
+    MVS DS, R0
+    LDI 0x17DC
+    MOV R3, R0
+    LDI 0x1000
+    SL R0, 1
+    SL R0, 1
+    ADD R3, R0               ; R3 = 0x57DC
+    LDS R2, DS, R3
+    MVS DS, R7
+
+    ; Clamp an erased or stale index to layout 0.
+    LDI PS2_LAYOUT_COUNT
+    MOV R3, R0
+    CMP R2, R3
+    JC ps2_layout_ok
+    NOP
+    LSI R2, 0
+ps2_layout_ok:
+
+    ; R2 = PS2_LAYOUT_BASE + index*256 + code; read the plain pair.
+    SL R2, 8
+    LDI PS2_LAYOUT_BASE - BIOS_BASE
+    ADD R2, R0
+    ADD R2, R4
+    LDS R3, CS, R2           ; low = base, high = shifted
+
+    ; Modifier snapshot: bits 3..0 = caps, alt, ctrl, shift.
+    MOV R7, R1
+    SR R7, 10
+    LDI 0x000F
+    MOV R9, R0
+    AND R7, R9
+
+    ; AltGr wins over Caps/Shift/Ctrl, exactly as the pROM did.
+    LDI 0x0004
+    MOV R9, R0
+    AND R9, R7
+    JZ ps2_plain
+    NOP
+    LDI 0x0080
+    MOV R9, R2
+    ADD R9, R0               ; alt[] half
+    LDS R2, CS, R9
+    MOV R9, R2
+    AND R9, R9
+    JZ ps2_plain
+    NOP
+    LDI 0x0001
+    MOV R9, R0
+    AND R9, R7
+    JZ ps2_alt_low
+    NOP
+    SR R2, 8
+    MOV R1, R2
+    JMP LR
+    NOP
+ps2_alt_low:
+    LDI 0x00FF
+    MOV R9, R0
+    AND R2, R9
+    MOV R1, R2
+    JMP LR
+    NOP
+
+ps2_plain:
+    ; R3 = plain pair. R9 = base, R3 = shifted.
+    MOV R9, R3
+    LDI 0x00FF
+    MOV R2, R0
+    AND R9, R2
+    SR R3, 8
+
+    ; is_letter(base): a-z, or Latin-1 E0..FE except F7. This matches the old
+    ; table: umlauts are letters, ss (DF) is not.
+    LDI 0x0061
+    MOV R2, R0
+    CMP R9, R2
+    JC ps2_check_latin
+    NOP
+    LDI 0x007A
+    MOV R2, R0
+    CMP R9, R2
+    JZ ps2_letter
+    NOP
+    JC ps2_letter
+    NOP
+ps2_check_latin:
+    LDI 0x00E0
+    MOV R2, R0
+    CMP R9, R2
+    JC ps2_not_letter
+    NOP
+    LDI 0x00FE
+    MOV R2, R0
+    CMP R9, R2
+    JZ ps2_latin_letter
+    NOP
+    JC ps2_latin_letter
+    NOP
+    LDI ps2_not_letter - BIOS_BASE
+    MOV PC, R0
+    NOP
+ps2_latin_letter:
+    LDI 0x00F7
+    MOV R2, R0
+    CMP R9, R2
+    JZ ps2_not_letter
+    NOP
+
+ps2_letter:
+    ; Caps and Shift both select the shifted form and cancel each other.
+    MOV R2, R7
+    LDI 0x0001
+    AND R2, R0               ; Shift
+    MOV R4, R7
+    SR R4, 3
+    LDI 0x0001
+    AND R4, R0               ; Caps
+    XOR R2, R4
+    JZ ps2_letter_base
+    NOP
+    MOV R2, R3
+    LDI ps2_letter_ctrl - BIOS_BASE
+    MOV PC, R0
+    NOP
+ps2_letter_base:
+    MOV R2, R9
+ps2_letter_ctrl:
+    ; Ctrl+ASCII letter -> 0x01..0x1A; Ctrl+umlaut -> nothing.
+    MOV R4, R7
+    LDI 0x0002
+    AND R4, R0
+    JZ ps2_done_char
+    NOP
+    LDI 0x0061
+    MOV R4, R0
+    CMP R9, R4
+    JC ps2_ctrl_none
+    NOP
+    LDI 0x007A
+    MOV R4, R0
+    CMP R9, R4
+    JZ ps2_ctrl_ascii
+    NOP
+    JC ps2_ctrl_ascii
+    NOP
+ps2_ctrl_none:
+    LSI R2, 0
+    LDI ps2_done_char - BIOS_BASE
+    MOV PC, R0
+    NOP
+ps2_ctrl_ascii:
+    MOV R2, R9
+    LDI 0x001F
+    MOV R4, R0
+    AND R2, R4
+ps2_done_char:
+    MOV R1, R2
+    JMP LR
+    NOP
+
+ps2_not_letter:
+    ; Non-letters ignore Caps and Ctrl; Shift selects the upper byte.
+    MOV R2, R7
+    LDI 0x0001
+    AND R2, R0
+    JZ ps2_nonletter_base
+    NOP
+    MOV R1, R3
+    JMP LR
+    NOP
+ps2_nonletter_base:
+    MOV R1, R9
+    JMP LR
+    NOP
+
+ps2_legacy:
+    LDI 0x00FF
+    AND R1, R0
+    JMP LR
+    NOP
+
+ps2_none:
+    LSI R1, 0
+    JMP LR
+    NOP
+
+; E0 navigation keys: fixed Emacs control bytes, layout-independent.
+ps2_ext:
+    LDI 0x006B
+    MOV R2, R0
+    CMP R4, R2
+    JZ ps2_ext_left
+    NOP
+    LDI 0x0074
+    MOV R2, R0
+    CMP R4, R2
+    JZ ps2_ext_right
+    NOP
+    LDI 0x0075
+    MOV R2, R0
+    CMP R4, R2
+    JZ ps2_ext_up
+    NOP
+    LDI 0x0072
+    MOV R2, R0
+    CMP R4, R2
+    JZ ps2_ext_down
+    NOP
+    LDI 0x006C
+    MOV R2, R0
+    CMP R4, R2
+    JZ ps2_ext_home
+    NOP
+    LDI 0x0069
+    MOV R2, R0
+    CMP R4, R2
+    JZ ps2_ext_end
+    NOP
+    LDI ps2_none - BIOS_BASE
+    MOV PC, R0
+    NOP
+ps2_ext_left:
+    LSI R1, 2
+    JMP LR
+    NOP
+ps2_ext_right:
+    LSI R1, 6
+    JMP LR
+    NOP
+ps2_ext_up:
+    LDI 16
+    MOV R1, R0
+    JMP LR
+    NOP
+ps2_ext_down:
+    LSI R1, 14
+    JMP LR
+    NOP
+ps2_ext_home:
+    LSI R1, 1
+    JMP LR
+    NOP
+ps2_ext_end:
+    LSI R1, 5
+    JMP LR
+    NOP
+
+ps2_decode_end:
+.endif
+
+; utx_glyph_helper: R1 byte -> text-page glyph slot. It lives in a free code
+; gap so the unrolled compare chain cannot crowd the BIOS/utx code, and it
+; uses only R0/R1 so putstr's R2 and the caller's R5/R6 survive.
+.ifdef D16SEG
+.org 0x5F8D
+.else
+.org 0x4E9F
+.endif
+utx_glyph_helper:
+    LDI 32
+    CMP R1, R0
+    JC utx_glyph_space
+    NOP
+    LDI 127
+    CMP R1, R0
+    JC utx_glyph_ascii
+    NOP
+    LDI 0x00C4
+    CMP R1, R0
+    JZ utx_glyph_0
+    NOP
+    LDI 0x00D6
+    CMP R1, R0
+    JZ utx_glyph_1
+    NOP
+    LDI 0x00DC
+    CMP R1, R0
+    JZ utx_glyph_2
+    NOP
+    LDI 0x00DF
+    CMP R1, R0
+    JZ utx_glyph_3
+    NOP
+    LDI 0x00E4
+    CMP R1, R0
+    JZ utx_glyph_4
+    NOP
+    LDI 0x00F6
+    CMP R1, R0
+    JZ utx_glyph_5
+    NOP
+    LDI 0x00FC
+    CMP R1, R0
+    JZ utx_glyph_6
+    NOP
+    LDI utx_glyph_space
+    MOV PC, R0
+    NOP
+utx_glyph_ascii:
+    LDI 32
+    SUB R1, R0
+    JMP LR
+    NOP
+utx_glyph_space:
+    LSI R1, 0
+    JMP LR
+    NOP
+utx_glyph_0:
+    LDI 96
+    MOV R1, R0
+    JMP LR
+    NOP
+utx_glyph_1:
+    LDI 97
+    MOV R1, R0
+    JMP LR
+    NOP
+utx_glyph_2:
+    LDI 98
+    MOV R1, R0
+    JMP LR
+    NOP
+utx_glyph_3:
+    LDI 99
+    MOV R1, R0
+    JMP LR
+    NOP
+utx_glyph_4:
+    LDI 100
+    MOV R1, R0
+    JMP LR
+    NOP
+utx_glyph_5:
+    LDI 101
+    MOV R1, R0
+    JMP LR
+    NOP
+utx_glyph_6:
+    LDI 102
+    MOV R1, R0
+    JMP LR
+    NOP

@@ -21,9 +21,9 @@ class Deep16TileEngine {
     this.ROWS = 24;
     this.MAP_COLS = 82;
     this.MAP_ROWS = 26;
-    this.TILE_COUNT = 128;
+    this.TILE_COUNT = 256;
     this.TILE_WORDS = 32;
-    this.SPR_GROUPS = 24;
+    this.SPR_GROUPS = 16;
     this.SPR_WORDS = this.SPR_GROUPS * 256;
     this.SPR_WINDOW_WORDS = this.SPR_WORDS;
     this.OAM_DESCS = 64;
@@ -93,6 +93,7 @@ class Deep16TileEngine {
     this.mapDisplay = 0;
     this.mapDisplayNext = 0;
     this.spritePage = 0;
+    this.tilePage = 0;
     this.oamBase = 0;
     this.palSet = 0;
     this.rowScrollEn = 0;
@@ -134,6 +135,7 @@ class Deep16TileEngine {
           this.oamBase = (value >> 2) & 0x3F;
           this.palSet = (value >> 8) & 7;
           this.scrollWin = (value & 0x800) !== 0;
+          this.tilePage = (value >> 12) & 1;
           break;
         case 0xC: {
           const row = (value >> 3) & 0x1F;
@@ -153,8 +155,8 @@ class Deep16TileEngine {
         default: handled = false;
       }
     } else if (addr >= 0xF3000 && addr <= 0xF3FFF) {
-      this.tileBank[addr - 0xF3000] = value;
-    } else if (addr >= 0xF4000 && addr <= 0xF57FF) {
+      this.tileBank[(this.tilePage ? 4096 : 0) + (addr - 0xF3000)] = value;
+    } else if (addr >= 0xF4000 && addr <= 0xF4FFF) {
       this.spriteBank[addr - 0xF4000] = value;
     } else if (addr >= 0xF6000 && addr <= 0xF607F) {
       this.oam[addr - 0xF6000] = value;
@@ -235,10 +237,13 @@ class Deep16TileEngine {
 
     if (isText) {
       const pair = (cell >> 12) & 7;
-      const style = cell & 7;
-      const glyph = (cell >> 5) & 0x7F;
-      const addr = 0x20 + glyph * 8 + ((style & 1) ? 0x300 : 0) + (line.gyVal >> 1);
-      const word = this.tileBank[addr & 0xFFF];
+      const style = (cell >> 9) & 7;
+      const glyph = cell & 0x7F;
+      const extra = glyph >= 96;
+      const addr = extra
+        ? 0x1000 + (glyph - 96) * 8 + ((style & 1) ? 0x40 : 0) + (line.gyVal >> 1)
+        : 0x20 + glyph * 8 + ((style & 1) ? 0x300 : 0) + (line.gyVal >> 1);
+      const word = this.tileBank[addr & 0x1FFF];
       const byte = (line.gyVal & 1) ? ((word >> 8) & 0xFF) : (word & 0xFF);
       const raw = (byte >> (7 - cellX)) & 1;
       const underline = (style & 4) !== 0 && line.gyVal === 14;
@@ -249,8 +254,9 @@ class Deep16TileEngine {
       return { index: pair * 2 + ink, pixIndex };
     }
 
-    const base = cell & 0x0FE0;
-    const word = this.tileBank[(base + line.gyVal * 2 + (cellX >= 4 ? 1 : 0)) & 0xFFF];
+    const tile = cell & 0xFF;
+    const base = tile * 32;
+    const word = this.tileBank[(base + line.gyVal * 2 + (cellX >= 4 ? 1 : 0)) & 0x1FFF];
     const pix = (word >> ((cellX & 3) * 4)) & 0xF;
     line.prevInk = 0;
     return { index: 16 + pix, pixIndex: pix };

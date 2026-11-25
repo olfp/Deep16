@@ -151,7 +151,7 @@ test('the canvas paints the engine buffer', () => {
 
   for (let i = 0; i < 32; i++) engine.write(0xF3000 + 96 * 32 + i, 0x1111);
   engine.write(0xF6091, 0xE0);
-  engine.write(0xF1000, 96 * 32);
+  engine.write(0xF1000, 96);
 
   canvas.ctx.putCalls = 0;
   ui.screenUI.updateScreenDisplay();

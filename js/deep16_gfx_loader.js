@@ -78,10 +78,26 @@ class Deep16GfxLoader {
       }
     };
 
-    // All 128 tile slots: the RTL window covers the whole tile bank.
-    for (let i = 0; i < parsed.tiles.length; i++) write(0xF3000 + i, parsed.tiles[i]);
+    // The tile bank is 256 tiles. The CPU window is still 4 KiB, so write the
+    // first 128 tiles, set control-5 bit 12, write the upper 128, then clear
+    // the page.
+    const lowTiles = Math.min(parsed.tiles.length, 4096);
+    for (let i = 0; i < lowTiles; i++) write(0xF3000 + i, parsed.tiles[i]);
+    if (parsed.tiles.length > 4096) {
+      // Preserve the scene-select bits already in control 5; only bit 12 is
+      // the tile-write page.
+      const ctrl5 = engine && Number.isInteger(engine.oamBase)
+        ? ((engine.palSet & 7) << 8) | ((engine.oamBase & 0x3F) << 2) |
+          (engine.scrollWin ? 0x800 : 0)
+        : 0;
+      write(0xF200A, ctrl5 | 0x1000);
+      for (let i = 4096; i < parsed.tiles.length; i++) {
+        write(0xF3000 + (i - 4096), parsed.tiles[i]);
+      }
+      write(0xF200A, ctrl5);
+    }
 
-    // All 24 sprite groups are contiguous at 0xF4000..0xF57FF; control 5 is
+    // All 16 sprite groups are contiguous at 0xF4000..0xF4FFF; control 5 is
     // no longer needed (and is a compatibility no-op in the RTL).
     for (let i = 0; i < parsed.sprites.length; i++) write(0xF4000 + i, parsed.sprites[i]);
 

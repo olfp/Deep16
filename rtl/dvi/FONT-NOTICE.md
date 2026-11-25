@@ -3,9 +3,10 @@
 ## UW ttyp0 — the FiT text pages
 
 `ttyp0-8x15.hex` and `ttyp0-8x15-italic.hex` are the regular and italic 1bpp
-text pages used by the FiT tile build. Each contains only the 96 printable
-ASCII glyphs (0x20–0x7F), 8 words per glyph, two rows per 16-bit word, MSB
-leftmost.
+sources used by the FiT tile build. Each has 128 slots, 8 words per glyph, two
+rows per 16-bit word, MSB leftmost: slots 0–95 are printable ASCII
+(0x20–0x7F), slots 96–102 are **Ä Ö Ü ß ä ö ü** (0xC4 0xD6 0xDC 0xDF 0xE4 0xF6
+0xFC), and slots 103–127 are blank.
 
 - Source: <https://people.mpi-inf.mpg.de/~uwe/misc/uw-ttyp0/>
 - Version: 2.1
@@ -19,7 +20,8 @@ perl bin/mkshallow bdf/t0-16i.bdf | cat - bdf/t0-15i.bdf |
   perl bin/bdfmangle - VARIANTS.dat mgl/unicode.mgl > gen-t0-15i.bdf
 ```
 
-`node scripts/bdf_to_font.mjs gen-t0-15.bdf` then extracts the 96 ASCII words;
+`node scripts/bdf_to_font.mjs gen-t0-15.bdf out.hex --latin1` then extracts the
+128 slots;
 the italic file is extracted the same way. The default `VARIANTS.dat` selects
 the slashed zero; edit it before generating if a plain or dotted zero is
 preferred.

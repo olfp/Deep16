@@ -364,7 +364,6 @@ cc1:
     ; comes first because it consumes R2, the centre stripe offset.
     LDI ART_CENTER
     ADD R0, R2
-    SL R0, 5
     MOV R3, R0
     LDI SCR_CENTER
     MOV R2, R0
@@ -376,11 +375,9 @@ cc1:
     SR R2, 1
     LDI ART_L_EDGE
     ADD R0, R2
-    SL R0, 5
     MOV R3, R0
     LDI ART_L_EDGEB
     ADD R0, R2
-    SL R0, 5
     MOV R6, R0
     LDI SCR_EDGEL
     MOV R2, R0
@@ -392,11 +389,9 @@ cc1:
     SR R2, 1
     LDI ART_R_EDGE
     ADD R0, R2
-    SL R0, 5
     MOV R3, R0
     LDI ART_R_EDGEB
     ADD R0, R2
-    SL R0, 5
     MOV R6, R0
     LDI SCR_EDGER
     MOV R2, R0
@@ -424,7 +419,6 @@ cc1:
     NOP
     LDI ART_ROAD_B
 road_a:
-    SL R0, 5
     MOV R3, R0
     LDI SCR_ROAD
     MOV R2, R0
@@ -434,7 +428,6 @@ road_a:
     ; the parity bit), so the ground scrolls with the road.
     LDI ART_GRASS_A
     ADD R0, R10
-    SL R0, 5
     MOV R3, R0
     LDI SCR_GRASS
     MOV R2, R0
@@ -923,9 +916,8 @@ fs_mid:
     NOP
     ; the mountain row: the two profiles alternate across the row
     LDI ART_MTN_A
-    SL R0, 5
     MOV R6, R0
-    LDI 0x60                 ; the toggle that swaps tile 97 for tile 98
+    LDI 3                    ; the toggle that swaps tile 97 for tile 98
     MOV R7, R0
     MOV R2, R12
     LDI 80
@@ -941,7 +933,6 @@ fs_mtn:
 fs_plain:
     LDI ART_SKY
 fs_fill:
-    SL R0, 5
     MOV R6, R0
     MOV R2, R12
     LDI 80

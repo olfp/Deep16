@@ -2,8 +2,8 @@
 
 **FiT** (*Frogger inspired tile-based*) is the D16nano graphics layer: a
 640x360 tile console with 8x15 character cells, 4bpp art tiles, eight
-selectable text colour pairs, three font styles, hardware scrolling and eight
-32x32 sprites. The same frame is sent to the HDMI connector as 1280x720p60,
+selectable text colour pairs, three font styles, hardware scrolling and 16
+groups of 32x32 sprite frames. The same frame is sent to the HDMI connector as 1280x720p60,
 each source pixel shown as a 2x2 block.
 
 FiT lives in `rtl/dvi/dvi_tile.sv` and is used by the **D16nano tile build**
@@ -33,11 +33,11 @@ tile engine and to the PSRAM/Forth mirror at the same address.
 | `0xF2004` | control 2: smooth `scroll_x` 0..15, latched with the display bank |
 | `0xF2006` | control 3: smooth `scroll_y` 0..30 |
 | `0xF2008` | control 4: b0 write bank, b1 display bank |
-| `0xF200A` | control 5: scene select — palette set 0..7, OAM base descriptor 0..63, b11 column scroll window |
+| `0xF200A` | control 5: scene select — palette set 0..7, OAM base descriptor 0..63, b11 column scroll window, b12 tile-bank CPU write page |
 | `0xF200C` | control 6: per-row fine scroll `{en, row[4:0], fine[2:0]}`; row 31 sets the scroll window `{col[6:0], side}` |
 | `0xF200E` | control 7: raster line compare 0..359 |
-| `0xF3000`–`0xF3FFF` | tile bank, all 128 tiles x 32 words |
-| `0xF4000`–`0xF57FF` | sprite bank, all 24 groups x 16 patterns x 16 words |
+| `0xF3000`–`0xF3FFF` | tile bank, 256 tiles x 32 words; the 4 KiB window covers 128 tiles, control 5 b12 selects the page |
+| `0xF4000`–`0xF4FFF` | sprite bank, all 16 groups x 16 patterns x 16 words |
 | `0xF6000`–`0xF607F` | OAM, 64 descriptors x two words (eight visible) |
 | `0xF6080`–`0xF627F` | 8 palette sets x 4 banks x 16 RGB332 entries |
 | `0xF6280`–`0xF62FF` | reserved |
@@ -53,9 +53,9 @@ The **visible area** is 80x24 cells, 640x360 pixels. The tilemap is 82x26,
 with two margin columns and two margin rows. The terminal shows rows 0–23 and
 columns 0–79; a four-direction game normally centres its window at columns
 1–80 and rows 1–24, leaving column 0/81 and row 0/25 as the scroll margins.
-All 128 tile slots can be on screen at once because the map has 1,920 visible
-cells; the eight sprites add eight more distinct graphics, so the engine can
-show **136 distinct graphics** in one frame.
+All 256 tile slots can be on screen at once because the map has 1,920 visible
+cells; the eight visible sprites add eight more distinct graphics, so the
+engine can show **264 distinct graphics** in one frame.
 
 ---
 
@@ -82,15 +82,16 @@ Every tilemap word is 16 bits:
 
 | Bits | Field |
 |---|---|
-| 15 | mode: 0 = art tile, 1 = text pair |
+| 15 | mode: 0 = art tile, 1 = text |
 | 14:12 | text pair 0..7 (mode 1 only) |
-| 11:5 | tile address / glyph index, 32-word aligned |
-| 4:0 | zero for art; text style in bits 2:0, bits 4:3 reserved |
+| 11:9 | text style (mode 1 only) |
+| 8:0 | art tile index / glyph index |
 
-For an art cell bits 11:0 are the tile's word address in the tile bank (the
-low five bits are always zero). For a text cell bits 11:5 are the glyph index
-and bits 2:0 are style (see §4); bits 4:3 are reserved and ignored. The fill
-masks bits 4:0 out of the fetch.
+An art cell puts the tile index in bits 14:0; the current 256-tile build uses
+bits 7:0 and requires bits 14:8 to be zero. A text cell puts the glyph index in
+bits 8:0 (font glyphs are 0..127, so bit 8 and bit 7 are zero), the style in
+bits 11:9 and the pair in bits 14:12. The renderer reads the tile or glyph
+directly; there is no packed 32-word address in the cell.
 
 Write a cell in the selected write bank at:
 
@@ -105,20 +106,26 @@ four-direction game centres its window on columns 1–80 and rows 1–24 (see
 
 ### 2.3 The tile bank
 
-The tile bank holds 128 tiles of 32 words:
+The tile bank holds 256 tiles of 32 words (8,192 words):
 
 | Range | Contents |
 |---|---|
 | `0x000` | tile 0: a blank 32-word art tile |
 | `0x020`–`0x31F` | regular 1bpp text page: 96 glyphs x 8 words |
 | `0x320`–`0x61F` | italic 1bpp text page: 96 glyphs x 8 words |
-| `0x620`–`0xBFF` | 47 free 32-word slots for game art (8 used by Pac-Man) |
-| `0xC00`–`0xFFF` | 32 baked 4bpp art tiles (14 Flappy + 16 Pac-Man) |
+| `0x620`–`0xBFF` | 47 free 32-word slots for game art (tiles 49–95) |
+| `0xC00`–`0xFFF` | 32 baked 4bpp art tiles (tiles 96–127) |
+| `0x1000`–`0x103F` | German regular extras: Ä Ö Ü ß ä ö ü at glyph slots 96–102 |
+| `0x1040`–`0x107F` | German italic extras for the same seven glyphs |
+| `0x1080`–`0x1FFF` | 124 free 32-word art slots (tiles 132–255) |
 
-The CPU window `0xF3000`–`0xF3FFF` covers all 128 tiles (words 0–4095).
-Tiles 96–127 at `0xC00` are seeded at configuration by
-`scripts/make_tile_font.mjs`, but the CPU can rewrite any of them at runtime;
-a game image may replace the console font.
+The CPU window `0xF3000`–`0xF3FFF` covers 128 tiles (words 0–4095). Control 5
+bit 12 selects the page for CPU writes: 0 = tiles 0–127, 1 = tiles 128–255.
+The renderer always uses the cell's full tile index. The ASCII pages and the
+seven German extras are seeded at configuration by
+`scripts/make_tile_font.mjs`; a game image may replace the console font. The
+German extras live outside the 0x620–0xBFF game-art gap, so Frogger/Pac-Man art
+at tiles 49–127 does not overwrite the regular console page.
 
 ### 2.4 Art tile format
 
@@ -155,7 +162,9 @@ leftmost. Glyph 0x20 is index 0 and glyph 0x7F is index 95.
 
 ```
 regular page word = 0x020 + index * 8 + (row >> 1)
-italic  page word = 0x320 + index * 8 + (row >> 1)
+italic  page word = 0x320 + index * 8 + (row >> 1)   ; index 0..95
+German  word = 0x1000 + (index - 96) * 8 + (row >> 1) ; index 96..102
+German italic = 0x1040 + (index - 96) * 8 + (row >> 1)
 ```
 
 Row 0 uses the low byte of the word, row 1 the high byte, and so on. The
@@ -182,19 +191,18 @@ Put the letter `A` (0x41) in pair 3:
 
 ```
 index = 0x41 - 0x20 = 0x21
-tile  = index * 32  = 0x420
-cell  = 0x8000 | (3 << 12) | 0x420 = 0xB420
+cell  = 0x8000 | (3 << 12) | 0x21 = 0xB021
 ```
 
 Put the baked art tile 96 (base `0xC00`, one of the showcase pipes) in the
 same place:
 
 ```
-cell = 0x0C00
+cell = 96 = 0x0060
 ```
 
 An art cell needs no mode bit; bit 15 stays zero. A text cell must set bit 15,
-or the renderer treats the glyph address as a 4bpp art tile.
+or the renderer treats the glyph index as a 4bpp art tile.
 
 ---
 
@@ -205,29 +213,26 @@ or the renderer treats the glyph address as a 4bpp art tile.
 | Cell bit 15 | 0 | 1 |
 | Storage | 30 words of 4bpp pixels | 8 words of 1bpp per glyph |
 | Colour | 16 entries from the art bank | two entries from the text bank, eight pairs |
-| Capacity | 128 tile slots, 80 without giving up text | 96 glyphs per page, regular + italic |
+| Capacity | 256 tile slots, 204 free art slots after the German extras | 96 ASCII glyphs per page + 7 German extras, regular + italic |
 | Transparency | none; index 0 is a colour | paper/ink only |
 | Styles | H/V flip and priority not implemented | italic, underline, bold |
 | Best for | backgrounds, pipes, cars, logs, tiles | HUD, menus, console, labels |
 
 ### 3.1 How much art fits
 
-With the text pages left alone there are **80 art-capable slots**: tile 0
-(blank), the 47 free slots in the gap, and the 32 baked art slots. Fourteen of
-the baked slots are used by Flappy, and Pac-Man adds tiles 49–56 in the gap
-plus wall shapes 110–125 in the baked block. The Frogger backdrop takes the
-remaining 39 gap tiles, 57–95. That leaves **2 free art tiles** (126–127)
-without touching text or the blank tile. Tile 0 itself is one
-more if a program does not need a blank tile.
+The text pages occupy words `0x020`–`0x61F` (tiles 1–48). A game that writes
+art there overwrites the matching glyphs. The slots that cannot hold a glyph
+are tiles 0 and 49–255: **208 art-capable tiles**. Tiles 49–95 are the gap
+between the pages and the baked block, 96–127 are the baked art slots, and
+128–255 are the new free slots the 256-tile bank adds. The current games use
+tiles up to 127, so the whole upper half is free for new art.
 
-If a game gives up the console font it can use the 96 glyph slots for its own
-art, and the 32 baked slots are still there. That gives the full 128 tile
-slots; tiles 96–127 are seeded at configuration but remain CPU-writable, so a
-game can replace the font at runtime.
+If a game gives up the console font it can also use the 96 glyph slots.
+Tiles 96–255 remain CPU-writable at runtime, so a game can replace the font.
 
-Text costs 48 slots: 24 for the regular page and 24 for the italic page. A
-game that only needs uppercase and digits can build a smaller page, but the
-current build always writes all 96 glyphs.
+A text page costs 48 slots: 24 for the regular page and 24 for the italic
+page. A game that only needs uppercase and digits can build a smaller page,
+but the current build always writes all 96 glyphs.
 
 ### 3.2 Choosing
 
@@ -249,13 +254,25 @@ current build always writes all 96 glyphs.
 A mode-1 cell selects one of eight paper/ink pairs:
 
 ```
-cell = 0x8000 | (pair << 12) | style | ((ch - 0x20) * 32)
+cell = 0x8000 | (pair << 12) | (style << 9) | (ch - 0x20)
 ```
 
 Pair `p` uses text-bank entries `2p` (paper) and `2p+1` (ink). Pair 0 is the
 ordinary console colour. The eight pairs share the 16-entry text bank, so a
 mixed screen should budget them deliberately; the art and sprite banks are
 separate and unaffected.
+
+The German characters use Latin-1 bytes and slots 96..102:
+
+| Char | Byte | Slot | Char | Byte | Slot |
+|---|---|---|---|---|---|
+| Ä | 0xC4 | 96 | ä | 0xE4 | 100 |
+| Ö | 0xD6 | 97 | ö | 0xF6 | 101 |
+| Ü | 0xDC | 98 | ü | 0xFC | 102 |
+| ß | 0xDF | 99 |  |  |  |
+
+On the board the German PS/2 layout produces these bytes; the console maps
+them through a 256-entry table before writing the cell.
 
 ```text
 0x1C 0xFC 3 pal!        \ pair 3: green paper, yellow ink
@@ -267,7 +284,7 @@ equivalents are `art-pal!` (`0xF6090`) and `sprite-pal!` (`0xF60A0`).
 
 ### 4.2 The style bits
 
-The low three bits of a text cell are style; bits 4:3 are reserved and zero:
+The style field is bits 11:9 of a text cell:
 
 | Bit | Style |
 |---|---|
@@ -275,11 +292,11 @@ The low three bits of a text cell are style; bits 4:3 are reserved and zero:
 | 1 | bold |
 | 0 | italic font page |
 
-They are ORed into the 32-word-aligned glyph address, so they do not move the
-tile fetch. Console writes that already OR `text_attr` (which contains
-`0x8000 | pair<<12`) keep working: with style zero the cell is plain text. A
-program that writes only `(ch - 0x20) * 32` without bit 15 writes an art cell,
-not a text cell.
+The renderer reads the style beside the glyph index, so the style does not
+move the font fetch. Console writes that OR `text_attr` (which contains
+`0x8000 | pair<<12 | style<<9`) keep working: with style zero the cell is plain
+text. A program that writes only `(ch - 0x20)` without bit 15 writes an art
+cell, not a text cell.
 
 * **Italic** selects the second 1bpp page at `0x320`. It is a designed ttyp0
   italic page, not a runtime shear, so it costs no extra logic per pixel.
@@ -294,7 +311,7 @@ The styles combine: `7` is italic + bold + underline.
 ### 4.3 Console state and Forth words
 
 In the D16D board kernel the console keeps its current pair and style in the
-kernel cell `0x3BEE` (`text_attr`). The catalog exposes them:
+kernel cell `0x3C1F` (`text_attr`). The catalog exposes them:
 
 | Word | Effect |
 |---|---|
@@ -722,15 +739,16 @@ road's gap windows.
 
 ## 7. Sprites
 
-The sprite layer sits on top of the tilemap: **eight 32x32 sprites, 4 bits per
-pixel**, composited into the same 640x360 frame. Each sprite has its own x/y,
+The sprite layer sits on top of the tilemap: **eight visible 32x32 sprites,
+4 bits per pixel**, chosen from 16 pattern groups and composited into the same
+640x360 frame. Each sprite has its own x/y,
 a pattern group, an enable bit and hardware H/V flip; the whole layer shares
 one 16-entry RGB332 sprite palette, separate from the text and art banks.
 
 The Flappy showcase is the reference implementation: a bird, four parallax
-clouds and animated wing/dizzy poses.  Pac-Man uses the six groups Flappy
-leaves free (0/1, 8/9, 16/17) for its right/up/down mouth frames; the left
-direction is the right frame with the OAM H flip.
+clouds and animated wing/dizzy poses.  Pac-Man keeps its frames in groups 0–4 and its ghosts in 5–8; left is the
+horizontal frame with the OAM H flip, and down is the vertical frame with the
+V flip.
 
 ### 7.1 The windows
 
@@ -738,12 +756,12 @@ All sprite memory is word-addressed, written by the CPU like ordinary RAM.
 
 | Address | Words | What |
 |---|---|---|
-| `0xF4000`–`0xF57FF` | 6,144 | sprite pattern bank, **all 24 groups** |
+| `0xF4000`–`0xF4FFF` | 4,096 | sprite pattern bank, **all 16 groups** |
 | `0xF6000`–`0xF607F` | 128 | OAM: 64 descriptors x two words |
 | `0xF6080`–`0xF627F` | 512 | 8 palette sets x 4 banks x 16 entries |
 | `0xF200A` | 1 | control 5: scene select (palette set + OAM base) |
 
-The window at `0xF4000`–`0xF57FF` covers **all 24 groups** (6,144 words): the
+The window at `0xF4000`–`0xF4FFF` covers **all 16 groups** (4,096 words): the
 CPU writes `0xF4000 + group * 256 + ...` directly. Control 5 and the OAM group
 are both absolute, so no paging is involved. Control 5 is still accepted for
 old images (page 3 clamps to 0) but has no effect. OAM is a register file and
@@ -762,7 +780,7 @@ Two words per sprite, sprite 0 first:
 | | 11 | enable |
 | | 10 | negative x |
 | | 9:0 | x, left edge |
-| `w1` | 15:11 | group, absolute 0–23 (24–31 disables the sprite) |
+| `w1` | 15:11 | group, absolute 0–15 (16–31 disables the sprite) |
 | | 10 | free |
 | | 9:0 | y, top edge |
 
@@ -784,21 +802,21 @@ Two words per sprite, sprite 0 first:
 ### 7.3 The pattern bank and its pages
 
 A 32x32 sprite is 16 8x8 patterns of 16 words each, so one group is 256
-words. The bank holds 24 groups, and the OAM group is the flat index:
+words. The bank holds 16 groups, and the OAM group is the flat index:
 
 ```
-absolute group = OAM w1 bits 15:11     (0..23)
+absolute group = OAM w1 bits 15:11     (0..15)
 write offset   = 0xF4000 + group * 256
 ```
 
 The sprite window is flat: the CPU writes the group's own 256 words, and the
 OAM group selects the same index at render time. Control 5 (the old page
-register) is a no-op. Groups 0,1,8,9,16,17 are unused in the baked bank.
-Groups 10 and 18 are duplicates of the page-1 and page-2 clouds, so they can be
-repurposed only if those pages do not need the cloud.
+register) is a no-op. The baked bank holds the red Flappy bird page in groups
+0–7 and zeros in 8–15; Flappy copies the selected colour page into groups 0–7
+when the game starts.
 
-The eight OAM slots can therefore each select any of the 24 groups: **8
-visible sprites out of 24 graphics**. More OAM slots would only add more
+The eight OAM slots can therefore each select any of the 16 groups: **8
+visible sprites out of 16 groups (256 patterns)**. More OAM slots would only add more
 simultaneous sprites, not a way to reach the extra art.
 
 Pattern addresses inside a group, for `row` and `col` in 0..31:
@@ -810,7 +828,7 @@ shift = (col % 4) * 4                   ; low nibble is the leftmost pixel
 ```
 
 `group` is the absolute bank group for baking and for a runtime write: the
-`0xF4000`–`0xF57FF` window covers all 24 groups, so the same `group * 256`
+`0xF4000`–`0xF4FFF` window covers all 16 groups, so the same `group * 256`
 offset applies. Control 5 is a legacy no-op and need not be written.
 
 Each word is four pixels. Empty pixels **must be 0** — that is the
@@ -819,12 +837,12 @@ transparent key.
 There are two ways to get art into the bank:
 
 * **Bake it into the bitstream.** `rtl/dvi/dvi_tile.sv` does
-  `$readmemh("birdsprite.hex", sprite)` at power-up, so 24 groups are already
+  `$readmemh("birdsprite.hex", sprite)` at power-up, so 16 groups are already
   there. `scripts/make_bird_sprite.mjs` builds that file (and
   `scripts/make_image.mjs` writes it next to the boot image). This is how the
   three bird pages and the shared cloud ship.
 * **Write it at runtime.** Store words at `0xF4000 + group * 256 + tile * 16 +
-  ...`; the window covers all 24 groups. A write changes the sprite on the next
+  ...`; the window covers all 16 groups. A write changes the sprite on the next
   composed line, so keep two groups as front/back buffers if you redraw
   animated art. The renderer uses the same absolute group in OAM.
 
@@ -914,7 +932,7 @@ frame.
 .equ SEG_OAM  -0x0A00        ; ES 0xF600 -> window 0xF6000 (OAM/palette)
 
 ; 1. (optional) load patterns into 0xF4000 + group*256 + ...
-;    the window covers all 24 groups; or use the baked art.
+;    the window covers all 16 groups; or use the baked art.
 
 ; 3. (optional) set sprite palette entry 2 (the body colour)
     LDI SEG_OAM
@@ -997,7 +1015,7 @@ in control 5 belongs to the write, not to the OAM.
 | `rtl/dvi/README.md` | DVI builds, timing, resource use, control 6/7 |
 | `scripts/make_tile_font.mjs` | text pages, tile layout, palette file |
 | `scripts/make_art.mjs` | source art to 16-colour RGB332 art tiles |
-| `scripts/make_bird_sprite.mjs` | sprite patterns, 24 groups, `birdsprite.hex` |
+| `scripts/make_bird_sprite.mjs` | sprite patterns, 16 groups, `birdsprite.hex` |
 | `scripts/make_pacman_art.mjs` | the maze, dot/ghost/wall tiles, Pac-Man frames |
 | `asm/showcase/pacman_game.asm` | Pac-Man: tilemap maze, HUD, OAM sprite, ghost AI |
 | `asm/showcase/flappy_game.asm` | `sb_emit` (bird), `set_clouds`, `set_palette` |

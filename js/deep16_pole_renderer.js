@@ -621,7 +621,7 @@
       for (const rowInfo of rows) {
         const tiles = this.rowTiles(rowInfo, horizon);
         for (let col = 0; col < COLS; col++) {
-          const cell = tiles[col] * 32;
+          const cell = tiles[col];
           const shadowIndex = rowInfo.row * COLS + col;
           if (cell !== this.previousCells[shadowIndex]) changedCells++;
           this.previousCells[shadowIndex] = cell;

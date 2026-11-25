@@ -42,26 +42,27 @@
 .equ G_BIRD_COLOR 0x04FF
 .equ G_BIRD_GROUP 0x04F5
 
-.equ T_PIPE_L     0x0C00
-.equ T_PIPE_M     0x0C20
-.equ T_PIPE_R     0x0C40
-.equ T_CAPU_L     0x0C60
-.equ T_CAPU_M     0x0C80
-.equ T_CAPU_R     0x0CA0
-.equ T_CAPD_L     0x0CC0
-.equ T_CAPD_M     0x0CE0
-.equ T_CAPD_R     0x0D00
-.equ T_GRASS      0x0D20
-.equ T_DIRT       0x0D40
-.equ T_CLOUD_L    0x0D60
-.equ T_CLOUD_M    0x0D80
-.equ T_CLOUD_R    0x0DA0
+.equ T_PIPE_L     96
+.equ T_PIPE_M     97
+.equ T_PIPE_R     98
+.equ T_CAPU_L     99
+.equ T_CAPU_M     100
+.equ T_CAPU_R     101
+.equ T_CAPD_L     102
+.equ T_CAPD_M     103
+.equ T_CAPD_R     104
+.equ T_GRASS      105
+.equ T_DIRT       106
+.equ T_CLOUD_L    107
+.equ T_CLOUD_M    108
+.equ T_CLOUD_R    109
 
 ; The bird/Pac-Man sprite pack travels in this slice at 0x2000 and is copied
 ; into the shared sprite bank on entry, so a previous game cannot leave its
 ; own sprites behind.
 .equ FLAPPY_SPR_PACK  0x2000
 .equ FLAPPY_SPR_WORDS 6144
+.equ FLAPPY_SPR_PAGE_WORDS 2048
 
 .org 0x3CC
 cloud_init:

@@ -99,11 +99,51 @@ function boot(scene) {
   // 0xFFFF guard skips the keyboard init exactly as the JS boot tests do.
   // Each rendered frame writes the frame/uart bits it wants, below.
   sim.memory[0xF0066] = 0xFFFF;
-  // Game scenes jump straight to a slice without the kernel, so install a
-  // RETI dummy for the BIOS sound SWI calls. The console boot replaces it
-  // with swi_to_bios during forth_start.
-  sim.memory[2] = 0xE000;
-  sim.memory[0xE000] = 0xFFF3;
+  // Game scenes jump straight to a slice without the kernel. They call BIOS
+  // getch (f4) for input and the sound calls; install a small stand-in that
+  // returns the headless harness's ASCII keys and ignores the rest. The
+  // console boot installs the real swi_to_bios vector during forth_start.
+  if (scene !== 'console') {
+    const fake = new Assembler().assemble(`
+      .org 0xE000
+      SMV R1, AR0
+      LDI 4
+      CMP R1, R0
+      JNZ fake_ret
+      NOP
+      MVS R3, ES
+      LDI 0x0FFF
+      INV R0
+      MVS ES, R0
+      LDI 0x0060
+      MOV R2, R0
+      LDS R1, ES, R2
+      LDI 1
+      AND R1, R0
+      JZ fake_empty
+      NOP
+      LDI 0x0062
+      MOV R2, R0
+      LDS R1, ES, R2
+      LDI 0x00FF
+      AND R1, R0
+      MOV R0, R1
+      SMV AR0, R0
+      MVS ES, R3
+      RETI
+      NOP
+    fake_empty:
+      LDI -1
+      SMV AR0, R0
+      MVS ES, R3
+    fake_ret:
+      RETI
+      NOP
+    `);
+    if (!fake.success) throw new Error('render fake BIOS does not assemble: ' + fake.errors.join('; '));
+    for (const c of fake.memoryChanges) sim.memory[c.address] = c.value & 0xFFFF;
+    sim.memory[2] = 0xE000;
+  }
   sim.cycleCount = 0;
 
   // Place a loaded slice at its segment, the way BDOS does, then copy the

@@ -476,31 +476,12 @@ gw_loop:
     NOP
 
 ; ---------------------------------------------------------------------------
-; game_poll: R0 = a key, or -1 when the FIFO is empty. Direct PS/2 poll.
+; game_poll: R0 = a decoded key, or -1 when the FIFO is empty.
 ; ---------------------------------------------------------------------------
 game_poll:
-    LDI SEG_IO
-    MVS ES, R0
-    LDI 0x0060
-    MOV R2, R0
-    LDS R1, ES, R2
-    LDI 1
-    MOV R3, R0
-    AND R1, R3
-    JNZ game_poll_ready
-    NOP
-    LSI R0, -1
-    JMP LR
-    NOP
-game_poll_ready:
-    LDI 0x0062
-    MOV R2, R0
-    LDS R0, ES, R2
-    MOV R1, R0
-    LDI 0x00FF
-    MOV R2, R0
-    AND R1, R2
-    MOV R0, R1
+    LDI 4                      ; BIOS getch decodes the raw FIFO event
+    SWI
+    SMV R0, AR0
     JMP LR
     NOP
 
@@ -823,7 +804,6 @@ game_cell_space:
 game_cell_map:
     LDI 32
     SUB R3, R0
-    SL R3, 5
     LDI 1
     SL R0, 15
     OR R3, R0

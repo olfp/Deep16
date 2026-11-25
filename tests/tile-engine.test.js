@@ -70,7 +70,7 @@ test('power-on is blank; no ROM is seeded', () => {
 test('a text cell renders the font page with its pair colours', () => {
   const { engine } = loaded();
   // 'H' is glyph 40. Text cell: mode, pair 0, style 0, glyph << 5.
-  cell(engine, 0, 0, 0x8000 | (40 << 5));
+  cell(engine, 0, 0, 0x8000 | 40);
   engine.render();
 
   const word = engine.tileBank[0x20 + 40 * 8];   // row 0..1, low byte is row 0
@@ -92,21 +92,21 @@ test('text styles: bold smear, underline and the italic page', () => {
   engine.write(0xF3000 + 0x320 + glyph * 8 + 7, 0x00FF); // italic row 14
   engine.write(0xF6081, 0xE0);                    // text ink red
 
-  cell(engine, 0, 0, 0x8000 | (glyph << 5) | 2);  // bold
+  cell(engine, 0, 0, 0x8000 | (2 << 9) | glyph);  // bold
   engine.render();
   assert.deepEqual(pixel(engine, 0, 0), [255, 0, 0, 255]);
   assert.deepEqual(pixel(engine, 1, 0), [255, 0, 0, 255], 'bold smears right');
   assert.ok(isBlack(pixel(engine, 2, 0)));
 
   engine.tilemap[0].fill(0);
-  cell(engine, 0, 0, 0x8000 | (glyph << 5) | 4);  // underline
+  cell(engine, 0, 0, 0x8000 | (4 << 9) | glyph);  // underline
   engine.render();
   for (let x = 0; x < 8; x++) {
     assert.deepEqual(pixel(engine, x, 14), [255, 0, 0, 255], `underline pixel ${x}`);
   }
 
   engine.tilemap[0].fill(0);
-  cell(engine, 0, 0, 0x8000 | (glyph << 5) | 1);  // italic page
+  cell(engine, 0, 0, 0x8000 | (1 << 9) | glyph);  // italic page
   engine.render();
   assert.deepEqual(pixel(engine, 0, 14), [255, 0, 0, 255]);
 });
@@ -115,7 +115,7 @@ test('an art cell renders 4bpp from the tile bank and the art palette bank', () 
   const { engine } = loaded();
   const tile = 96;
   solidArt(engine, tile, 1);
-  cell(engine, 0, 0, tile * 32);
+  cell(engine, 0, 0, tile);
   engine.write(0xF6091, 0xE0);                    // art bank entry 1 = red
   engine.render();
   assert.deepEqual(pixel(engine, 0, 0), [255, 0, 0, 255]);
@@ -127,7 +127,7 @@ test('the upper 32 tile slots are CPU-writable', () => {
   engine.write(0xF6092, 0x03);                    // art bank entry 2 = blue
   for (const tile of [96, 127]) {
     solidArt(engine, tile, 2);
-    cell(engine, 0, 0, tile * 32);
+    cell(engine, 0, 0, tile);
     engine.render();
     assert.deepEqual(pixel(engine, 0, 0), [0, 0, 255, 255], `tile ${tile}`);
   }
@@ -137,13 +137,13 @@ test('the 26-row terminal ring and row offset select a margin row', () => {
   const { engine } = loaded();
   solidArt(engine, 96, 1);
   engine.write(0xF6091, 0xE0);
-  cell(engine, 25, 0, 96 * 32);                   // map row 25, first margin
+  cell(engine, 25, 0, 96);                   // map row 25, first margin
   engine.write(CTRL + 0x2, 25);                   // visible row 0 -> map row 25
   engine.render();
   assert.deepEqual(pixel(engine, 0, 0), [255, 0, 0, 255]);
 
   engine.tilemap[0].fill(0);
-  cell(engine, 1, 0, 96 * 32);
+  cell(engine, 1, 0, 96);
   engine.render();
   assert.ok(isBlack(pixel(engine, 0, 0)), 'row 1 must not appear at rowOff 25');
 });
@@ -152,7 +152,7 @@ test('scroll_x takes effect only after the frame latch', () => {
   const { engine } = loaded();
   solidArt(engine, 96, 1);
   engine.write(0xF6091, 0xE0);
-  cell(engine, 0, 1, 96 * 32);
+  cell(engine, 0, 1, 96);
   engine.write(CTRL + 0x4, 8);                    // next scroll_x = 8
   engine.render();
   assert.ok(isBlack(pixel(engine, 0, 0)), 'scroll_x is not latched yet');
@@ -165,7 +165,7 @@ test('scroll_y carries into the next map row', () => {
   const { engine } = loaded();
   solidArt(engine, 96, 1);
   engine.write(0xF6091, 0xE0);
-  cell(engine, 1, 0, 96 * 32);
+  cell(engine, 1, 0, 96);
   engine.write(CTRL + 0x6, 15);                   // one full cell of scroll
   engine.render();
   assert.deepEqual(pixel(engine, 0, 0), [255, 0, 0, 255]);
@@ -177,7 +177,7 @@ test('the per-row table replaces only the fine phase', () => {
   for (let i = 0; i < 32; i++) engine.write(0xF3000 + base + i, 0);
   engine.write(0xF3000 + base, 0x1000);           // row 0, pixel 3 only
   engine.write(0xF6091, 0xE0);
-  cell(engine, 0, 0, 96 * 32);
+  cell(engine, 0, 0, 96);
   // Row 0 fine phase 3: x=0 samples pixel 3 of the first cell, and x=5 is
   // already the blank cell to its right.
   engine.write(CTRL + 0xC, (1 << 8) | (0 << 3) | 3);
@@ -193,8 +193,8 @@ test('the column window pins the panel side at fine 0', () => {
   for (let i = 0; i < 32; i++) engine.write(0xF3000 + base + i, 0);
   engine.write(0xF3000 + base, 0x1000);           // row 0, pixel 3 only
   engine.write(0xF6091, 0xE0);
-  cell(engine, 0, 0, 96 * 32);
-  cell(engine, 0, 2, 96 * 32);                    // the same marker at column 2
+  cell(engine, 0, 0, 96);
+  cell(engine, 0, 2, 96);                    // the same marker at column 2
   engine.write(CTRL + 0xC, (1 << 8) | (0 << 3) | 3);
   engine.write(CTRL + 0xC, (31 << 3) | (1 << 9)); // bound column 1
   engine.write(CTRL + 0xA, 0x800);                // dynamic panel, left side
@@ -259,7 +259,7 @@ test('H flips reverse the whole 32-pixel row', () => {
 test('a behind sprite is hidden by a non-zero background pixel', () => {
   const { engine } = loaded();
   solidArt(engine, 96, 1);
-  cell(engine, 0, 0, 96 * 32);
+  cell(engine, 0, 0, 96);
   engine.write(0xF6091, 0xE0);                    // background red
   for (let i = 0; i < 256; i++) engine.write(0xF4000 + i, 0x1111);
   engine.write(0xF60A1, 0x03);                    // sprite blue
@@ -308,7 +308,7 @@ test('control 5 still latches but no longer pages the sprite window', () => {
   // group 0 (the old paging would have written group 16).
   for (let i = 0; i < 256; i++) engine.write(0xF4000 + i, 0x1111);
   assert.equal(engine.spriteBank[0], 0x1111);
-  assert.equal(engine.spriteBank[16 * 256], 0);
+  assert.equal(engine.spriteBank[16 * 256], undefined);
   engine.write(0xF60A1, 0xE0);
   engine.write(0xF6000, 0x0800);
   engine.write(0xF6001, 0);
@@ -316,29 +316,29 @@ test('control 5 still latches but no longer pages the sprite window', () => {
   assert.deepEqual(pixel(engine, 0, 0), [255, 0, 0, 255]);
 });
 
-test('a group at or beyond 24 is disabled', () => {
+test('a group at or beyond 16 is disabled', () => {
   const { engine } = loaded();
   for (let i = 0; i < 256; i++) engine.write(0xF4000 + i, 0x1111);
   engine.write(0xF60A1, 0xE0);
   engine.write(0xF6000, 0x0800);
-  engine.write(0xF6001, 24 << 11);
+  engine.write(0xF6001, 16 << 11);
   engine.render();
   assert.ok(isBlack(pixel(engine, 0, 0)));
 });
 
-test('the window covers all 24 sprite groups, including group 23', () => {
+test('the window covers all 16 sprite groups, including group 15', () => {
   const { engine } = loaded();
   for (let i = 0; i < 256; i++) engine.write(0xF4000 + i, 0x1111);        // group 0 red
-  for (let i = 0; i < 256; i++) engine.write(0xF4000 + 23 * 256 + i, 0x2222); // group 23 blue
+  for (let i = 0; i < 256; i++) engine.write(0xF4000 + 15 * 256 + i, 0x2222); // group 15 blue
   engine.write(0xF60A1, 0xE0);                    // entry 1 red
   engine.write(0xF60A2, 0x03);                    // entry 2 blue
   engine.write(0xF6000, 0x0800);
   engine.write(0xF6001, 0);
   engine.render();
   assert.deepEqual(pixel(engine, 0, 0), [255, 0, 0, 255]);
-  engine.write(0xF6001, 23 << 11);
+  engine.write(0xF6001, 15 << 11);
   engine.render();
-  assert.deepEqual(pixel(engine, 0, 0), [0, 0, 255, 255], 'group 23 is directly addressable');
+  assert.deepEqual(pixel(engine, 0, 0), [0, 0, 255, 255], 'group 15 is directly addressable');
 });
 
 test('the display bank and scroll_x latch together at tick()', () => {
@@ -347,9 +347,9 @@ test('the display bank and scroll_x latch together at tick()', () => {
   solidArt(engine, 97, 2);
   engine.write(0xF6091, 0xE0);
   engine.write(0xF6092, 0x03);
-  cell(engine, 0, 0, 96 * 32);                    // bank 0 red
+  cell(engine, 0, 0, 96);                    // bank 0 red
   engine.write(CTRL + 0x8, 1);                    // write bank 1
-  cell(engine, 0, 0, 97 * 32);                    // bank 1 blue
+  cell(engine, 0, 0, 97);                    // bank 1 blue
   engine.write(CTRL + 0x8, 3);                    // display bank 1 next
   engine.render();
   assert.deepEqual(pixel(engine, 0, 0), [255, 0, 0, 255], 'old display bank');
@@ -361,7 +361,7 @@ test('the display bank and scroll_x latch together at tick()', () => {
 test('palette bank writes are isolated', () => {
   const { engine } = loaded();
   solidArt(engine, 96, 1);
-  cell(engine, 0, 0, 96 * 32);
+  cell(engine, 0, 0, 96);
   engine.write(0xF6081, 0x03);                    // text bank entry 1 (unused)
   engine.write(0xF6091, 0xE0);                    // art bank entry 1 red
   engine.render();
@@ -371,7 +371,7 @@ test('palette bank writes are isolated', () => {
 test('control 5 selects one of eight palette sets', () => {
   const { engine } = loaded();
   solidArt(engine, 96, 1);
-  cell(engine, 0, 0, 96 * 32);
+  cell(engine, 0, 0, 96);
   engine.write(0xF6091, 0xE0);                    // set 0 art entry 1 = red
   engine.write(0xF60D1, 0x03);                    // set 1 art entry 1 = blue
   engine.write(CTRL + 0xA, 0x0100);               // palette set 1
@@ -437,16 +437,48 @@ test('the cursor XORs the palette byte and blinks', () => {
   assert.ok(isBlack(pixel(engine, 8, 0)), 'cursor is one cell');
 });
 
+test('control 5 bit 12 pages CPU tile writes to tiles 128..255', () => {
+  const { engine } = loaded();
+  engine.write(0xF6092, 0x03);                    // art bank entry 2 = blue
+  engine.write(0xF200A, 0x1000);                  // tile page 1
+  for (const tile of [128, 255]) {
+    const base = tile * 32 - 4096;
+    for (let i = 0; i < 32; i++) engine.write(0xF3000 + base + i, 0x2222);
+    cell(engine, 0, 0, tile);
+    engine.render();
+    assert.deepEqual(pixel(engine, 0, 0), [0, 0, 255, 255], `tile ${tile}`);
+  }
+  engine.write(0xF200A, 0);                       // back to page 0
+  assert.equal(engine.tileBank[128 * 32], 0x2222, 'page 1 landed in the high half');
+  assert.equal(engine.tileBank[0], 0, 'page 0 was not touched');
+});
+
+test('German glyph slots render from the upper bank', () => {
+  const { engine } = loaded();
+  engine.write(0xF6081, 0xE0);                    // text ink red
+  assert.notEqual(engine.tileBank[0x1000], 0, 'the loaded tilefont has Ä');
+  assert.notEqual(engine.tileBank[0x1040], 0, 'the loaded tilefont has italic Ä');
+  // Glyph 96 (Ä) regular row 0 at 0x1000, italic row 0 at 0x1040.
+  engine.tileBank[0x1000] = 0x0080;
+  engine.tileBank[0x1040] = 0x0080;
+  cell(engine, 0, 0, 0x8000 | 96);
+  engine.render();
+  assert.deepEqual(pixel(engine, 0, 0), [255, 0, 0, 255], 'regular German slot');
+  cell(engine, 0, 0, 0x8000 | (1 << 9) | 96);
+  engine.render();
+  assert.deepEqual(pixel(engine, 0, 0), [255, 0, 0, 255], 'italic German slot');
+});
+
 test('reset keeps banks, the map and OAM, clears the controls', () => {
   const { engine } = loaded();
   solidArt(engine, 96, 1);
   engine.write(0xF6091, 0xE0);
-  cell(engine, 0, 0, 96 * 32);
+  cell(engine, 0, 0, 96);
   engine.write(0xF6000, 0x0800);
   engine.write(CTRL + 0x2, 7);
   engine.reset();
   assert.equal(engine.tileBank[96 * 32], 0x1111);
-  assert.equal(engine.tilemap[0][0], 96 * 32);
+  assert.equal(engine.tilemap[0][0], 96);
   assert.equal(engine.oam[0], 0x0800, 'OAM survives reset');
   assert.equal(engine.rowOff, 0);
   engine.render();
@@ -456,7 +488,7 @@ test('reset keeps banks, the map and OAM, clears the controls', () => {
 test('RGB332 expands exactly like the RTL', () => {
   const { engine } = loaded();
   solidArt(engine, 96, 2);
-  cell(engine, 0, 0, 96 * 32);
+  cell(engine, 0, 0, 96);
   engine.write(0xF6092, 0xE0);                    // 111 000 00
   engine.render();
   assert.deepEqual(pixel(engine, 0, 0), [255, 0, 0, 255]);

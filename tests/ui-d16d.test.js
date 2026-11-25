@@ -32,7 +32,7 @@ const frogger = fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'frogger_demo
 const TILE = 0xF1000;
 const TILE_COLS = 82;
 const cell = (row, column) => TILE + row * TILE_COLS + column;
-const glyph = (ch) => (ch.charCodeAt(0) - 0x20) * 32;
+const glyph = (ch) => (ch.charCodeAt(0) - 0x20);
 
 function makeUi(tileBuild = 'd16d') {
   const ui = Object.create(DeepWebUI.prototype);

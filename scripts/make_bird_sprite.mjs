@@ -20,8 +20,10 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const BIRD_GROUPS = [6, 7];
 export const DIZZY_GROUPS = [3, 4, 5];
 export const CLOUD_GROUP = 2;
-export const SPRITE_GROUPS = 24;
+export const SPRITE_GROUPS = 24;          // source pack: three bird pages
 export const SPRITE_WORDS = SPRITE_GROUPS * 16 * 16;
+export const BAKED_SPRITE_GROUPS = 16;    // resident bank
+export const BAKED_SPRITE_WORDS = BAKED_SPRITE_GROUPS * 16 * 16;
 
 function writeFrame(words, group, g) {
   const base = group * 16 * 16;            // 16 tiles x 16 words
@@ -59,8 +61,18 @@ export function birdSpriteWords() {
   return words;
 }
 
+// The bitstream's resident bank is 16 groups. The menu is plain text, so only
+// one default page (red, groups 0..7) is baked; Flappy copies the selected
+// page from its slice at run time.
+export function bakedBirdSpriteWords() {
+  const out = new Array(BAKED_SPRITE_WORDS).fill(0);
+  const red = birdSpriteWords();
+  for (let i = 0; i < 2048; i++) out[i] = red[i];
+  return out;
+}
+
 export function writeBirdSprite(outDir) {
-  const words = birdSpriteWords();
+  const words = bakedBirdSpriteWords();
   fs.mkdirSync(outDir, { recursive: true });
   fs.writeFileSync(path.join(outDir, 'birdsprite.hex'),
                    words.map((w) => w.toString(16).padStart(4, '0')).join('\n') + '\n');
@@ -71,5 +83,5 @@ const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPat
 if (isMain) {
   const out = path.resolve(process.argv[2] ?? path.join(ROOT, 'artifacts', 'image'));
   const n = writeBirdSprite(out);
-  console.log(`wrote ${path.relative(ROOT, out)}/birdsprite.hex (${n} words, ${BIRD_ORDER.length} pages + cloud)`);
+  console.log(`wrote ${path.relative(ROOT, out)}/birdsprite.hex (${n} words, one baked page; Flappy source has three)`);
 }

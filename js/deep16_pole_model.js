@@ -187,19 +187,19 @@
       const dy = row * CELL_H + 7 - state.horizonY;
       if (dy >= -CELL_H) {
         // The tree line stands on the horizon.
-        const word = ART.MOUNTAIN_C << 5;
+        const word = ART.MOUNTAIN_C;
         for (let col = 0; col < COLS; col++) cells[col] = word;
       } else if (dy >= -2 * CELL_H) {
         // The mountain row alternates the two profiles. One profile repeated
         // every eight pixels reads as a row of teeth; two of them give the
         // ridge line a sixteen pixel period and it reads as a range.
-        const first = ART.MOUNTAIN_A << 5;
-        const second = ART.MOUNTAIN_B << 5;
+        const first = ART.MOUNTAIN_A;
+        const second = ART.MOUNTAIN_B;
         for (let col = 0; col < COLS; col++) {
           cells[col] = (col & 1) ? second : first;
         }
       } else {
-        const word = ART.SKY << 5;
+        const word = ART.SKY;
         for (let col = 0; col < COLS; col++) cells[col] = word;
       }
       return cells;
@@ -214,17 +214,17 @@
     const rightOff = (rightPx - 1) & 7;
     const centerOff = info.center & 7;
 
-    const roadTile = ((((state.phase + band) >> 3) & 1) ? ART.ROAD_B : ART.ROAD_A) << 5;
+    const roadTile = ((((state.phase + band) >> 3) & 1) ? ART.ROAD_B : ART.ROAD_A);
     // The grass takes the same band parity as the road texture, so the ground
     // scrolls with the road instead of standing still.
-    const grassWord = ((((state.phase + band) >> 3) & 1) ? ART.GRASS_B : ART.GRASS_A) << 5;
+    const grassWord = ((((state.phase + band) >> 3) & 1) ? ART.GRASS_B : ART.GRASS_A);
     const leftBucket = leftOff >> 1;
     const rightBucket = rightOff >> 1;
-    const leftTop = (ART.LEFT_EDGE + leftBucket) << 5;
-    const leftBottom = (ART.LEFT_EDGE_B + leftBucket) << 5;
-    const rightTop = (ART.RIGHT_EDGE + rightBucket) << 5;
-    const rightBottom = (ART.RIGHT_EDGE_B + rightBucket) << 5;
-    const centerWord = (ART.CENTER + centerOff) << 5;
+    const leftTop = ART.LEFT_EDGE + leftBucket;
+    const leftBottom = ART.LEFT_EDGE_B + leftBucket;
+    const rightTop = ART.RIGHT_EDGE + rightBucket;
+    const rightBottom = ART.RIGHT_EDGE_B + rightBucket;
+    const centerWord = ART.CENTER + centerOff;
 
     for (let col = 0; col < COLS; col++) cells[col] = grassWord;
     if (leftCell > 0) cells[leftCell - 1] = leftBottom;

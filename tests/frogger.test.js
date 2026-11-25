@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import path from 'node:path';
-import { ROOT } from './helpers.js';
+import { ROOT, installFakeBiosGetch } from './helpers.js';
 import {
   buildFrogger, checkFrogger, FROGGER_SEG_BASE, FROGGER_SEG, FROGGER_LIMIT,
 } from '../scripts/make_showcase.mjs';
@@ -63,9 +63,8 @@ function start({ play = true } = {}) {
   sim.registers[15] = 0;
   sim.running = true;
   sim.memory[STATUS] = 0;
-  // Stand-alone game: no kernel/BIOS; the sound SWI calls become no-ops.
-  sim.memory[2] = 0xE000;
-  sim.memory[0xE000] = 0xFFF3;
+  // Stand-alone game: no kernel/BIOS; emulate getch and ignore sound calls.
+  installFakeBiosGetch(sim);
   // The game enters in attract; the first frame consumes the start key.
   if (play) sim.kbdBuffer.push(0x20);
   return sim;
@@ -138,7 +137,7 @@ test('the panel strip is a shrinking time bar', () => {
   run(sim, 100);
   const time = sim.memory[BLOCK + 0xA20];
   assert.ok(time > 0 && time < 23, `time ${time}`);
-  const at = (r, c) => sim.memory[0xF1000 + r * 82 + c] >> 5;
+  const at = (r, c) => sim.memory[0xF1000 + r * 82 + c] & 0x1FF;
   for (const r of [12, 13]) {
     assert.equal(at(r, 0), 127, `row ${r} bar start`);
     assert.equal(at(r, time), 0, `row ${r} bar end`);
@@ -471,7 +470,7 @@ function hudText(sim, row, col, n) {
   let out = '';
   for (let i = 0; i < n; i++) {
     const cell = sim.memory[0xF1000 + row * 82 + col + i];
-    out += cell & 0x8000 ? String.fromCharCode(((cell >> 5) & 0x7f) + 0x20) : '?';
+    out += cell & 0x8000 ? String.fromCharCode((cell & 0x1FF) + 0x20) : '?';
   }
   return out;
 }
@@ -686,9 +685,15 @@ test('the road keeps an arcade-sized gap to wait in', () => {
 
 test('a hop plays the hop blip and a death the death sweep', () => {
   const sim = start();
-  // Swap the BIOS no-op for a recorder of the sound call's R1/R2 arguments.
+  // Swap the BIOS no-op for a recorder of the sound call's R1/R2 arguments,
+  // while still serving getch (f4) from the ASCII keyboard buffer.
   const stub = new Assembler().assemble(`
     .org 0xE000
+    SMV R1, AR0
+    LDI 4
+    CMP R1, R0
+    JZ getch
+    NOP
     SMV R1, AR1
     SMV R2, AR2
     LDI 0x0100
@@ -696,6 +701,34 @@ test('a hop plays the hop blip and a death the death sweep', () => {
     ST R1, R3, 0
     ADD R3, 1
     ST R2, R3, 0
+    RETI
+    NOP
+  getch:
+    MVS R3, ES
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDI 0x0060
+    MOV R2, R0
+    LDS R1, ES, R2
+    LDI 1
+    AND R1, R0
+    JZ getch_empty
+    NOP
+    LDI 0x0062
+    MOV R2, R0
+    LDS R1, ES, R2
+    LDI 0x00FF
+    AND R1, R0
+    MOV R0, R1
+    SMV AR0, R0
+    MVS ES, R3
+    RETI
+    NOP
+  getch_empty:
+    LDI -1
+    SMV AR0, R0
+    MVS ES, R3
     RETI
   `);
   for (const c of stub.memoryChanges) sim.memory[c.address] = c.value & 0xffff;

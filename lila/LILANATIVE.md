@@ -122,7 +122,7 @@ from 15,671 cells to 11,575 after the catalog and the tools slice were
 loaded. A board that wants the old stack back has to give up the ten-slice
 chain - trim the compiler, or wait for packed slices.
 
-After the load the compiler has taken about 8.5k cells, leaving about 4.1k
+After the load the compiler has taken about 8.5k cells, leaving about 3.9k
 free in a D16D dictionary.
 
 **XMODEM over the serial line.** `xmodem` lives in the `edit` slice, which
@@ -509,9 +509,9 @@ lets a block span several lines, and it is why the pending source is kept in
 
 The rest are scalar variables for parser and VM state. The arrays account for
 most of the compiler's footprint. On the D16SEG image used by the test, the
-booted kernel has `here = 0xceb9`, so 12,599 of the 65,520 cells below
+booted kernel has `here = 0xcf3f`, so 12,465 of the 65,520 cells below
 `limit = 0xfff0` are free - the boot loader's `text-buf` takes 20,480 of
-them. Loading the compiler from the flash takes 8,519 cells, leaving 4,080
+them. Loading the compiler from the flash takes 8,519 cells, leaving 3,946
 free; typing it in takes the same 8,519 cells.
 
 ### Input
@@ -972,7 +972,7 @@ loaded, and the limits that matter — source length, token count, name count,
 name length and the two arenas — are checked before anything is written. The
 bytecode buffer is the one exception; it relies on the token cap to stay
 inside 1024 cells. That is what makes it possible to run the whole pipeline in
-a dictionary that already has about 4.1k cells free.
+a dictionary that already has about 3.9k cells free.
 
 The name budget, the globals and the two string arenas are per *session*, not
 per line. That is what makes the state carry from one line to the next, and

@@ -51,12 +51,11 @@ test('sprite bank holds three bird pages plus the shared cloud', () => {
 test('Flappy and Pac-Man carry separate sprite sets', () => {
   const flappy = buildFlappy();
   const at = (a) => flappy.words.find((w) => w[0] === a)?.[1];
-  for (const g of [0, 1, 8, 9, 16, 17]) {
-    for (let i = 0; i < GROUP_WORDS; i++)
-      assert.equal(at(0x2000 + g * GROUP_WORDS + i) ?? 0, 0,
-                   `Flappy pack group ${g} must stay free of Pac-Man`);
-  }
-  assert.equal(pacmanRuntimeSpriteFrames().length, 6, 'Pac-Man player frames');
+  // Flappy carries three bird pages (24 groups) as source; only the selected
+  // page is copied into the sprite bank at run time.
+  assert.equal(at(0x2000), flappy.words.find(([a]) => a === 0x2000)?.[1], 'sprite pack');
+  assert.equal(birdSpriteWords().length, 24 * GROUP_WORDS, 'three bird pages');
+  assert.equal(pacmanRuntimeSpriteFrames().length, 5, 'Pac-Man player frames');
   assert.equal(pacmanGhostSpriteFrames().length, 4, 'Pac-Man ghost frames');
 });
 

@@ -14,9 +14,17 @@ variable ts-last drop
 0xF000 seg-base!
 edit-row 8 lshift edit-col 1 lshift or 1 or 0x2000 es!
 0 0x2002 es! ;
+: latin-glyph ( c -- g )
+dup 0xC4 = if drop 96 exit then
+dup 0xD6 = if drop 97 exit then
+dup 0xDC = if drop 98 exit then
+dup 0xDF = if drop 99 exit then
+dup 0xE4 = if drop 100 exit then
+dup 0xF6 = if drop 101 exit then
+dup 0xFC = if drop 102 exit then
+dup 32 127 within if 32 - else drop 0 then ;
 : edit-tile ( c -- tile )
-dup 32 127 within if else drop 32 then
-32 - 5 lshift text-attr @ or ;
+latin-glyph text-attr @ or ;
 : edit-draw ( -- )
 edit-clear
 edit-h 0 do

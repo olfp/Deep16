@@ -20,15 +20,15 @@ import {
   readFontWords,
   tileFontWords,
 } from './make_tile_font.mjs';
-import { SPRITE_WORDS as GENERATED_SPRITE_WORDS, birdSpriteWords } from './make_bird_sprite.mjs';
+import { BAKED_SPRITE_WORDS as GENERATED_SPRITE_WORDS, bakedBirdSpriteWords } from './make_bird_sprite.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 export const MAGIC = 'D16G';
 export const VERSION = 1;
 export const ASSET_BASE = 0x300000;
-export const TILE_WORDS = TILE_BANK_WORDS;      // 128 tiles x 32 words
-export const SPRITE_WORDS = 6144;               // 24 groups x 256
+export const TILE_WORDS = TILE_BANK_WORDS;      // 256 tiles x 32 words
+export const SPRITE_WORDS = GENERATED_SPRITE_WORDS; // 16 groups x 256
 export const PALETTE_WORDS = 48;                // text, art, sprite banks
 export const HEADER_BYTES = 12;
 export const TARGET = path.join(ROOT, 'js', 'deep16_flash_assets.js');
@@ -37,7 +37,7 @@ export function buildAssetWords() {
   const font = readFontWords(path.join(ROOT, 'rtl', 'dvi', 'ttyp0-8x15.hex'));
   const italic = readFontWords(path.join(ROOT, 'rtl', 'dvi', 'ttyp0-8x15-italic.hex'));
   const tiles = tileFontWords(font, italic);
-  const sprites = birdSpriteWords();
+  const sprites = bakedBirdSpriteWords();
   const palette = [...PALETTE_RGB332, ...PALETTE_RGB332, ...PALETTE_RGB332];
   if (tiles.length !== TILE_WORDS) throw new Error(`tile words ${tiles.length} != ${TILE_WORDS}`);
   if (sprites.length !== GENERATED_SPRITE_WORDS) {

@@ -151,7 +151,7 @@ pac_entry:
     MOV R1, R0
     LDI pac_sprite_groups
     MOV R5, R0
-    LSI R6, 6
+    LSI R6, 5
     LINK
     JMP R4
     NOP
@@ -287,8 +287,6 @@ mz_dot:
     LDI T_DOT_R
     MOV R2, R0
 mz_scale:
-    SL R4, 5
-    SL R2, 5
     LDI mz_store
     MOV PC, R0
     NOP
@@ -390,11 +388,9 @@ mz_right_done:
     LDI T_WALL_L
     MOV R4, R0
     ADD R4, R5
-    SL R4, 5
     LDI T_WALL_R
     MOV R2, R0
     ADD R2, R12
-    SL R2, 5
     LDI mz_store
     MOV PC, R0
     NOP
@@ -2036,8 +2032,9 @@ pac_draw_score:
 pac_ds_loop:
     LD R3, R7, 0
     ADD R3, R4
-    SL R3, 5
-    OR R3, 15                 ; text tile flag
+    LSI R5, 1
+    SL R5, 15
+    OR R3, R5                 ; text mode 0x8000
     STS R3, ES, R2
     ADD R2, 1
     ADD R7, 1
@@ -2161,7 +2158,6 @@ pac_dt_loop:
     JZ pac_dt_done
     NOP
     SUB R0, R1
-    SL R0, 5
     LSI R3, 1
     SL R3, 15
     OR R0, R3
@@ -2187,8 +2183,6 @@ pac_fruit_paint:
     LINK
     JMP R4
     NOP
-    SL R5, 5
-    SL R7, 5
     LDI SEG_TILE
     MVS ES, R0
     STS R5, ES, R3
@@ -2677,37 +2671,37 @@ pac_sp_draw:
     MOV PC, R0
     NOP
 pac_sp_closed:
-    LSI R3, 10                 ; shared closed frame
+    LSI R3, 2                  ; shared closed circle
+    LSI R6, 0                  ; a circle needs no H/V flip
     LDI pac_sp_write
     MOV PC, R0
     NOP
 pac_sp_dir:
-    ; up: 8/9, down: 16/17, right/left/stopped: 0/1
+    ; R6 = direction (1 up, 2 down, 3 left, else right/stopped)
     LDI ST_PAC_DIR
     MOV R6, R0
     LD R6, R6, 0
+    ; vertical base 3 for up/down, horizontal base 0 otherwise
     LSI R7, 1
     CMP R6, R7
-    JNZ pac_sp_not_up
+    JZ pac_sp_vertical
     NOP
-    LSI R7, 8
-    ADD R3, R7
-pac_sp_not_up:
     LSI R7, 2
     CMP R6, R7
-    JNZ pac_sp_flat
+    JNZ pac_sp_horizontal
     NOP
-    LDI 16
-    MOV R7, R0
+pac_sp_vertical:
+    LSI R7, 3
     ADD R3, R7
-pac_sp_flat:
+pac_sp_horizontal:
     ; word 1 = group << 11 | y
+pac_sp_write:
     MOV R4, R3
     SL R4, 11
     OR R4, R5
     LSI R0, 1
     STS R4, ES, R0
-    ; word 0 = 0x0800 | x, with 0x2000 when facing left
+    ; word 0 = 0x0800 | x, plus H for left and V for down
     LSI R7, 3
     CMP R6, R7
     JNZ pac_sp_noh
@@ -2716,21 +2710,14 @@ pac_sp_flat:
     MOV R7, R0
     OR R2, R7
 pac_sp_noh:
-    LSI R7, 1
-    SL R7, 11
-    OR R2, R7
-    LSI R0, 0
-    STS R2, ES, R0
-    JMP LR
+    LSI R7, 2
+    CMP R6, R7
+    JNZ pac_sp_nov
     NOP
-
-pac_sp_write:
-    ; shared closed frame: group 10 << 11 | y, no H flip
-    MOV R4, R3
-    SL R4, 11
-    OR R4, R5
-    LSI R0, 1
-    STS R4, ES, R0
+    LDI 0x4000
+    MOV R7, R0
+    OR R2, R7
+pac_sp_nov:
     LSI R7, 1
     SL R7, 11
     OR R2, R7
@@ -2742,22 +2729,17 @@ pac_sp_write:
 ; =====================================================================
 ; Keyboard
 ; =====================================================================
-; Reads one UART byte: WASD or the arrow keys set the requested direction,
-; Q exits.  Arrows are the E0 navigation bytes 0x10/0x0e/0x02/0x06;
-; WASD is case-folded first because the PS/2 map produces both cases.
+; Reads one decoded key: WASD or the arrow keys set the requested direction,
+; Q exits. Arrows arrive as the BIOS decoder's E0 navigation bytes
+; 0x10/0x0e/0x02/0x06; WASD is case-folded first.
 pac_keys:
-    LDI SEG_UART
-    MVS ES, R0
-    LDI 0x20
-    MOV R2, R0
-    LDS R1, ES, R2
-    LSI R3, 1
-    AND R1, R3                 ; keyboard FIFO ready
+    LDI 4                      ; BIOS getch decodes the raw FIFO event
+    SWI
+    SMV R1, AR0
+    LDI -1
+    CMP R1, R0
     JZ pac_k_done
     NOP
-    LDI 0x22
-    MOV R2, R0
-    LDS R1, ES, R2
     ; arrow keys arrive as the PS/2 E0 navigation bytes, before case folding
     LDI 0x10
     MOV R3, R0

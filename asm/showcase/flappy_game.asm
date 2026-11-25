@@ -32,23 +32,14 @@ flappy_start:
     MOV R2, R0
     ST R9, R2, 0
 
-    ; Install this slice's bird/Pac-Man sprite pack. The sprite bank is shared
-    ; with the menu and the other games; Pole and Frogger overwrite it, so a
-    ; game that relies on the baked bitstream copy would show their sprites.
-    LDI FLAPPY_SPR_PACK
-    MOV R2, R0
-    LSI R3, 0
-    LDI SEG_SPR
-    MVS ES, R0
-    LDI FLAPPY_SPR_WORDS
+    ; Install one bird page. The three source pages stay in the slice; only
+    ; the selected 2,048-word page lives in the sprite bank. A reset picks the
+    ; colour and copies that page again.
+    LSI R1, 0
+    LDI bird_page_copy
     MOV R4, R0
-flappy_spr_copy:
-    LDS R5, DS, R2
-    STS R5, ES, R3
-    ADD R2, 1
-    ADD R3, 1
-    SUB R4, 1
-    JNZ flappy_spr_copy
+    LINK
+    JMP R4
     NOP
 
     LDI game_entry
@@ -123,7 +114,6 @@ draw_text_loop:
     JZ draw_text_done
     NOP
     SUB R0, R1
-    SL R0, 5
     LSI R3, 1
     SL R3, 15
     OR R0, R3
@@ -399,7 +389,6 @@ pipe_not_capdown:
     LDI T_CAPU_L
 pipe_not_capup:
     MOV R4, R7
-    SL R4, 5
     ADD R4, R0
     STS R4, ES, R3
 pipe_skip:
@@ -494,6 +483,12 @@ pick_mod:
     NOP
 pick_done:
     ; R1 = 0 red, 1 purple, 2 yellow
+    ; Put that colour's page into sprite groups 0..7 before the first frame.
+    LDI bird_page_copy
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
     MOV R4, R1
     SL R4, 1
     LDI bird_colors
@@ -680,18 +675,13 @@ play_loop:
     NOP
 
     ; a keyboard key still works while dead: Q quits immediately
-    LDI SEG_UART
-    MVS ES, R0
-    LDI 0x20
-    MOV R2, R0
-    LDS R1, ES, R2
-    LSI R3, 1
-    AND R1, R3
+    LDI 4                      ; BIOS getch decodes the raw event
+    SWI
+    SMV R1, AR0
+    LDI -1
+    CMP R1, R0
     JZ death_state
     NOP
-    LDI 0x22
-    MOV R2, R0
-    LDS R1, ES, R2             ; consume the byte
     LDI 0xDF
     MOV R3, R0
     AND R1, R3
@@ -878,16 +868,14 @@ play_check_button:
     AND R1, R3
     JNZ play_input
     NOP
-    LDI 0x20
-    MOV R2, R0
-    LDS R1, ES, R2             ; 0xF0060 keyboard FIFO status
-    LSI R3, 1
-    AND R1, R3
+    ; BIOS getch (f4) decodes the raw FIFO event and is non-blocking.
+    LDI 4
+    SWI
+    SMV R1, AR0
+    LDI -1
+    CMP R1, R0
     JZ play_no_key
     NOP
-    LDI 0x22
-    MOV R2, R0
-    LDS R1, ES, R2             ; 0xF0062 keyboard data
     ; Q/q exits. Every other key takes the flap branch.
     LDI 0xDF
     MOV R3, R0
@@ -1326,10 +1314,9 @@ weight_init:
     LDI G_BIRD_COLOR
     MOV R2, R0
     ST R1, R2, 0
-    MOV R2, R1
-    SL R2, 1
-    SL R2, 1
-    SL R2, 1                   ; page * 8
+    ; The selected page is loaded at groups 0..7, so the absolute OAM group
+    ; base is always 0.
+    LSI R2, 0
     LDI G_BIRD_GROUP
     MOV R3, R0
     ST R2, R3, 0
@@ -1435,5 +1422,30 @@ s2_edge_off:
     LDI 0xFB
     MOV R2, R0
     AND R1, R2             ; clear bit 2
+    JMP LR
+    NOP
+
+
+; Copy one 32x32 bird page from DS:FLAPPY_SPR_PACK + R1*2048 to sprite groups
+; 0..7. R1 is the colour (0 red, 1 purple, 2 yellow); R1 survives.
+.org 0x0E20
+bird_page_copy:
+    MOV R3, R1
+    SL R3, 11                  ; 2,048 words per page
+    LDI FLAPPY_SPR_PACK
+    ADD R3, R0
+    LSI R4, 0
+    LDI SEG_SPR
+    MVS ES, R0
+    LDI FLAPPY_SPR_PAGE_WORDS
+    MOV R5, R0
+bird_page_copy_loop:
+    LDS R0, DS, R3
+    STS R0, ES, R4
+    ADD R3, 1
+    ADD R4, 1
+    SUB R5, 1
+    JNZ bird_page_copy_loop
+    NOP
     JMP LR
     NOP

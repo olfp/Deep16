@@ -16,7 +16,7 @@
 ;   0xC000-0xCFFF  stack (unused today)
 ;
 ; Display: 80x23 text rows plus status row 23, mode-1 cells at
-; 0xF1000 + row*82 + col, word = 0x8000 | pair<<12 | (ch-32)*32.
+; 0xF1000 + row*82 + col, word = 0x8000 | pair<<12 | style<<9 | (ch-32).
 ; =====================================================================
 
 .equ ED_SEG      0x0800
@@ -238,8 +238,14 @@ ed_wait:
         LDI 127
         MOV R2, R0
         CMP R6, R2
-        JNC ed_loop
+        JC ed_insert_key
         NOP
+        LDI 0xC0
+        MOV R2, R0
+        CMP R6, R2
+        JC ed_loop
+        NOP
+ed_insert_key:
         MOV R3, R6
         LDI ed_insert
         MOV R4, R0
@@ -434,6 +440,98 @@ ed_bdos_back:
 ; Clobbers R0, R3, R5 and ES; leaves R1, R2, R4 and R6..R9 alone.
 ; ---------------------------------------------------------------------
 ed_cell:
+        ; R3 char -> 128-slot glyph. ASCII first; the seven German Latin-1
+        ; codes follow; anything else is a space.
+        LDI 0x20
+        CMP R3, R0
+        JC ed_cell_space
+        NOP
+        LDI 0x7F
+        CMP R3, R0
+        JC ed_cell_ascii
+        NOP
+        LDI 0xC4
+        CMP R3, R0
+        JZ ed_cell_g0
+        NOP
+        LDI 0xD6
+        CMP R3, R0
+        JZ ed_cell_g1
+        NOP
+        LDI 0xDC
+        CMP R3, R0
+        JZ ed_cell_g2
+        NOP
+        LDI 0xDF
+        CMP R3, R0
+        JZ ed_cell_g3
+        NOP
+        LDI 0xE4
+        CMP R3, R0
+        JZ ed_cell_g4
+        NOP
+        LDI 0xF6
+        CMP R3, R0
+        JZ ed_cell_g5
+        NOP
+        LDI 0xFC
+        CMP R3, R0
+        JZ ed_cell_g6
+        NOP
+        LDI ed_cell_space
+        MOV PC, R0
+        NOP
+ed_cell_ascii:
+        LDI 0x20
+        SUB R3, R0
+        LDI ed_cell_addr
+        MOV PC, R0
+        NOP
+ed_cell_g0:
+        LDI 96
+        MOV R3, R0
+        LDI ed_cell_addr
+        MOV PC, R0
+        NOP
+ed_cell_g1:
+        LDI 97
+        MOV R3, R0
+        LDI ed_cell_addr
+        MOV PC, R0
+        NOP
+ed_cell_g2:
+        LDI 98
+        MOV R3, R0
+        LDI ed_cell_addr
+        MOV PC, R0
+        NOP
+ed_cell_g3:
+        LDI 99
+        MOV R3, R0
+        LDI ed_cell_addr
+        MOV PC, R0
+        NOP
+ed_cell_g4:
+        LDI 100
+        MOV R3, R0
+        LDI ed_cell_addr
+        MOV PC, R0
+        NOP
+ed_cell_g5:
+        LDI 101
+        MOV R3, R0
+        LDI ed_cell_addr
+        MOV PC, R0
+        NOP
+ed_cell_g6:
+        LDI 102
+        MOV R3, R0
+        LDI ed_cell_addr
+        MOV PC, R0
+        NOP
+ed_cell_space:
+        LSI R3, 0
+ed_cell_addr:
         MOV R5, R1
         SL R5, 6
         MOV R0, R1
@@ -445,21 +543,6 @@ ed_cell:
         LDI SCR_MAP
         ADD R5, R0
         ADD R5, R2
-        LDI 32
-        CMP R3, R0
-        JC ed_cell_space
-        NOP
-        LDI 127
-        CMP R3, R0
-        JC ed_cell_map
-        NOP
-ed_cell_space:
-        LDI 32
-        MOV R3, R0
-ed_cell_map:
-        LDI 32
-        SUB R3, R0
-        SL R3, 5
         OR R3, R4
         LDI 0x0FFF
         INV R0

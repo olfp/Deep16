@@ -1,7 +1,7 @@
 ; String and Character Demo
 ; Demonstrates character constants and .text on the FiT tile screen.
 ;
-; A FiT text cell is 0x8000 | ((ascii - 0x20) << 5). The map has 82 columns
+; A FiT text cell is 0x8000 | (ascii - 0x20). The map has 82 columns
 ; and 26 rows; its first 80x24 cells are the visible window.
 
 .org 0x0100
@@ -69,8 +69,7 @@ write_loop:
     NOP              ; branch delay slot
     LDI  0x20
     MOV  R2, R0
-    SUB  R5, R2        ; ascii - 0x20
-    SL   R5, 5         ; glyph number * 32
+    SUB  R5, R2        ; ascii - 0x20 is the glyph number
     OR   R5, R7        ; add the text-cell bit
     ST   R5, R11, 0
     ADD  R11, 1

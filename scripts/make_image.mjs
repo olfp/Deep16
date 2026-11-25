@@ -30,7 +30,8 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { writeTileFont } from './make_tile_font.mjs';
 import { writeBirdSprite } from './make_bird_sprite.mjs';
-import { writePs2Map } from './make_ps2map.mjs';
+import { writePs2Layouts, layoutWords, PS2_LAYOUT_BASE, LAYOUT_WORDS,
+         LAYOUT_COUNT } from './make_ps2map.mjs';
 import { buildShowcase, checkShowcase, SHOWCASE_SEG_BASE,
          buildPacman, checkPacman, PACMAN_SEG_BASE } from './make_showcase.mjs';
 
@@ -187,8 +188,33 @@ export function buildImage() {
                       'over the image window');
     }
   }
+  // The software keyboard decoder lives in the free tail after the FPU
+  // (PS2LAYOUT.md §6); its layout data follows it. Both are image words, not
+  // BSRAM, and both must stay below the 0x7000 window.
+  let layouts = null;
+  if (D16D) {
+    if (sym.ps2_decode_end === undefined || sym.ps2_decode_end > PS2_LAYOUT_BASE) {
+      throw new Error(`PS/2 decoder ends at ` +
+                      (sym.ps2_decode_end === undefined ? 'an undefined symbol' :
+                       `0x${sym.ps2_decode_end.toString(16)}`) +
+                      `, over the layout table at 0x${PS2_LAYOUT_BASE.toString(16)}`);
+    }
+    layouts = layoutWords();
+    const layoutEnd = PS2_LAYOUT_BASE + layouts.length;
+    if (layoutEnd > WINDOW) {
+      throw new Error(`PS/2 layout table ends at 0x${layoutEnd.toString(16)}, over the image window`);
+    }
+    for (let i = 0; i < layouts.length; i++) {
+      const a = PS2_LAYOUT_BASE + i;
+      if (words[a] !== FILL) {
+        throw new Error(`PS/2 layout table at 0x${a.toString(16)} overwrites live image data`);
+      }
+      words[a] = layouts[i];
+    }
+  }
+
   const biosWords = (() => {
-    let hi = 0;
+    let hi = layouts ? PS2_LAYOUT_BASE + layouts.length - 1 : 0;
     for (const c of res.memoryChanges) {
       if (c.address >= sym.bios_entry && c.address < WINDOW) hi = Math.max(hi, c.address);
     }
@@ -234,6 +260,7 @@ export function buildImage() {
     .update(source)
     .update(library)
     .update(forthFloat)
+    .update(Buffer.from(layouts ? layouts.buffer : new ArrayBuffer(0)))
     .update(showcase?.build ?? '')
     .update(pacman?.build ?? '')
     .digest('hex').slice(0, 16);
@@ -242,6 +269,8 @@ export function buildImage() {
     words, outOfWindow: [...outOfWindow].sort((a, b) => a - b), collisions,
     dictFree: sym.dict_free, biosEntry: sym.bios_entry, biosWords, build,
     fpu: FPU, fpuWords: FPU, showcase, pacman,
+    layouts: layouts ? { base: PS2_LAYOUT_BASE, words: LAYOUT_WORDS,
+                         count: LAYOUT_COUNT } : null,
   };
 }
 
@@ -427,6 +456,7 @@ export function manifest(img) {
     stack_base: `0x${STACK_BASE.toString(16)}`,
     fpu: img.fpu,
     fpu_words: img.fpuWords,
+    ps2_layouts: img.layouts,
     build: img.build,
     pack: pack ? {
       format: 'count, (start,end) pairs, payload ranges',
@@ -512,7 +542,7 @@ if (isMain) {
     writeTileFont(outDir);   // ttyp0 8x15 regular + italic pages
     writeBirdSprite(outDir);
     // PS/2 Set-2 -> ASCII map: a BSRAM pROM read by rtl/ps2_rx.sv.
-    writePs2Map(outDir);
+    writePs2Layouts(outDir);
     // The same words serve the on-die installer fallback and the config-flash
     // boot image at 0x100000.
     const installerWords = installerFlash(img);

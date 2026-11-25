@@ -52,11 +52,11 @@
 : pal! ( bg ink pair -- )        0 pal-bank! ;
 : art-pal! ( bg ink pair -- )    1 pal-bank! ;
 : sprite-pal! ( bg ink pair -- ) 2 pal-bank! ;
-: attr ( pair -- )      7 and 12 lshift 0x8000 or  text-attr @ 0x1F and or  text-attr ! ;
-: style ( flags -- )    0x1F and  text-attr @ 0xF000 and or  text-attr ! ;
-: attr! ( pair flags -- ) swap 7 and 12 lshift or 0x8000 or text-attr ! ;
+: attr ( pair -- )      7 and 12 lshift 0x8000 or  text-attr @ 0x0E00 and or  text-attr ! ;
+: style ( flags -- )    7 and 9 lshift  text-attr @ 0xF1FF and or  text-attr ! ;
+: attr! ( pair flags -- ) 7 and 9 lshift swap 7 and 12 lshift or 0x8000 or text-attr ! ;
 : attr@ ( -- pair )     text-attr @ 12 rshift 7 and ;
-: style@ ( -- flags )   text-attr @ 0x1F and ;
+: style@ ( -- flags )   text-attr @ 9 rshift 7 and ;
 
 \ ---- I2S sound (BDOS 15-17 via sfx!/sfx-ctl!) ---------------------------
 : sfx-reset ( -- )    2 sfx-ctl! ;

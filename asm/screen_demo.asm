@@ -1,7 +1,7 @@
 ; Deep16 Screen Demo
 ; Write text cells to the FiT tile map at ES:0x1000 (physical 0xF1000).
 ;
-; A FiT text cell is 0x8000 | ((ascii - 0x20) << 5). The map has 82 columns
+; A FiT text cell is 0x8000 | (ascii - 0x20). The map has 82 columns
 ; and 26 rows; its first 80x24 cells are the visible window.
 
 .org 0x0100    ; Home Segment - Code starts here
@@ -169,8 +169,7 @@ clear_loop:
 put_char:
     LDI  0x20
     MOV  R2, R0
-    SUB  R1, R2        ; ascii - 0x20
-    SL   R1, 5         ; glyph number * 32
+    SUB  R1, R2        ; ascii - 0x20 is the glyph number
     OR   R1, R7        ; add the text-cell bit
     ST   R1, R11, 0
     ADD  R11, 1

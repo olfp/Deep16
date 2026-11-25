@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import path from 'node:path';
-import { ROOT } from './helpers.js';
+import { ROOT, installFakeBiosGetch } from './helpers.js';
 import {
   buildPacman, checkPacman, PACMAN_SEG_BASE, PACMAN_LIMIT,
 } from '../scripts/make_showcase.mjs';
@@ -55,7 +55,7 @@ test('the art pack carries cherries and the ghost sprites carry four colours', (
   const tiles = new Map(pacmanArtTiles().map((t) => [t.index, t.grid]));
   assert.ok(tiles.has(T_FRUIT_L) && tiles.has(T_FRUIT_L + 1), 'cherries use two tiles');
   const ghosts = pacmanGhostSpriteFrames();
-  assert.deepEqual(ghosts.map((g) => g.group), [18, 5, 13, 21],
+  assert.deepEqual(ghosts.map((g) => g.group), [5, 6, 7, 8],
                    'ghost sprite groups');
   const body = (grid) => {
     const counts = new Map();
@@ -66,13 +66,11 @@ test('the art pack carries cherries and the ghost sprites carry four colours', (
                                           `ghost ${i} body palette index`));
 });
 
-test('the up and down Pac-Man frames open in the right direction', () => {
+test('the vertical Pac-Man frame opens upward; down is its V flip', () => {
   const frames = new Map(pacmanRuntimeSpriteFrames().map((f) => [f.group, f.grid]));
-  const up = frames.get(8), down = frames.get(16);
+  const up = frames.get(3);
   assert.equal(up[10][16], 0, 'up frame has its mouth at the top');
   assert.equal(up[22][16], 5, 'up frame has its body at the bottom');
-  assert.equal(down[10][16], 5, 'down frame has its body at the top');
-  assert.equal(down[22][16], 0, 'down frame has its mouth at the bottom');
 });
 
 function start() {
@@ -87,16 +85,15 @@ function start() {
   sim.running = true;
   sim.memory[STATUS] = 0;
   // Stand-alone game: no kernel/BIOS; the sound SWI calls become no-ops.
-  sim.memory[2] = 0xE000;
-  sim.memory[0xE000] = 0xFFF3;
+  installFakeBiosGetch(sim);
   sim._frame = 0;
   return sim;
 }
 
 const st = (sim, name) => sim.memory[BLOCK + S[name]];
 const put = (sim, name, value) => { sim.memory[BLOCK + S[name]] = value; };
-const tileAt = (sim, r, c) => (sim.memory[0xF1000 + r * 82 + c] | 0) >> 5;
-const textTile = (ch) => 0x8000 | ((ch.charCodeAt(0) - 0x20) << 5);
+const tileAt = (sim, r, c) => (sim.memory[0xF1000 + r * 82 + c] | 0) & 0x1FF;
+const textTile = (ch) => 0x8000 | (ch.charCodeAt(0) - 0x20);
 const oam = (sim, d, w) => sim.memory[0xF6000 + d * 2 + w] | 0;
 
 // One game frame = FRAME_PERIOD steps; the frame bit toggles and a queued UART
@@ -209,7 +206,7 @@ test('Pac-Man slows down after eating a dot', () => {
   assert.ok(st(sim, 'ST_PAC_TMR') >= 1, `dot delay leaves a one-frame pause (${st(sim, 'ST_PAC_TMR')})`);
 });
 
-test('the six runtime sprite frames are copied into the sprite bank', () => {
+test('the five runtime sprite frames are copied into the sprite bank', () => {
   const sim = start();
   run(sim, 320);
   for (const { group, grid } of pacmanRuntimeSpriteFrames()) {
@@ -231,7 +228,7 @@ test('the three-frame munch animation cycles while Pac-Man moves', () => {
   }
   assert.ok(groups.has(0), 'open frame');
   assert.ok(groups.has(1), 'half-open frame');
-  assert.ok(groups.has(10), 'closed frame');
+  assert.ok(groups.has(2), 'closed frame');
 });
 
 test('the arrow keys steer Pac-Man', () => {
@@ -311,7 +308,7 @@ test('the four ghosts use their arcade sprite colours', () => {
   }
   run(sim, 1);
   assert.deepEqual([1, 2, 3, 4].map((d) => (oam(sim, d, 1) >> 11) & 31),
-                   [18, 5, 13, 21], 'ghost sprite groups');
+                   [5, 6, 7, 8], 'ghost sprite groups');
   assert.deepEqual([0, 1, 2, 3].map((i) => sim.memory[0xF6000 + 0xE6 + i] | 0),
                    [0xE0, 0xF9, 0x1F, 0xF4], 'sprite-palette body colours');
 });

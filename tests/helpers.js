@@ -23,7 +23,7 @@ export const TILE_MAP_ROWS = 26;
 export function decodeTileCell(cell) {
     const word = cell & 0xFFFF;
     if ((word & 0x8000) === 0) return null;
-    return String.fromCharCode(0x20 + ((word >>> 5) & 0x7F));
+    return String.fromCharCode(0x20 + (word & 0x1FF));
 }
 
 export function readTileText(memory, row = 0, column = 0, count = TILE_MAP_COLS) {
@@ -64,8 +64,10 @@ export function loadBrowserScripts(...files) {
 }
 
 export function assemble(source, options) {
-  const { Deep16Assembler } = globalThis;
-  return new Deep16Assembler().assemble(source, options);
+  // Some tests load the browser script with vm.runInThisContext directly; the
+  // class then exists in the lexical scope without a globalThis property.
+  const A = globalThis.Deep16Assembler ?? vm.runInThisContext('Deep16Assembler');
+  return new A().assemble(source, options);
 }
 
 // The serial terminal model - the host-side decoder for the UART byte stream.
@@ -242,4 +244,57 @@ export function rawProgram(words) {
     errors: [],
     memoryChanges: words.map((w, i) => ({ address: i, value: w & 0xFFFF })),
   };
+}
+// A minimal BIOS function 4 (getch) for the stand-alone game tests. They run a
+// game slice with no kernel, so the old `RETI at 0xE000` made every SWI a
+// no-op; the games now call BIOS getch to decode raw FIFO events. This handler
+// pops the simulator's ASCII keyboard buffer and returns it in the caller's R0.
+let fakeBiosGetch = null;
+export function installFakeBiosGetch(sim) {
+  if (!fakeBiosGetch) {
+    const source = `
+      .org 0xE000
+      ; handler bank: R0 = caller's function code
+      SMV R1, AR0
+      LDI 4
+      CMP R1, R0
+      JNZ fake_ret
+      NOP
+      MVS R3, ES
+      LDI 0x0FFF
+      INV R0
+      MVS ES, R0
+      LDI 0x0060
+      MOV R2, R0
+      LDS R1, ES, R2
+      LDI 1
+      AND R1, R0
+      JZ fake_empty
+      NOP
+      LDI 0x0062
+      MOV R2, R0
+      LDS R1, ES, R2
+      LDI 0x00FF
+      AND R1, R0
+      MOV R0, R1
+      SMV AR0, R0
+      MVS ES, R3
+      RETI
+      NOP
+    fake_empty:
+      LDI -1
+      SMV AR0, R0
+      MVS ES, R3
+    fake_ret:
+      RETI
+      NOP
+    `;
+    fakeBiosGetch = assemble(source);
+    if (!fakeBiosGetch.success) {
+      throw new Error('fake BIOS getch does not assemble: ' +
+                      fakeBiosGetch.errors.join('; '));
+    }
+  }
+  for (const c of fakeBiosGetch.memoryChanges) sim.memory[c.address] = c.value & 0xFFFF;
+  sim.memory[2] = 0xE000;
 }

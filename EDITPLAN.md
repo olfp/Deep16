@@ -47,7 +47,7 @@ undo or save-as prompt. `fseek` is still unnecessary: the slice is the unit.
   will be added; the editor does not speak slices, SD sectors or xmodem.
 - **Display.** FiT text mode, 80 columns x 22 text rows + 1 status row.
   Cells are word writes at `0xF1000` using mode-1 text cells:
-  `0x8000 | (pair << 12) | style | ((ch - 0x20) * 32)`.
+  `0x8000 | (pair << 12) | (style << 9) | (ch - 0x20)`.
 - **Input.** Keyboard delivers bytes via the existing PS/2 decoder; arrows and
   Home/End arrive as Emacs control bytes (`^B ^F ^P ^N ^A ^E`).
 
