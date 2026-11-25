@@ -140,3 +140,21 @@ test('German keyboard characters use the extra glyph slots', () => {
       `${chars[i]} should be glyph slot ${slots[i]}`);
   }
 });
+
+test('a byte with no glyph slot falls back to the space', () => {
+  // A byte above the ASCII range has a glyph slot only for the seven
+  // German letters.  The fallback used to load the flat address of the
+  // space glyph, which the sign-extending LDI turned into garbage, so the
+  // machine jumped into the data segment and stopped.
+  sim.memory[sym.bios_tile_row] = 0;
+  sim.memory[sym.bios_tile_off] = 0;
+  sim.memory[sym.bios_tile_col] = 0;
+  sim.memory[sym.text_attr] = 0x8000;
+  assert.ok(sim.running, 'the machine is running');
+  press('\u0080');
+  assert.ok(sim.running, 'the machine stopped on the byte');
+  assert.equal(cell(0, 0), SPACE_TILE, 'the byte printed as a space');
+  press('\u00ff');
+  assert.ok(sim.running, 'the machine stopped on the byte');
+  assert.equal(cell(0, 1), SPACE_TILE, 'the byte printed as a space');
+});

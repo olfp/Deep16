@@ -23109,8 +23109,12 @@ utx_glyph_helper:
     CMP R1, R0
     JZ utx_glyph_6
     NOP
-    LDI utx_glyph_space
-    MOV PC, R0
+    ; Any other byte above the ASCII range has no glyph slot: print a space.
+    ; This is the body of utx_glyph_space, inlined: a jump there would need
+    ; the segment offset in a segmented build and the flat address in a flat
+    ; one, and LDI cannot spell both.
+    LSI R1, 0
+    JMP LR
     NOP
 utx_glyph_ascii:
     LDI 32
