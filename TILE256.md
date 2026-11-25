@@ -2,7 +2,11 @@
 
 Status: **analysis; route B is implemented.** The bank is 16 sprite groups
 and the tile bank is 256 tiles. Phase 2 synthesis reported **22 SDPB**; Phase 3
-reports **26 SDPB**, CLS 4,148 / 4,320, logic 8,177 / 8,640, registers 2,816.
+reports **23 SDPB**, CLS 4,316 / 4,320, logic 8,584 / 8,640, registers 2,818.
+Five tilemap blocks freed three; the 4 KB cache spends one, and the I2S FIFO
+moved to SSRAM frees another.
+The 2,132-word banks were split into five 1Kx16 tilemap arrays, which uses
+five blocks instead of eight and leaves three free.
 The 24-group numbers below are the historical baseline.
 Route B now has an implementation plan: [`TILE256B.md`](TILE256B.md).
 Related: `MEMMAP.md` §7.4, `doc/FiT-Graphics-howto.md`, `PS2LAYOUT.md` §9,
@@ -10,7 +14,8 @@ Related: `MEMMAP.md` §7.4, `doc/FiT-Graphics-howto.md`, `PS2LAYOUT.md` §9,
 
 ## 1. Summary
 
-The current tile bitstream uses **26 SDPB blocks (26/26)**. The netlist shows
+The pre-segmentation tile bitstream used **26 SDPB blocks (26/26)**; the current
+tilemap segmentation brings that to **23 SDPB (23/26)**. The original netlist shows
 **~299,648 bits of array data in 425,984 bits of inferred block capacity
 (~70 % full)**, but the blocks are stranded by width and depth granularity,
 not by total bits.
@@ -53,7 +58,7 @@ From `fpga/gowin/impl/pnr/deep16_board_tile_flash.rpt.html` and
 
 | Resource | Measured |
 |---|---|
-| BSRAM | `26 SDPB`, 100 % |
+| BSRAM | `26 SDPB`, 100 % (pre-segmentation) |
 | SSRAM (RAM16) | 178 |
 | CLS | 4,191 / 4,320 (129 free) |
 | Logic | 8,226 / 8,640 (414 free) |
@@ -71,19 +76,19 @@ Implemented Route B map (256 tiles, 16 sprite groups):
 
 | Array | Logical size | Bits used | SDPB | Capacity | Util. | Notes |
 |---|---|---:|---:|---:|---:|---|
-| `tilemap` | 2 banks x 2,132 x 16 | 68,224 | 8 | 131,072 | 52 % | unchanged; 4 x 4-bit slices per bank |
+| `tilemap` | 2 banks x 2,132 x 16 | 68,224 | 5 | 81,920 | 83 % | five 1Kx16 segments; read mux registered |
 | `tilefont` | 256 x 32 x 16 | 131,072 | 8 | 131,072 | 100 % | 96 ASCII + 7 German glyphs, game art and free slots |
 | `sprite` | 16 x 256 x 16 | 65,536 | 4 | 65,536 | 100 % | 16 groups, 4 KiB window |
 | `linebuf` | 3 x 1,024 x 8 | 24,576 | 2 | 32,768 | 75 % | triple line buffer |
 | `scene_mem` | 1,024 x 16 | 16,384 | 1 | 16,384 | 100 % | OAM + palettes |
-| I2S FIFO | 128 x 16 | 2,048 | 1 | 16,384 | 12.5 % | one block for 2 Kbit |
-| PSRAM cache data | 1,024 x 16 | 16,384 | 1 | 16,384 | 100 % | 512 lines x 2 words |
-| PSRAM cache tags | 512 x 16 | 8,192 | 1 | 16,384 | 50 % | one block, half used |
-| **Total** | | **332,416** | **26** | **425,984** | **78 %** | 26/26 blocks |
+| I2S FIFO | 128 x 16 | 2,048 | 0 | — | — | SSRAM (RAM16 total 210) |
+| PSRAM cache data | 2,048 x 16 | 32,768 | 2 | 32,768 | 100 % | 1,024 lines x 2 words (4 KB) |
+| PSRAM cache tags | 1,024 x 16 | 16,384 | 1 | 16,384 | 100 % | one block, 4 KB cache |
+| **Total** | | **354,944** | **23** | **376,832** | **94 %** | 23/26 blocks |
 
 The pre-Route-B 24-group/128-tile baseline was 299,648 bits in 26 SDPB
-(70 %); the block count is unchanged because the sprite bank lost four blocks
-and the tilefont gained four.
+(70 %). Route B kept 26; the five-segment tilemap then freed three blocks,
+and the 4 KB cache spends one: 24/26 with two spare.
 
 The `row_scroll_mem` (32 x 16), `row_scroll_next` (32 x 16), `spw`
 (8 x 8), small counters and the palette read register are in flops/SSRAM, not
@@ -404,16 +409,18 @@ Pac-Man five/six-frame remap; Pole is deferred and the menu is plain text.
 
 ## 10. Acceptance
 
-Route B was chosen and met the 256-tile gate: **26 SDPB (100 %)**, CLS
-4,148 / 4,320, timing clean. The seven German glyphs are appended at slots
-96..102 and render from the free upper half. The route A numbers below remain as the
+Route B was chosen and met the 256-tile gate. The implemented build now uses
+**23 SDPB**, CLS 4,316 / 4,320, with three blocks free. The I2S FIFO is in SSRAM
+(210 RAM16). The seven German glyphs are
+appended at slots 96..102 and render from the free upper half; the PSRAM cache
+is now 4 KB (1,024 lines x 2 words). The route A numbers below remain as the
 alternative.
 
 - Synthesis before the tilefont change: tilemap tail split + I2S move gives
   `24 SDPB` (or a documented `25 SDPB`), no new tail SDPB, CLS within budget,
   timing clean.
-- 256-tile build: `26 SDPB` (25 used + one spare), 8,192-word tilefont,
-  tiles 0-255 render, text pages unchanged.
+- 256-tile build: `23 SDPB`, 8,192-word tilefont, tiles 0-255 render, text
+  pages unchanged, 4 KB PSRAM cache, I2S FIFO in SSRAM.
 - `81 x 25`/`78 x 26` fallback is only used if the tail split fails; record
   which was chosen and why.
 - All slices using the new cell format are rebuilt; old-game loading fails

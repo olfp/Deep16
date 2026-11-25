@@ -202,7 +202,29 @@ module dvi_tile #(
   // The tilemap has two banks. Bank 0 is the console's map; a game writes the
   // next frame into the other bank and asks for a display swap at a frame
   // boundary. That keeps a 2,132-word redraw off the visible map entirely.
-  logic [15:0] tilemap [0:2*TM_WORDS-1];
+  // Five 1Kx16 arrays instead of one 4,264x16 array: the 4,264-word
+  // depth crosses the 1Kx16 block depth, and one wide array makes the
+  // tool pick 4Kx4 mode (two depth banks x four 4-bit slices = 8 SDPB).
+  // Segmenting into <=1,024-word arrays lets each infer 1Kx16: 5 SDPB.
+  logic [15:0] tmap0 [0:1023];
+  logic [15:0] tmap1 [0:1023];
+  logic [15:0] tmap2 [0:1023];
+  logic [15:0] tmap3 [0:1023];
+  logic [15:0] tmap4 [0:167];
+  wire [12:0] tm_waddr_all = (map_wpage ? 13'(TM_WORDS) : 13'd0) + 13'(cpu_addr[11:0]);
+  wire [12:0] tm_raddr_all = (map_dpage ? 13'(TM_WORDS) : 13'd0) + 13'(tm_raddr);
+  logic [15:0] tq0, tq1, tq2, tq3, tq4;
+  logic [2:0]  tq_seg;
+  always_comb begin
+    case (tq_seg)
+      3'd0: tm_q = tq0;
+      3'd1: tm_q = tq1;
+      3'd2: tm_q = tq2;
+      3'd3: tm_q = tq3;
+      default: tm_q = tq4;
+    endcase
+  end
+
   logic [15:0] tilefont [0:TILE_WORDS-1];
   logic [15:0] sprite   [0:SPR_WORDS-1];
   // One 1,024 x 16 BSRAM holds the sprite descriptors and the palettes:
@@ -294,8 +316,15 @@ module dvi_tile #(
   always_ff @(posedge clk_render) begin
     if (cpu_we && !cpu_ctrl) begin
       case (cpu_tgt)
-        2'd0: if (cpu_addr[11:0] < 12'(TM_WORDS))
-                tilemap[(map_wpage ? 13'(TM_WORDS) : 13'd0) + 13'(cpu_addr[11:0])] <= cpu_data;
+        2'd0: if (cpu_addr[11:0] < 12'(TM_WORDS)) begin
+                case (tm_waddr_all[12:10])
+                  3'd0: tmap0[tm_waddr_all[9:0]] <= cpu_data;
+                  3'd1: tmap1[tm_waddr_all[9:0]] <= cpu_data;
+                  3'd2: tmap2[tm_waddr_all[9:0]] <= cpu_data;
+                  3'd3: tmap3[tm_waddr_all[9:0]] <= cpu_data;
+                  default: tmap4[tm_waddr_all[7:0]] <= cpu_data;
+                endcase
+              end
         2'd1: tilefont[(tile_wpage ? 13'd4096 : 13'd0) + 13'(cpu_addr[11:0])] <= cpu_data;
         2'd2: sprite[cpu_addr[11:0]] <= cpu_data;
         2'd3: begin
@@ -307,7 +336,12 @@ module dvi_tile #(
         default: ;
       endcase
     end
-    tm_q <= tilemap[(map_dpage ? 13'(TM_WORDS) : 13'd0) + 13'(tm_raddr)];
+    tq_seg <= tm_raddr_all[12:10];
+    tq0 <= tmap0[tm_raddr_all[9:0]];
+    tq1 <= tmap1[tm_raddr_all[9:0]];
+    tq2 <= tmap2[tm_raddr_all[9:0]];
+    tq3 <= tmap3[tm_raddr_all[9:0]];
+    tq4 <= tmap4[tm_raddr_all[7:0]];
     spr_q <= sprite[spr_raddr];
   end
 

@@ -7,8 +7,8 @@
 // reuse: the inner interpreter, the number parser and the two stacks are tiny
 // hot loops that fit in a kiloword many times over.
 //
-// Shape: 512 lines x 2 words, direct-mapped, 1,024 words of data (one BSRAM
-// block) and 512 tags (a second block). Two-word lines keep a cold fill to two
+// Shape: 1,024 lines x 2 words, direct-mapped, 2,048 words of data (two BSRAM
+// blocks) and 1,024 tags (one block). Two-word lines keep a cold fill to two
 // transactions - a longer line would make the first pass through fresh code
 // slower than the uncached machine, since a fill costs what the individual
 // reads cost. Write-through with update-on-hit: the cache always matches PSRAM,
@@ -130,19 +130,19 @@ module deep16_psram_mem #(
   end
 
   // ---- cache ------------------------------------------------------------
-  // Word address: [19:10] tag, [9:1] line, [0] word within the line.
-  localparam int LINES = 512;
+  // Word address: [19:11] tag, [10:1] line, [0] word within the line.
+  localparam int LINES = 1024;
   localparam int LINE_W = 2;
 
   logic [15:0] cache_mem [0:LINES*LINE_W-1];
-  logic [15:0] ctag_mem  [0:LINES-1];     // {valid, 5'b0, tag[9:0]}
+  logic [15:0] ctag_mem  [0:LINES-1];     // {valid, 6'b0, tag[8:0]}
 
   logic [19:0] look_addr;
   logic [15:0] ctag_q, cdata_q;
 
   always_ff @(posedge clk_cpu) begin
-    ctag_q  <= ctag_mem[look_addr[9:1]];
-    cdata_q <= cache_mem[look_addr[9:0]];
+    ctag_q  <= ctag_mem[look_addr[10:1]];
+    cdata_q <= cache_mem[look_addr[10:0]];
   end
 
   logic        cache_hit, store_hit;
@@ -200,7 +200,7 @@ module deep16_psram_mem #(
   logic [15:0] boot_data;       // the word being copied / expected by the verify
   logic [15:0] entry_exp;       // expected word at the kernel entry (0x0100)
   logic        is_verify;
-  logic [8:0]  clr_i;           // tag clear index
+  logic [9:0]  clr_i;           // tag clear index
   logic [1:0]  retry;           // image copy attempts
   logic        boot_q;
   logic        op_is_load, op_is_store, op_is_fetch;
@@ -230,8 +230,8 @@ module deep16_psram_mem #(
     else                                                look_addr = op_addr;
   end
 
-  assign cache_hit = ctag_q[15] && (ctag_q[9:0] == op_addr[19:10]);
-  assign store_hit = ctag_q[15] && (ctag_q[9:0] == store_addr[19:10]);
+  assign cache_hit = ctag_q[15] && (ctag_q[8:0] == op_addr[19:11]);
+  assign store_hit = ctag_q[15] && (ctag_q[8:0] == store_addr[19:11]);
   assign boot_done = boot_q;
   assign mem_stall = boot_q ? (st != S_PRESENT) : 1'b1;
   assign mem_valid = boot_q && (st == S_PRESENT) && op_is_load && !op_is_store;
@@ -249,7 +249,7 @@ module deep16_psram_mem #(
     if (cache_flush) flush_pending <= 1'b1;
 
     if (rst) begin
-      st <= S_CLR; bi <= 15'd0; boot_q <= 1'b0; clr_i <= 9'd0;
+      st <= S_CLR; bi <= 15'd0; boot_q <= 1'b0; clr_i <= 10'd0;
       boot_err <= 1'b0; ver_pending <= 1'b0; flush_pending <= 1'b0;
       retry <= 2'd0;
       count <= 5'd0; r <= 5'd0; p <= 5'd0; src <= 14'd0;
@@ -411,15 +411,15 @@ module deep16_psram_mem #(
         // ---- tag clear (boot) and flush (FSH) --------------------------
         S_CLR: begin
           ctag_mem[clr_i] <= 16'h0000;
-          if (clr_i == 9'(LINES-1)) st <= S_INIT;
-          else clr_i <= clr_i + 9'd1;
+          if (clr_i == 10'(LINES-1)) st <= S_INIT;
+          else clr_i <= clr_i + 10'd1;
         end
         S_FLUSH: begin
           ctag_mem[clr_i] <= 16'h0000;
-          if (clr_i == 9'(LINES-1)) begin
+          if (clr_i == 10'(LINES-1)) begin
             flush_pending <= 1'b0;
             st <= S_IDLE;
-          end else clr_i <= clr_i + 9'd1;
+          end else clr_i <= clr_i + 10'd1;
         end
 
         // ---- boot read-back: the kernel entry word through the cache ---
@@ -445,7 +445,7 @@ module deep16_psram_mem #(
           end else if (store_lat) begin
             st <= S_STORE_CACHE;
           end else if (flush_pending) begin
-            clr_i <= 9'd0;
+            clr_i <= 10'd0;
             st <= S_FLUSH;
           end else if (mem_rd) begin
             op_is_load <= 1'b1; op_is_store <= 1'b0; op_is_fetch <= 1'b0;
@@ -492,13 +492,13 @@ module deep16_psram_mem #(
           // The two words go in on consecutive cycles: two different addresses
           // written in one always_ff edge cannot be inferred as BSRAM, and the
           // flow then builds the whole cache from 16,384 flip-flops.
-          cache_mem[{op_addr[9:1], 1'b0}] <= brdata;
+          cache_mem[{op_addr[10:1], 1'b0}] <= brdata;
           rd_q <= op_addr[0] ? brdata2 : brdata;
           st <= S_FILL_WR2;
         end
         S_FILL_WR2: begin
-          cache_mem[{op_addr[9:1], 1'b1}] <= brdata2;
-          ctag_mem[op_addr[9:1]] <= {1'b1, 5'b0, op_addr[19:10]};
+          cache_mem[{op_addr[10:1], 1'b1}] <= brdata2;
+          ctag_mem[op_addr[10:1]] <= {1'b1, 6'b0, op_addr[19:11]};
           st <= S_PRESENT;
         end
 
@@ -521,7 +521,7 @@ module deep16_psram_mem #(
         // ---- store: update the cache if the line is present, then write
         // through to PSRAM ----------------------------------------------
         S_STORE_CACHE: begin
-          if (store_hit) cache_mem[{store_addr[9:1], store_addr[0]}] <= store_data;
+          if (store_hit) cache_mem[{store_addr[10:1], store_addr[0]}] <= store_data;
           st <= S_STORE;
         end
         S_STORE: if (!bbusy) begin

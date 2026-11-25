@@ -1,7 +1,7 @@
 # TILE256B — Route B implementation plan: 16 sprite groups + 256 tiles
 
 Status: **Phase 2 and Phase 3 implemented (2026-11-24).** Phase 3 synthesis:
-**26 SDPB**, CLS 4,148 / 4,320, logic 8,177 / 8,640, registers 2,816.
+**23 SDPB**, CLS 4,316 / 4,320, logic 8,584 / 8,640, registers 2,818.
 The text pages also carry the seven German glyphs at slots 96..102.
 Pole is excluded from the default image and slice set until ported.
 Parent analysis: `TILE256.md`. Related: `MEMMAP.md` §7.4,
@@ -225,10 +225,13 @@ Added or updated coverage:
 - `npm test`: **992 pass, 0 fail**.
 - `npm run sim:dvi:tile`: all CPU tile-console checks passed.
 - `npm run lint:rtl` and `npm run lint:board`: clean.
-- `npm run synth:tile`: **BSRAM 26/26 SDPB**, CLS **4,148 / 4,320 (96 %)**,
-  logic **8,177 / 8,640 (95 %)**, registers **2,816 / 6,771**, timing clean.
-  The 26 blocks are tilemap 8, tilefont 8, sprite 4, line buffers 2,
-  scene/OAM-palette 1, I2S FIFO 1, PSRAM data 1 and PSRAM tags 1.
+- `npm run synth:tile`: **BSRAM 23/26 SDPB**, CLS **4,316 / 4,320 (99.9 %)**,
+  logic **8,584 / 8,640 (99.4 %)**, registers **2,818 / 6,771**, timing clean.
+  The 23 blocks are tilemap 5, tilefont 8, sprite 4, line buffers 2,
+  scene/OAM-palette 1, PSRAM data 2 and PSRAM tags 1; the I2S FIFO is in
+  SSRAM (RAM16 210).
+- 4 KB PSRAM cache: 500k-instruction post-boot window went from 5.092 CPI /
+  94.24 % hit to 4.616 CPI / 97.34 %, i.e. **10.3 % fewer cycles**.
 - Slice image: **57 slices**, `pole` and `polebench` absent; the boot image
   contains no `pole` name and the menu has no R binding.
 
@@ -255,7 +258,8 @@ Added or updated coverage:
 ## 7. Acceptance
 
 - Phase 2 synthesis: **22 SDPB**, timing clean.
-- Phase 3 synthesis: **26 SDPB** (22 + 4 tilefont), timing clean.
+- Phase 3 synthesis: **23 SDPB** after the tilemap segmentation, 4 KB cache and
+  I2S SSRAM move, timing clean.
 - 256 tiles render, text page unchanged, page bit works, the seven German
 glyphs render, Flappy/Pac/Frogger behave. Pole is excluded from the default image and slice set; its cells use
   the clean format, but its 18 sprite groups still need a 16-group port before

@@ -77,8 +77,8 @@ module dvi_tile_tb (
 
   assign dbg_x       = u_tile.sx;
   assign dbg_y       = u_tile.sy;
-  assign dbg_cell0   = u_tile.tilemap[0];
-  assign dbg_cell40  = u_tile.tilemap[40];
+  assign dbg_cell0   = u_tile.tmap0[0];
+  assign dbg_cell40  = u_tile.tmap0[40];
   assign dbg_row     = u_tile.cur_row;
   assign dbg_col     = u_tile.cur_col;
   assign dbg_row_off = u_tile.row_off;
@@ -93,6 +93,6 @@ module dvi_tile_tb (
   assign dbg_oam127 = u_tile.scene_mem[127];
   assign dbg_frow    = u_tile.frow;
   assign dbg_fline   = u_tile.fline;
-  assign dbg_cell    = u_tile.tilemap[13'(dbg_addr)];
+  assign dbg_cell    = u_tile.tmap0[dbg_addr[9:0]];
 
 endmodule

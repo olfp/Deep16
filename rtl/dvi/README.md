@@ -129,7 +129,8 @@ every source pixel is a 2x2 block. It replaces the packed character cells
 with:
 
 * an **82 x 26 tilemap of 16-bit cells** (80 x 24 visible plus two extra
-  columns and two extra rows of scroll margin; 2,132 words = 3 BSRAM blocks).
+  columns and two extra rows of scroll margin; two 2,132-word banks, segmented
+  into five 1Kx16 arrays = 5 BSRAM blocks).
   `bit 15 = 0` is an art cell whose bits 14:0 are the tile index (the
   256-tile build uses bits 8:0); `bit 15 = 1` is a text cell,
   `0x8000 | (pair << 12) | (style << 9) | glyph`.

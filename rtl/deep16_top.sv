@@ -523,6 +523,7 @@ module deep16_top
 
 
 `ifdef PSRAM
+  logic [15:0] psram_mem_rdata;
   // ---- PSRAM backing store (board build) --------------------------------
   // The BSRAM array stays as the boot image; this copies it into PSRAM, then
   // serves the core one transaction at a time through the bridge.
@@ -563,7 +564,6 @@ module deep16_top
   // 0xF0068/0xF006A (the keyboard block uses 0x60..0x64).  Flappy reads the
   // low half at 0xF0068; the board keeps only that half.
 `ifdef D16NANO
-  logic [15:0] psram_mem_rdata;
 `ifdef D16_PERIPH
   // The board uses the timer's millisecond counter (0xF0022) for PS/2
   // timeouts.  Flappy still reads the low half of the cycle counter at

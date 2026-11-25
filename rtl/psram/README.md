@@ -229,15 +229,15 @@ It prints `boot_done=1 boot_err=0 halt=0` and the banner.
 ## The cache
 
 `deep16_psram_mem` now carries a write-through cache in front of the bridge:
-512 lines x 2 words (1,024 words of data, one BSRAM block, plus a 512-entry tag
-block), direct-mapped.
+1,024 lines x 2 words (2,048 words of data, two BSRAM blocks, plus a 1,024-entry
+tag block), direct-mapped. Tag 9 bits, line 10 bits, word 1 bit.
 
 - Two-word lines are deliberate. A fill costs what the individual reads cost, so
   a longer line would make the first pass through fresh code slower than the
   uncached machine; the cache earns its keep on reuse, and Forth is all reuse.
 - Write-through with update-on-hit. The cache always matches PSRAM, so code
   compiled into the dictionary is coherent the moment it is stored; FSH only
-  dumps the tags (512 cycles, stalled).
+  dumps the tags (1,024 cycles, stalled).
 - The tag array is uninitialised at power-up, so the loader clears it before the
   boot read-back.
 
@@ -245,13 +245,13 @@ A miss fills both words with **one two-word burst** (the controller extension
 above); the two cache writes are serialised into consecutive cycles because two
 different addresses written on one edge makes Gowin fall back to flip-flops.
 
-Measured in `psram_boot_tb` over the boot window: **99.6 % hit rate**, 6.3
-cycles/instruction (was ~17). On the board with the DVI text console: Logic
-8,173/8,640 (95 %), CLS 4,211/4,320 (98 %), registers 2,577/6,771,
-**BSRAM 20/26** (16 image + 2 cache + 2 screen, **6 free**). The screen costs
-2 blocks and +203 CLS; see `rtl/dvi/README.md`. With the verified user-flash
-loader (`USERFLASH.md`) the image leaves BSRAM: **BSRAM 4/26, 22 free**, at
-CLS 4,303/4,320.
+Measured with a 500,000-retired-instruction window after boot on the real D16MINI
+machine + behavioural PSRAM: the 2 KB cache ran at **5.092 CPI / 94.24 % hit**;
+the 4 KB cache at **4.616 CPI / 97.34 % hit**. That is **10.3 % fewer cycles**
+for the same instructions (1.103x throughput), with misses falling from 40,109
+to 18,558. A cold-boot run still reports `boot_done=1 boot_err=0`. On the current tile build (5-block tilemap, 4 KB cache): Logic 8,335/8,640
+(96 %), CLS 4,235/4,320 (98 %), registers 2,819/6,771, **BSRAM 23/26** (three
+free); the I2S FIFO is in SSRAM.
 
 The hit path is three CPU cycles (lookup, compare, present). Presenting from the
 lookup cycle would make it two; that is the next cheap win if it still fits.
