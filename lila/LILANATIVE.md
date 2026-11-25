@@ -89,7 +89,7 @@ asserts that the run leaves the data stack at depth 0.
 
 ### Getting the compiler onto the board
 
-The compiler is 20,036 characters, so it does not fit in one source slice
+The compiler is 22,226 characters, so it does not fit in one source slice
 (2,040 characters). There are two ways to get it onto the device.
 
 **The config-flash catalog.** `scripts/make_slices.mjs` registers the
@@ -107,22 +107,22 @@ Loading lila
 
 `need` finds the object in the master directory and calls `screen`, which
 copies the whole slice chain into `text-buf` and includes it in one go. The
-chain is ten slices long, so the boot loader's cap moved from eight slices
-(16,320 characters) to ten (20,400), and `text-buf` grew from 16,384 to
-20,480 cells to match. `text-buf` is allocated in the dictionary at boot, not
+chain is eleven slices long, so the boot loader's cap moved from eight slices
+(16,320 characters) to eleven (22,440), and `text-buf` grew from 16,384 to
+22,528 cells to match. `text-buf` is allocated in the dictionary at boot, not
 in the image, so the image layout did not change - but the boot loader is
 baked into the image, so a board that already carries one needs
 `npm run flash:tile` for the new cap. The buffer is allocated at power-on, so
-every board pays the 4,096 extra cells whether it loads LILA or not.
+every board pays the 6,144 extra cells whether it loads LILA or not.
 
 That cost lands on the data stack. In the D16SEG map the dictionary grows up
 from `0x5800` and the data stack grows down from `0xFFF0` in the same
 region, so `text-buf` takes its cells out of the stack's room: the gap fell
-from 15,671 cells to 11,575 after the catalog and the tools slice were
-loaded. A board that wants the old stack back has to give up the ten-slice
+from 15,671 cells to 9,527 after the catalog and the tools slice were
+loaded. A board that wants the old stack back has to give up the eleven-slice
 chain - trim the compiler, or wait for packed slices.
 
-After the load the compiler has taken about 8.5k cells, leaving about 3.9k
+After the load the compiler has taken about 9.3k cells, leaving about 1.1k
 free in a D16D dictionary.
 
 **XMODEM over the serial line.** `xmodem` lives in the `edit` slice, which
@@ -134,10 +134,10 @@ cells: check before you start.
 
 ### Packed slices are future work
 
-A source slice stores one character per cell, so the ten slices of the
-compiler cost 20,400 cells of `text-buf`. The slice type table already has
+A source slice stores one character per cell, so the eleven slices of the
+compiler cost 22,440 cells of `text-buf`. The slice type table already has
 `PACKED` (type 8) and `p-screen` unpacks two characters per cell, which
-would halve the compiler to four slices. It does not work yet:
+would halve the compiler to six slices. It does not work yet:
 
 - `p-screen` loads one slice at a time. `included` cannot span a definition
   across two calls, so a packed chain would have to be split on definition
@@ -171,8 +171,9 @@ Names start with an ASCII letter or `_` and continue with letters, digits or
 leading `-` is the unary operator, not part of the literal. A float is a digit
 string with a point and at least one fraction digit, or with an exponent, or
 with both; `1.`, `.5` and `1.5e` are not literals and are rejected. Strings are
-double-quoted byte strings with no escape processing: a backslash inside a
-string is an error, as is a newline, and an unterminated string is an error.
+double-quoted byte strings and carry the escape sequences listed under
+[String escapes](#string-escapes). A newline inside a string is an error, and
+so is an unterminated string.
 
 The recognized operators and punctuation are:
 
@@ -414,6 +415,11 @@ only far enough to reject them:
 | table constructor | `t = {}` | -9 |
 | a float without a leading digit | `print(.5)` | -9 |
 | newline inside a string | `print("a` / `b")` | -3 |
+| an unknown escape | `print("\\q")` | -4 |
+| a `\x` with one digit | `print("\\x4")` | -4 |
+| a decimal escape over 255 | `print("\\300")` | -4 |
+| a `\u` without the brace | `print("\\u{41")` | -4 |
+| a code point over `0xFFFF` | `print("\\u{10000}")` | -4 |
 | literal above `2147483647` | `print(2147483648)` | -22 |
 | a float with a trailing point | `print(1.)` | -20 |
 | a float with a malformed exponent | `print(1.5e)` | -20 |
@@ -453,10 +459,15 @@ exceptions:
 - **`print()` is rejected.** Lua allows it.
 - **Reading an unknown global creates a slot.** The value is nil, as in Lua,
   but the name is consumed from the 16-name budget.
+- **A `\u` code point is at most `0xFFFF`.** Lua allows the whole range up to
+  `0x7FFFFFFF`, with surrogate pairs for the astral planes; a larger code
+  point is `-4` here.
+- **`\z` cannot skip a line feed.** The native source is line-based, so the
+  tokenizer rejects the line feed inside the string before the decoder runs.
 - **There is no `local`, function, table, bitwise operator, `and`/`or`/`not`,
   `break`, `return`, `repeat`, `for`, vararg, multiple return, multiple
-  assignment, escape sequence, long string, long comment, or library.** Each
-  is rejected with a code.
+  assignment, long string, long comment, or library.** Each is rejected with a
+  code.
 
 ## How it is implemented
 
@@ -509,10 +520,11 @@ lets a block span several lines, and it is why the pending source is kept in
 
 The rest are scalar variables for parser and VM state. The arrays account for
 most of the compiler's footprint. On the D16SEG image used by the test, the
-booted kernel has `here = 0xcf3f`, so 12,465 of the 65,520 cells below
-`limit = 0xfff0` are free - the boot loader's `text-buf` takes 20,480 of
-them. Loading the compiler from the flash takes 8,519 cells, leaving 3,946
-free; typing it in takes the same 8,519 cells.
+booted kernel has `here = 0xd73f`: the boot loader has already carved its
+22,528-cell `text-buf` out of the dictionary, and 10,417 of the 65,520 cells
+below `limit = 0xfff0` are still free. Loading the compiler from the flash
+takes 9,281 cells, leaving 1,136 free; typing it in takes the same 9,281
+cells.
 
 ### Input
 
@@ -546,8 +558,11 @@ character and dispatches:
 - a digit scans a run of digits as kind 1, or as kind 5 when the number has a
   point with fraction digits or an exponent;
 - a letter or `_` scans a run of name characters as kind 2;
-- `"` scans to the closing quote as kind 3, rejecting LF (`-3`), backslash
-  (`-4`) and end of source (`-5`);
+- `"` scans to the closing quote as kind 3. A backslash skips the next
+  character, so the scanner has to know where the closing quote is: a
+  backslash before the line feed is `-4`, a line feed inside the string is
+  `-3`, and a line feed at the end of a string that held an escape is `-5`,
+  because the escape may have eaten the closing quote;
 - a character that begins a two-character operator scans both characters as
   kind 4. The pairs are `..`, `==`, `~=`, `<=`, `>=`, `//`;
 - anything else is a one-character kind 4 token.
@@ -765,6 +780,50 @@ The compile-time arena is 500 cells and refuses to exceed 500 bytes used
 (`-7`). It is never reused during a run. Because a run compiles from scratch,
 the next `lila` call starts with `l-ap = 0`.
 
+### String escapes
+
+A string literal carries the same escapes as the host compiler in
+`lila/compiler.fs`:
+
+| escape | result |
+|---|---|
+| `\a` `\b` `\f` `\n` `\r` `\t` `\v` | bell, backspace, form feed, line feed, carriage return, tab, vertical tab |
+| `\\` | a backslash |
+| `\"` `\'` | a double quote, a single quote |
+| `\ddd` | the byte of a decimal number, one to three digits, at most 255 |
+| `\xXX` | the byte of two hexadecimal digits |
+| `\z` | nothing: it skips the spaces and tabs after it |
+| `\u{...}` | the UTF-8 encoding of a code point |
+
+`\ddd` is decimal, as in Lua: `\101` is `e`, not `A`. `\xXX` is hexadecimal:
+`\x41` is `A`. An escape that is not in the table is `-4`.
+
+The decoder is `l-esc`, called by `l-astr` for every backslash in the token.
+`l-astr` walks the raw text and writes the decoded bytes into `l-arena`, so a
+string literal is no longer a copy of the token but the bytes it stands for.
+The length cell in front of the bytes holds the *decoded* length, which is
+never longer than the text it came from: `\u{20ac}` is eight characters of
+source and three bytes of output.
+
+The seven simple escapes are a table, `l-esct`: the index is the letter minus
+97, so the table covers `a` to `v`, and a zero entry means the letter is not a
+simple escape. `"`, `'` and `\` are identity escapes and are handled before
+the table. `\x`, `\z`, `\u` and `\ddd` have their own branches.
+
+`\u{...}` takes at least one hexadecimal digit and a closing brace. The code
+point is at most `0xFFFF`, because the profile has no surrogate pairs and no
+code point above the basic multilingual plane; a larger one is `-4`. The
+emitter `l-u8` writes the leading byte first and then the continuation bytes,
+the same order as the host's `utf8-emit`.
+
+`\z` skips a space, a tab, a line feed, a vertical tab, a form feed and a
+carriage return, the same set as the host's `space-char?`. The native source
+is line-based, so the line feed is rejected by the tokenizer before the
+decoder ever sees it: `\z` cannot skip a line feed here.
+
+Two limits come from the 16-bit cell. A code point above `0xFFFF` does not
+fit, and the UTF-8 bytes have to be masked to eight bits on the way out.
+
 ### Bytecode
 
 There are 26 opcodes. Column "operands" counts cells after the opcode; a cell
@@ -910,7 +969,7 @@ every `print` ends with a newline.
 | -1 | source too long |
 | -2 | too many tokens |
 | -3 | newline inside a string |
-| -4 | backslash escape inside a string |
+| -4 | invalid escape sequence |
 | -5 | unterminated string |
 | -6 | too many global names (or a name over 15 characters) |
 | -7 | compiled string arena full |
@@ -940,6 +999,12 @@ grammar does not know and the parser then expects `)`. `function f() end` and
 `local x = 1` are parsed as assignments until the missing `=`, so they report
 `-21`.
 
+`-3`, `-4` and `-5` are the three string errors. `-3` is a line feed that fell
+inside a string, `-4` is an escape that is not in the set, and `-5` is a string
+that held an escape and was still open when the source ended. The last one
+happens when an escape ate the closing quote: `print("a\")` leaves the string
+open, so it is `-5` rather than `-3`.
+
 The last three codes are run-time errors, thrown by the VM: `-24` by a
 division, `-25` by a quotient that is too large, and `-26` by an operator
 that gets a string, a boolean or nil where a number belongs.
@@ -963,6 +1028,7 @@ reports `-23` first, so the user learns why the session ended.
 | global names | 16 names, 15 characters each | 16 name entries in `l-sym` |
 | bytecode | 1024 cells | `l-code` |
 | compiled strings | 500 bytes | `l-arena` is 500 cells |
+| `\u` code point | `0xFFFF` | the profile has no surrogate pairs |
 | concatenation | 200 bytes, never reclaimed | `l-rstr` is 200 cells |
 | float quotient | a signed 16-bit cell | the kernel has no 32-bit division |
 
@@ -972,7 +1038,11 @@ loaded, and the limits that matter — source length, token count, name count,
 name length and the two arenas — are checked before anything is written. The
 bytecode buffer is the one exception; it relies on the token cap to stay
 inside 1024 cells. That is what makes it possible to run the whole pipeline in
-a dictionary that already has about 3.9k cells free.
+a dictionary that already has about 1.1k cells free.
+
+The escape decoder is what the profile gave up the most room for. The
+compiler grew by 762 cells, from 8,519 to 9,281, and the larger `text-buf`
+took another 2,048: the load leaves 1,136 dictionary cells free.
 
 The name budget, the globals and the two string arenas are per *session*, not
 per line. That is what makes the state carry from one line to the next, and
@@ -993,12 +1063,14 @@ reclaimed.
    the `lua5.4` 5.4.8 fixture;
 4. types `depth . cr` and requires `0`;
 5. runs the float cases and checks the kernel's `f.` output;
-6. runs every rejection case and checks its negative code;
-7. runs every unfinished-source case and checks that it reports `-23`;
-8. checks that the state carries from one line to the next, that a block can
+6. runs the escape cases, including the UTF-8 ones as bytes, and checks the
+   invalid escapes;
+7. runs every rejection case and checks its negative code;
+8. runs every unfinished-source case and checks that it reports `-23`;
+9. checks that the state carries from one line to the next, that a block can
    be spread over several lines, and that a rejected line does not poison the
    next one;
-9. checks that comment-only and empty sources compile to a halt.
+10. checks that comment-only and empty sources compile to a halt.
 
 To add a language case, add its lines to `program` and its expected lines to
 `expected` in the test, keeping them in `lua5.4` agreement. A float case does

@@ -1,24 +1,15 @@
 \ lila-native.fth - an on-device LILA compiler and bytecode VM.
 \
-\ `lila` is a session: it reads one line at a time from the console, tokenizes
+\ `lila` is a session: it reads a line at a time from the console, tokenizes
 \ it, parses it, emits bytecode into l-code and runs that bytecode on a small
 \ VM.  The globals and the symbol table carry from line to line; an unfinished
-\ statement asks for another line, an empty line ends the session.
+\ statement asks for another line.
 \
-\ Supported subset (anything else is rejected with a negative code):
-\   globals, integer and float literals, string literals (no escapes),
-\   unary minus, + - * / // % ^, relationals, == ~=, .. (right associative),
-\   parentheses, assignment, print(...), if / else / end, while / do / end,
-\   do / end, -- comments.
-\ Not in this profile: functions, locals, tables, bitwise operators, and /
-\ or / not, varargs, multiple values, #, libraries.
-\
-\ A value is three cells ( value1 value2 tag ) with the same tags as
-\ lila/value.fs: 0 nil, 1 number, 2 boolean, 3 string, 5 float.  A number is
-\ a signed 32-bit two's-complement pair (low high); a float is the IEEE
-\ single with the low half first, the order the kernel float words use.
-\
-\ The long form of this design lives in lila/LILANATIVE.md.
+\ The profile is a Lua subset: globals, int and float literals, string
+\ literals with escapes, unary minus, + - * / // % ^, relationals, == ~=, ..,
+\ parentheses, assignment, print(...), if / else / end, while / do / end,
+\ -- comments.  A value is three cells ( value1 value2 tag ), tagged as in
+\ lila/value.fs.  The long form of this design lives in lila/LILANATIVE.md.
 
 \ --- bytecode ---
  0 constant OP-PUSH
@@ -73,6 +64,7 @@ variable l-bright? drop
 variable l-bprec drop
 variable l-min drop
 variable l-got drop
+variable l-esc-seen drop
 variable l-alen drop
 variable l-sa drop
 variable l-sn drop
@@ -247,6 +239,7 @@ create s-nil   110 c, 105 c, 108 c,
 : l-scan-string
   l-ti @ 1+ l-ti !
   l-ti @ >r
+  0 l-esc-seen !
   begin l-ti @ l-src-n @ < while
     l-ti @ l-src@
     dup 34 = if
@@ -254,9 +247,20 @@ create s-nil   110 c, 105 c, 108 c,
       r@ l-ti @ r@ - 3 l-tok-add
       r> drop 1 l-ti +! exit
     then
-    dup 10 = if drop -3 throw then
-    dup 92 = if drop -4 throw then
-    drop 1 l-ti +!
+    dup 10 = if
+      drop
+      l-esc-seen @ if -5 throw then
+      -3 throw
+    then
+    dup 92 = if
+      drop
+      l-ti @ 1+ l-src-n @ < 0= if -4 throw then
+      l-ti @ 1+ l-src@ 10 = if -4 throw then
+      1 l-esc-seen !
+      2 l-ti +!
+    else
+      drop 1 l-ti +!
+    then
   repeat
   -5 throw ;
 : l-2nd= ( c -- f ) l-ti @ 1+ l-src@ = ;
@@ -304,15 +308,122 @@ create s-nil   110 c, 105 c, 108 c,
   l-sn @ r@ l-sym-n + !
   r> 1 l-nsym +! ;
 
-\ compile a string into the arena
+\ --- string escapes ---
+\ The table maps an escape letter to its byte; 0 means not an escape.  The
+\ index is the letter minus 97.
+create l-esct 7 c, 8 c, 0 c, 0 c, 0 c, 12 c, 0 c, 0 c, 0 c, 0 c, 0 c, 0 c, 0 c, 10 c, 0 c, 0 c, 0 c, 13 c, 0 c, 9 c, 0 c, 11 c,
+: l-esc-simple ( c -- b )
+  97 - dup 0 < if drop 0 exit then
+  dup 22 < if l-esct + c@ else drop 0 then ;
+: l-hex ( c -- n f )
+  dup 48 58 within if 48 - true exit then
+  dup 65 71 within if 55 - true exit then
+  dup 97 103 within if 87 - true exit then
+  drop 0 false ;
+: l-esc-emit ( byte -- )
+  l-ap @ 1+ c-tot @ + l-arena + c!
+  c-tot @ 1+ c-tot ! ;
+: l-esc-advance ( n -- ) c-n2 @ + c-n2 ! ;
+\ UTF-8: the leading byte first, then the continuation bytes.
+: l-u8 ( cp -- )
+  dup 0x7f u> if
+    dup 0x7ff u> if
+      dup 12 rshift 0x0f and 0xe0 or l-esc-emit
+      dup 6 rshift 0x3f and 0x80 or l-esc-emit
+      0x3f and 0x80 or l-esc-emit
+    else
+      dup 6 rshift 0x1f and 0xc0 or l-esc-emit
+      0x3f and 0x80 or l-esc-emit
+    then
+  else
+    l-esc-emit
+  then ;
+\ One backslash escape, starting at the backslash in c-n2.
+: l-esc ( -- )
+  c-n2 @ 1+ c-n1 @ < 0= if -4 throw then
+  c-a1 @ c-n2 @ 1+ + c@ l-got !
+  l-got @ dup 34 = over 39 = or over 92 = or if
+    l-esc-emit 2 l-esc-advance exit
+  then
+  drop
+  l-got @ l-esc-simple dup if
+    l-esc-emit 2 l-esc-advance exit
+  then
+  drop
+  l-got @ 120 = if
+    c-n2 @ 3 + c-n1 @ < 0= if -4 throw then
+    c-a1 @ c-n2 @ 2 + + c@ l-hex 0= if -4 throw then
+    c-a1 @ c-n2 @ 3 + + c@ l-hex 0= if -4 throw then
+    swap 16 * + l-esc-emit 4 l-esc-advance exit
+  then
+  l-got @ 122 = if
+    2 l-esc-advance
+    begin c-n2 @ c-n1 @ < while
+      c-a1 @ c-n2 @ + c@
+      dup l-ws? over 11 = or swap 12 = or
+      if 1 l-esc-advance else exit then
+    repeat exit
+  then
+  l-got @ 117 = if
+    c-n2 @ 2 + c-n1 @ < 0= if -4 throw then
+    c-a1 @ c-n2 @ 2 + + c@ 123 <> if -4 throw then
+    0 c-a2 ! 0 l-qlo ! 0 l-qhi !
+    3 l-esc-advance
+    begin l-qhi @ 0= c-n2 @ c-n1 @ < and while
+      c-a1 @ c-n2 @ + c@
+      dup 125 = if
+        drop
+        l-qlo @ 0= if -4 throw then
+        c-a2 @ l-u8
+        1 l-esc-advance
+        -1 l-qhi !
+      else
+        l-hex 0= if -4 throw then
+        c-a2 @ 0x0fff u> if -4 throw then
+        c-a2 @ 16 * + c-a2 !
+        l-qlo @ 1+ l-qlo !
+        1 l-esc-advance
+      then
+    repeat
+    l-qhi @ 0= if -4 throw then
+    exit
+  then
+  l-got @ 48 58 within if
+    l-got @ 48 - c-a2 ! 1 l-qlo ! -1 l-qhi !
+    2 l-esc-advance
+    begin l-qhi @ 0<> l-qlo @ 3 < and c-n2 @ c-n1 @ < and while
+      c-a1 @ c-n2 @ + c@
+      dup 48 58 within if
+        c-a2 @ 10 * swap 48 - + c-a2 !
+        l-qlo @ 1+ l-qlo !
+        1 l-esc-advance
+      else
+        drop 0 l-qhi !
+      then
+    repeat
+    c-a2 @ 255 > if -4 throw then
+    c-a2 @ l-esc-emit
+    exit
+  then
+  -4 throw ;
+\ compile a string into the arena, interpreting backslash escapes
 : l-astr ( a n -- addr )
-  l-alen !
-  l-ap @ l-alen @ + 1+ 500 > if -7 throw then
+  c-n1 ! c-a1 !
+  l-ap @ c-n1 @ + 1+ 500 > if -7 throw then
   l-ap @ >r
-  l-alen @ r@ l-arena + !
-  r@ 1+ l-arena +
-  l-alen @ cmove
-  l-ap @ l-alen @ 1+ + l-ap !
+  0 c-tot !
+  0 c-n2 !
+  begin c-n2 @ c-n1 @ < while
+    c-a1 @ c-n2 @ + c@
+    dup 92 = if
+      drop l-esc
+    else
+      l-esc-emit
+      1 l-esc-advance
+    then
+  repeat
+  c-tot @ r@ l-arena + !
+  c-tot @ 1+ l-ap +!
   r> l-arena + ;
 
 \ --- parser ---
@@ -526,11 +637,9 @@ create s-nil   110 c, 105 c, 108 c,
   r> 1+ c-tot @ 3 ;
 
 \ --- floats ---
-\ A float is a pair of cells, the low half of the IEEE single first, the
-\ order the kernel float words use.  The kernel has to be an FPU image.
-\ The operands of a binary operator are A (m-alo m-ahi, tag l-plo) and
-\ B (m-blo m-bhi, tag l-phi); an int is converted with v-i2f, which reads
-\ the signed high half and the plain low half of the pair separately.
+\ A float is a pair of cells, the low half of the IEEE single first.  The
+\ operands of a binary operator are A (m-alo m-ahi, tag l-plo) and B
+\ (m-blo m-bhi, tag l-phi); an int is converted with v-i2f.
 : v-i2f ( lo hi -- flo fhi )
   c-a1 !
   dup 32768 and c-n2 !
@@ -551,8 +660,7 @@ create s-nil   110 c, 105 c, 108 c,
   >r m-bhi ! m-blo ! l-plo ! m-ahi ! m-alo ! r> l-phi !
   l-plo @ 1 = l-plo @ 5 = or l-phi @ 1 = l-phi @ 5 = or and 0= if -26 throw then ;
 
-\ The floor of a float: f>s truncates toward zero, so one is taken off
-\ when the value is below the truncated one.
+\ The floor of a float: f>s truncates toward zero, so one is taken off.
 : v-ffloor ( flo fhi -- t )
   2dup f>s >r
   2dup r@ s>f f<
@@ -570,7 +678,7 @@ create s-nil   110 c, 105 c, 108 c,
   v-ffloor ;
 
 \ The arithmetic operators share a word: the opcode picks the kernel float
-\ word or the 32-bit word; a division is always a float.
+\ word or the 32-bit word.
 create l-fops ' f+ , ' f- , ' f* ,
 create l-iops ' d+ , ' d- , ' d* ,
 : op-arith
@@ -585,8 +693,8 @@ create l-iops ' d+ , ' d- , ' d* ,
   l-qhi @ if 5 else 1 then
   1 l-pc +! ;
 
-\ The six comparisons share a word: the opcode picks the test (f= or f<),
-\ whether to swap the operands and whether to negate the answer.
+\ The six comparisons share a word: the opcode picks the test and whether
+\ to swap the operands.
 create l-fcmp ' f= , ' f< ,
 create l-icmp ' d= , ' d< ,
 : op-cmp
@@ -626,8 +734,7 @@ create l-icmp ' d= , ' d< ,
   then
   1 l-pc +! ;
 
-\ The remainder is the dividend less the floor of the quotient times the
-\ divisor, so it takes the sign of the divisor.
+\ The remainder is the dividend less the floor of the quotient times the divisor.
 : op-mod
   v-take
   v-qt c-a2 !
@@ -676,8 +783,8 @@ create l-ops
 ' op-concat , ' op-halt , ' op-neg , ' op-pushf , ' op-pow , ' op-idiv ,
 ' op-mod ,
 
-\ The runtime string arena is not reset here: a concatenation result that
-\ lives in a global has to survive the next line of the session.
+\ The runtime string arena is not reset: a result in a global has to survive
+\ the next line of the session.
 : l-run ( -- )
   0 l-pc !
   begin
@@ -687,8 +794,7 @@ create l-ops
   again ;
 
 \ --- top level ---
-\ A session keeps the symbol table and the globals from line to line, so
-\ `x = 3` on one line and `print(x)` on the next work on the same `x`.
+\ A session keeps the symbol table and the globals from line to line.
 
 : l-compile ( -- )
   0 l-pos ! 0 l-cp ! 0 l-ntok ! 0 l-ti !
@@ -696,9 +802,8 @@ create l-ops
   l-program ;
 
 \ Compile and run the pending source.  The flag is true when the source
-\ ended in the middle of a statement, so the session asks for another line.
-\ A failed compile gives the symbol table and the string arena back; a
-\ failed run keeps them, because the program may have stored values.
+\ ended in the middle of a statement.  A failed compile gives the symbol
+\ table and the string arena back; a failed run keeps them.
 : l-pending ( -- f )
   l-nsym @ l-save-nsym !
   l-ap @ l-save-ap !
@@ -713,8 +818,7 @@ create l-ops
   0 l-src-n !
   false ;
 
-\ The session itself: the tables live as long as the session does.  An empty
-\ line ends the session; an unfinished statement is reported first.
+\ The session itself: the tables live as long as the session does.
 : l-session ( -- )
   decimal
   0 l-nsym ! 0 l-ap ! 0 l-rp ! 0 l-src-n !

@@ -106,6 +106,93 @@ test('a float run leaves the data stack at depth 0', () => {
   assert.equal(h.depth(), 0);
 });
 
+// The string escapes.  The native profile decodes the same set as the host
+// compiler in lila/compiler.fs: the simple escapes, the identity escapes,
+// \ddd, \xXX, \z and \u{...}.  The console is a byte pipe, so the expected
+// values are bytes and a UTF-8 escape is compared as its bytes.
+const escapes = [
+  ['\\a is a bell', 'print("a\\ab")', 'a\u0007b'],
+  ['\\b is a backspace', 'print("a\\bb")', 'a\u0008b'],
+  ['\\f is a form feed', 'print("a\\fb")', 'a\u000cb'],
+  ['\\n is a line feed', 'print("a\\nb")', 'a\nb'],
+  ['\\t is a tab', 'print("a\\tb")', 'a\tb'],
+  ['\\v is a vertical tab', 'print("a\\vb")', 'a\u000bb'],
+  ['\\\\ is a backslash', 'print("a\\\\b")', 'a\\b'],
+  ['\\" is a double quote', 'print("a\\"b")', 'a"b'],
+  ["\\' is a single quote", 'print("a\\\'b")', "a'b"],
+  ['\\ddd is decimal', 'print("\\065")', 'A'],
+  ['\\ddd counts in decimal, not octal', 'print("\\101")', 'e'],
+  ['\\ddd takes one digit too', 'print("\\9")', '\t'],
+  ['\\ddd takes at most three digits', 'print("\\1234")', '{4'],
+  ['\\xXX is hexadecimal', 'print("\\x41")', 'A'],
+  ['\\xXX takes two digits', 'print("\\x4a")', 'J'],
+  ['\\z skips the spaces after it', 'print("\\z   abc")', 'abc'],
+  ['\\z skips a tab too', 'print("a\\z  \\tb")', 'a\tb'],
+  ['\\u{...} in ASCII', 'print("\\u{41}")', 'A'],
+];
+
+test('the string escapes work', () => {
+  for (const [name, src, expected] of escapes) {
+    assert.equal(h.runProgram([src]), expected, name);
+  }
+});
+
+test('a string with escapes leaves the data stack at depth 0', () => {
+  h.runProgram(['print("\\065")', 'print("\\x41")', 'print("\\u{20ac}")',
+                'print("\\z   abc")', 'x = "a\\nb"']);
+  assert.equal(h.depth(), 0);
+});
+
+test('a CR escape prints a CR byte', () => {
+  // The console uses the CR to move the cursor, so only the raw output
+  // path can show one.  A line ends with a CR of its own, so the raw
+  // output has two: the one from the escape and the one that ends the
+  // line.
+  assert.equal(h.runProgram(['print("a\\rb")'], 20_000_000, true), 'a\rb\r');
+});
+
+// A code point above 0x7F is two or three UTF-8 bytes, and the console
+// carries bytes, so these are compared as hex.
+const utf8 = [
+  ['\\u{e9} is two bytes', 'print("\\u{e9}")', 'c3 a9'],
+  ['\\u{20ac} is three bytes', 'print("\\u{20ac}")', 'e2 82 ac'],
+  ['\\u{800} is three bytes', 'print("\\u{800}")', 'e0 a0 80'],
+  ['\\u{ffff} is three bytes', 'print("\\u{ffff}")', 'ef bf bf'],
+];
+
+test('a \\u escape is UTF-8', () => {
+  for (const [name, src, expected] of utf8) {
+    const got = h.runProgram([src]);
+    const bytes = [...got].map((c) => c.charCodeAt(0).toString(16).padStart(2, '0')).join(' ');
+    assert.equal(bytes, expected, name);
+  }
+});
+
+// An escape outside the profile is rejected with -4.  A backslash that
+// swallows the closing quote leaves the string unterminated, which is -5,
+// the same diagnosis the host compiler gives.
+const badEscapes = [
+  ['an unknown letter', 'print("\\q")', -4],
+  ['a \\x with one digit', 'print("\\x4")', -4],
+  ['a \\x with a bad digit', 'print("\\xzz")', -4],
+  ['a decimal over 255', 'print("\\300")', -4],
+  ['a \\u without the brace', 'print("\\u{41")', -4],
+  ['an empty \\u', 'print("\\u{}")', -4],
+  ['a \\u with a bad digit', 'print("\\u{41g}")', -4],
+  ['a code point over 0xFFFF', 'print("\\u{10000}")', -4],
+  ['a backslash before the line feed', 'print("a\\', -4],
+  ['a backslash that swallows the quote', 'print("a\\")', -5],
+];
+
+test('an invalid escape is rejected with a code', () => {
+  for (const [name, src, code] of badEscapes) {
+    const text = h.runSource(src);
+    const m = text.match(/LERR (-?\d+)/);
+    assert.ok(m, `${name}: no LERR in ${JSON.stringify(text)}`);
+    assert.equal(Number(m[1]), code, name);
+  }
+});
+
 // Syntax outside the profile must be rejected with a code, not reinterpreted.
 const rejected = [
   ['and', 'if 1 and 2 then print(1) end', -14],

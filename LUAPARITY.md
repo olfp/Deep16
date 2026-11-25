@@ -76,6 +76,10 @@ core-language gaps are:
   whitespace skipping (`\z`), and UTF-8 codepoints (`\u{...}`). Unknown or
   malformed escapes are compile errors. The two-character `..` operator is
   right-associative and concatenates strings.
+- **The native profile decodes the same escapes.** `lila/native/lila-native.fth`
+  has the same escape set, with one limit: a `\u{...}` code point may be at
+  most `0xFFFF`, because the profile has no surrogate pairs. The native source
+  is line-based, so `\z` cannot skip a line feed.
 - **No long strings** (`[[...]]`) or long comments.
 - **Concatenation is stricter than Lua.** `..` accepts two strings only: it
   does not coerce numbers and there is no `__concat` metamethod. Conversely,
@@ -146,11 +150,11 @@ core-language gaps are:
 - **A second implementation runs on the device.** `lila/native/lila-native.fth`
   compiles a deliberately smaller Lua subset directly to bytecode on Deep16 and
   runs it there. It supports globals, 32-bit integers, single-precision floats,
-  strings, `+ - * / // % ^`, relationals, `..`, `print`, `if`, `while` and
-  `do`; functions, locals, tables, bitwise operators, `and`/`or`/`not`,
-  varargs and the libraries are rejected with negative codes. Its value ABI
-  matches `TYPEPLAN.md`; its limits and codes are in
-  `lila/native/README.md`.
+  strings with the escape set of the host compiler, `+ - * / // % ^`,
+  relationals, `..`, `print`, `if`, `while` and `do`; functions, locals,
+  tables, bitwise operators, `and`/`or`/`not`, varargs and the libraries are
+  rejected with negative codes. Its value ABI matches `TYPEPLAN.md`; its limits
+  and codes are in `lila/native/README.md`.
 - The collector is a simple conservative mark-sweep, without Lua's
   generational or incremental behavior.
 - The standard library is implemented as native closures installed as dotted
@@ -172,6 +176,11 @@ core-language gaps are:
 
 Completed work, newest first:
 
+- **String escapes in the native profile:** `lila/native/lila-native.fth` now
+  decodes the escape set of the host compiler: `\a \b \f \n \r \t \v`, the
+  identity escapes `\\ \" \'`, one to three decimal digits, two hexadecimal
+  digits, `\z` and `\u{...}` as UTF-8. A `\u` code point may be at most
+  `0xFFFF`; an escape that is not in the set is rejected with `-4`.
 - **Float datatype in the native profile:** `lila/native/lila-native.fth` now
   has Lua 5.4's numeric tower. Integers and floats are distinct types, a
   mixed operation promotes to float, `/` and `^` always give a float, `//` and

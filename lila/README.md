@@ -758,6 +758,10 @@ An unknown or malformed escape is a compile error. Strings remain byte
 strings; `\u{...}` writes the encoded UTF-8 bytes but does not provide Unicode
 string semantics.
 
+The on-device profile in `lila/native/lila-native.fth` decodes the same set,
+with one limit: a `\u{...}` code point may be at most `0xFFFF`, because the
+profile has no surrogate pairs.
+
 A body may contain several statements separated by `;`:
 
 ```lisp

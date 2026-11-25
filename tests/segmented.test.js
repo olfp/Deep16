@@ -600,23 +600,29 @@ test('catch and throw still unwind the return stack', () => {
   assert.ok(sim.running);
 });
 
-test('the 64K data stack holds 10000 cells', () => {
+test('the 64K data stack holds thousands of cells', () => {
   // The data stack grows down from 0xFFF0 and the dictionary up from 0x5800.
   // After the catalog, the tools slice (edit/serial/xmodem) and the graphics
-  // module about 11.5K cells are still free, so 10K proves the stack is not
-  // the old 300-cell return stack without depending on every last cell of
-  // dictionary headroom.
+  // module the gap here is 9,293 cells (measured from here(), which is why the
+  // count is derived and not a constant: a fixed 10,000 used to fit, and the
+  // text-buf below took the room back).
   //
-  // The gap is 4,096 cells smaller than it was: the boot loader's `text-buf`
-  // takes 20,480 of them, because it has to hold the ten slices of the LILA
-  // compiler (see lila/LILANATIVE.md). It is allocated in the dictionary at
-  // power-on, so every board pays for it whether it loads LILA or not. With
-  // the old eight-slice cap the gap was 15,671 cells and this test pushed
-  // 15,000.
+  // The big tenant of that gap is the boot loader's `text-buf`: 22,528 cells
+  // for the eleven 2,040-character source slices the LILA compiler loads (see
+  // lila/LILANATIVE.md). It is allocated in the dictionary at power-on, so
+  // every board pays for it whether it loads LILA or not. With the old
+  // eight-slice cap the gap was 15,671 cells and this test pushed 15,000.
+  //
+  // Push all but 400 cells: the stack must not reach the words this test
+  // defines a moment later, or the loop body overwrites itself (that is how
+  // the old fixed 10,000 died once text-buf grew).
+  const gap = 0xfff0 - here();
+  const n = gap - 400;
+  assert.ok(n >= 8000, `only ${gap} cells between the dictionary and the stack`);
   line(': push-n ( n -- ) 0 ?do i loop ;');
   line(': drop-n ( n -- ) 0 ?do drop loop ;');
-  assert.equal(number(line('10000 push-n depth . cr'), '10000 push-n depth . cr'), 10000);
-  assert.equal(number(line('10000 drop-n depth . cr'), '10000 drop-n depth . cr'), 0);
+  assert.equal(number(line(`${n} push-n depth . cr`), `${n} push-n depth . cr`), n);
+  assert.equal(number(line(`${n} drop-n depth . cr`), `${n} drop-n depth . cr`), 0);
   assert.ok(sim.running);
 });
 

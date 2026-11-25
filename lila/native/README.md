@@ -45,12 +45,12 @@ node --test tests/native-lila.test.js
 It boots the segmented D16D image with the soft-float library, types the
 compiler in, runs the fixture program, compares the output with what
 `lua5.4` 5.4.8 prints, and asserts that the run leaves the data stack at
-depth 0. The compiler takes about 8.5k dictionary cells after the kernel
-boots, leaving about 3.9k free.
+depth 0. The compiler takes about 9.3k dictionary cells after the kernel
+boots, leaving about 1.1k free.
 
 ## On the device
 
-The compiler is 20,036 characters, so it needs ten source slices. It is
+The compiler is 22,226 characters, so it needs eleven source slices. It is
 registered in the config-flash catalog as the TEXT object `lila`:
 
 ```sh
@@ -67,16 +67,16 @@ Loading lila
 ```
 
 `need` finds the object in the master directory and calls `screen`, which
-copies the slice chain into `text-buf` and includes it. The chain is ten
-slices long, so the boot loader's cap moved from 16,320 to 20,400 characters
-and `text-buf` grew to 20,480 cells; `text-buf` lives in the dictionary, not
+copies the slice chain into `text-buf` and includes it. The chain is eleven
+slices long, so the boot loader's cap moved from 16,320 to 22,440 characters
+and `text-buf` grew to 22,528 cells; `text-buf` lives in the dictionary, not
 in the image, so a board with the old boot loader needs `npm run flash:tile`
 for the new cap. The buffer is allocated at boot, so every board pays the
-4,096 extra cells whether it loads LILA or not.
+6,144 extra cells whether it loads LILA or not.
 
 The dictionary and the data stack share one region in the D16SEG map, so
-those 4,096 cells come out of the data stack: the gap between the two fell
-from 15,671 cells to 11,575. The stack still holds thousands of cells - far
+those 6,144 cells come out of the data stack: the gap between the two fell
+from 15,671 cells to 9,527. The stack still holds thousands of cells - far
 more than the LILA VM needs - but it is a real cost on every board.
 
 `tests/native-lila-slice.test.js` runs that path in the simulator.
@@ -128,7 +128,10 @@ reject a non-numeric operand with code `-26`.
 Supported today:
 
 - global variables and assignment
-- decimal integer and float literals, string literals (no escapes), unary minus
+- decimal integer and float literals, unary minus
+- string literals with the escape set of the host compiler: `\a \b \f \n \r
+  \t \v \\ \" \' \ddd \xXX \z \u{...}`. A `\u` code point is at most
+  `0xFFFF`; an escape that is not in the set is `-4`
 - `+`, `-`, `*`, `/`, `//`, `%`, `^`, `==`, `~=`, `<`, `>`, `<=`, `>=`, `..`
 - parentheses; `..` is right-associative, `^` is right-associative and binds
   tighter than the unary minus
@@ -180,6 +183,7 @@ an absolute target. Every other opcode has no operand.
 | compiled string arena | 500 bytes (500 reserved) |
 | concatenation arena | 200 bytes (200 reserved) |
 | float quotient | a signed 16-bit cell |
+| `\u` code point | `0xFFFF` |
 
 The global names, the globals themselves and the two string arenas live as
 long as the session does: a string assigned on one line is still there on the
@@ -197,7 +201,7 @@ statement, and the session waits for the next line.
 | -1 | source too long |
 | -2 | too many tokens |
 | -3 | newline inside a string |
-| -4 | backslash escape inside a string |
+| -4 | invalid escape sequence |
 | -5 | unterminated string |
 | -6 | too many global names |
 | -7 | compiled string arena full |

@@ -27,13 +27,17 @@ test('the compiler is in the config-flash directory', () => {
   assert.ok(lila, 'no lila object in the slice manifest');
   assert.ok(lila.chars > 16_320, 'the source is longer than eight slices');
   assert.ok(lila.count >= 10, `the source needs ${lila.count} slices`);
+  // The boot loader reads the source into text-buf, which holds eleven
+  // slices; a twelfth would not fit.
+  assert.ok(lila.count <= 11, `the source needs ${lila.count} slices`);
+  assert.ok(lila.chars <= 22_440, `the source is ${lila.chars} characters`);
 });
 
 test('need loads the compiler from the flash', () => {
   assert.match(load, /Loading lila/, load.replace(/\r/g, ''));
   assert.doesNotMatch(load, /too long/, 'the boot loader refused the source');
   assert.ok(afterLoad > bootHere, 'the compiler took no dictionary');
-  assert.ok(h.limit() - h.here() > 3800,
+  assert.ok(h.limit() - h.here() > 1000,
             `only ${h.limit() - h.here()} cells left after the load`);
 });
 
@@ -45,6 +49,14 @@ test('the program compiles and runs with lua5.4 output', () => {
 test('the compiler loaded from the flash has the float profile', () => {
   assert.equal(h.runProgram(['print(1.5)']), '1.5000 ');
   assert.equal(h.runProgram(['print(7 // 2)', 'print(1 / 2)']), '3\n0.5000 ');
+});
+
+test('the compiler loaded from the flash decodes the string escapes', () => {
+  assert.equal(h.runProgram(['print("a\\nb")']), 'a\nb');
+  assert.equal(h.runProgram(['print("\\x41")']), 'A');
+  assert.equal(h.runProgram(['print("\\u{20ac}")']), '\u00e2\u0082\u00ac');
+  assert.equal(h.runProgram(['print("\\z   abc")']), 'abc');
+  assert.match(h.runSource('print("\\q")'), /LERR -4/);
 });
 
 test('a successful run leaves the data stack at depth 0', () => {

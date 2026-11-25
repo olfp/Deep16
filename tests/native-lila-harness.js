@@ -140,27 +140,31 @@ export function bootNative() {
   }
 
   // What one source line printed: everything after the echo of the line
-  // itself and before the prompt that follows it.
-  function lineOutput(text) {
+  // itself and before the prompt that follows it.  `keepCR` leaves the CR
+  // bytes in: the console uses them to move the cursor, so the normal path
+  // strips them and a string escape test cannot see a CR.
+  function lineOutput(text, keepCR = false) {
     const nl = text.indexOf('\n');
     if (nl < 0) return '';
     let body = text.slice(nl + 1);
     if (body.endsWith('L> ')) body = body.slice(0, -3);
-    return body.replace(/\r/g, '');
+    return keepCR ? body : body.replace(/\r/g, '');
   }
 
   // Type a source program one line at a time. `lila` compiles and runs
   // every line as soon as it is complete, so the output appears while the
   // lines are typed. The result is the program's own output, without the
-  // echo of the lines and without the prompts.
-  function runProgram(lines, cap = 20_000_000) {
+  // echo of the lines and without the prompts.  `keepCR` keeps the CR
+  // bytes, for the string escape tests.
+  function runProgram(lines, cap = 20_000_000, keepCR = false) {
     const parts = [];
     type('lila', 2_000_000, false);
     for (const input of lines) {
-      parts.push(lineOutput(type(input, 4_000_000, false)));
+      parts.push(lineOutput(type(input, 4_000_000, false), keepCR));
     }
     type('', cap, true);            // the blank line ends the session
-    return parts.join('').replace(/\n$/, '');
+    const body = parts.join('').replace(/\n$/, '');
+    return keepCR ? body : body.replace(/\r/g, '');
   }
 
   // Type a source program and return everything the console showed, from
