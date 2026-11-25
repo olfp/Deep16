@@ -1,57 +1,54 @@
 \ lila-native.fth - an on-device LILA compiler and bytecode VM.
 \
-\ `lila` is a session.  It reads one line at a time from the console,
-\ tokenizes it in place, parses it with recursive descent, emits compact
-\ bytecode into a dictionary buffer, and runs that bytecode on a small VM.
-\ Every line is a program of its own, and the state - the globals and the
-\ symbol table - carries from one line to the next.  A line that ends in the
-\ middle of a statement is not an error: the session asks for another line
-\ and tries the whole pending source again.  An empty line ends the session.
-\ No part of the user program is compiled by the host.
-\
-\ The console echoes the characters as they are typed, but the BIOS stops at
-\ the Return without echoing the newline.  So `lila` prints a CR of its own
-\ for every Return and a prompt "L> " before every line it reads; see l-line.
+\ `lila` is a session: it reads one line at a time from the console, tokenizes
+\ it, parses it, emits bytecode into l-code and runs that bytecode on a small
+\ VM.  The globals and the symbol table carry from line to line; an unfinished
+\ statement asks for another line, an empty line ends the session.
 \
 \ Supported subset (anything else is rejected with a negative code):
-\   globals, integer literals, string literals (no escapes), unary minus,
-\   + - *  relationals  == ~=  .. (right associative)  parentheses,
-\   assignment, print(...), if / else / end, while / do / end, do / end,
-\   -- comments.
-\ Not in this profile: functions, locals, tables, floats (/ // % ^), bitwise
-\ operators, and / or / not, varargs, multiple values, #, libraries.
+\   globals, integer and float literals, string literals (no escapes),
+\   unary minus, + - * / // % ^, relationals, == ~=, .. (right associative),
+\   parentheses, assignment, print(...), if / else / end, while / do / end,
+\   do / end, -- comments.
+\ Not in this profile: functions, locals, tables, bitwise operators, and /
+\ or / not, varargs, multiple values, #, libraries.
 \
 \ A value is three cells ( value1 value2 tag ) with the same tags as
-\ lila/value.fs: 0 nil, 1 number, 2 boolean, 3 string.  A number is a signed
-\ 32-bit two's-complement pair (low high); a boolean is (0xFFFF 0 2) or
-\ (0 0 2); a string is (address length 3).  A variable is a three-cell slot,
-\ zero-filled so an unassigned global reads as nil.  Compiled strings live in
-\ a compile-time arena; concatenation results in a run-time arena.
+\ lila/value.fs: 0 nil, 1 number, 2 boolean, 3 string, 5 float.  A number is
+\ a signed 32-bit two's-complement pair (low high); a float is the IEEE
+\ single with the low half first, the order the kernel float words use.
+\
+\ The long form of this design lives in lila/LILANATIVE.md.
 
-\ ------------------------------- bytecode -------------------------------
+\ --- bytecode ---
  0 constant OP-PUSH
  1 constant OP-LOAD
  2 constant OP-STORE
  3 constant OP-ADD
  4 constant OP-SUB
  5 constant OP-MUL
- 6 constant OP-EQ
- 7 constant OP-LT
- 8 constant OP-GT
- 9 constant OP-LE
-10 constant OP-GE
-11 constant OP-NE
-12 constant OP-JMP
-13 constant OP-JZ
-14 constant OP-PRINT
-15 constant OP-TAB
-16 constant OP-EOL
-17 constant OP-PUSHS
-18 constant OP-CONCAT
-19 constant OP-HALT
-20 constant OP-NEG
+ 6 constant OP-DIV
+ 7 constant OP-NE
+ 8 constant OP-EQ
+ 9 constant OP-GE
+10 constant OP-LT
+11 constant OP-LE
+12 constant OP-GT
+13 constant OP-JMP
+14 constant OP-JZ
+15 constant OP-PRINT
+16 constant OP-TAB
+17 constant OP-EOL
+18 constant OP-PUSHS
+19 constant OP-CONCAT
+20 constant OP-HALT
+21 constant OP-NEG
+22 constant OP-PUSHF
+23 constant OP-POW
+24 constant OP-IDIV
+25 constant OP-MOD
 
-\ ------------------------------- storage --------------------------------
+\ --- storage ---
 create l-src 768 allot
 variable l-src-n drop
 variable l-ti drop
@@ -66,10 +63,10 @@ variable l-cp drop
 create l-sym 256 allot
 create l-sym-n 16 allot
 variable l-nsym drop
-create l-vars 96 allot
-create l-arena 512 allot
+create l-vars 48 allot
+create l-arena 500 allot
 variable l-ap drop
-create l-rstr 256 allot
+create l-rstr 200 allot
 variable l-rp drop
 variable l-bop drop
 variable l-bright? drop
@@ -99,7 +96,7 @@ variable l-stmt-xt drop
 variable l-save-nsym drop
 variable l-save-ap drop
 
-\ ------------------------- static text fragments ------------------------
+\ --- static text fragments ---
 create k-if    105 c, 102 c,
 create k-then  116 c, 104 c, 101 c, 110 c,
 create k-else  101 c, 108 c, 115 c, 101 c,
@@ -110,6 +107,10 @@ create k-print 112 c, 114 c, 105 c, 110 c, 116 c,
 create p-plus  43 c,
 create p-minus 45 c,
 create p-star  42 c,
+create p-slash 47 c,
+create p-dslash 47 c, 47 c,
+create p-percent 37 c,
+create p-caret 94 c,
 create p-lt    60 c,
 create p-gt    62 c,
 create p-le    60 c, 61 c,
@@ -126,7 +127,7 @@ create s-true  116 c, 114 c, 117 c, 101 c,
 create s-false 102 c, 97 c, 108 c, 115 c, 101 c,
 create s-nil   110 c, 105 c, 108 c,
 
-\ ------------------------------- helpers --------------------------------
+\ --- helpers ---
 : l-err ( code -- ) m-lerr 4 type space . cr ;
 
 : l-ws? ( c -- f )
@@ -144,10 +145,7 @@ create s-nil   110 c, 105 c, 108 c,
 : l-src@ ( i -- c )
   dup l-src-n @ < 0= if drop 0 else l-src + c@ then ;
 
-\ current token access
-\ l-eof? is true when the token stream is exhausted.  Every parser rule
-\ that needs a token and finds the stream empty throws -23: the statement
-\ is unfinished, and the session asks for another line.
+\ Current token access; an empty stream means the statement is unfinished.
 : l-eof? ( -- f ) l-pos @ l-ntok @ < 0= ;
 : l-tstart ( i -- a ) l-tok-a + @ l-src + ;
 : l-tlen ( i -- n ) l-tok-n + @ ;
@@ -159,18 +157,13 @@ create s-nil   110 c, 105 c, 108 c,
   l-cur= ;
 : l-kind@ ( -- k ) l-pos @ l-tok-k + @ ;
 
-\ l-want ( ca cn code -- )
-\ The current token has to be the keyword ca cn.  At the end of the token
-\ stream the statement is unfinished and -23 asks for another line; any
-\ other token is the error code the caller passed in.
+\ l-want: the current token has to be the keyword; -23 at the end.
 : l-want ( ca cn code -- )
   >r
   l-eof? if r> -23 throw then
   l-cur compare 0= if 1 l-pos +! r> drop exit then
   r> throw ;
 
-\ l-op! ( ca cn code -- )
-\ The same, for an operator: the token has to be kind 4 as well.
 : l-op! ( ca cn code -- )
   l-eof? if -23 throw then
   l-pos @ l-tok-k + @ 4 <> if throw then
@@ -184,27 +177,21 @@ create s-nil   110 c, 105 c, 108 c,
 : l-jz ( -- slot ) OP-JZ code, here-cp 1 l-cp +! ;
 : l-jmp ( -- slot ) OP-JMP code, here-cp 1 l-cp +! ;
 
-\ ------------------------------ source input ----------------------------
-\ The console echoes the characters as they are typed, but the BIOS stops at
-\ the Return without echoing the newline: the cursor stays on the line the
-\ user just typed.  So `lila` prints the newline itself, and a prompt of its
-\ own before every line it reads.  The prompt is "L> ", the end of the DeepForth
-\ prompt "> " with an L in front of it, so the two are easy to tell apart.
+\ --- source input ---
+\ The prompt is "L> "; lila prints the newline the BIOS does not.
 : l-prompt ( -- ) ." L> " ;
 
-\ Read one line and append it to the pending source.  The flag is true when
-\ the line was empty: that ends the session.  A source that grows past the
-\ limit is dropped and reported; the session carries on with the next line.
+\ Read one line into the pending source; true when the line was empty.
 : l-line ( -- f )
   l-src-n @ l-src + 120 accept l-got !
-  cr                        \ the Return the user just pressed
+  cr
   l-got @ 0= if true exit then
   l-src l-src-n @ + l-got @ + 10 swap c!
   l-src-n @ l-got @ + 1+ l-src-n !
   l-src-n @ 700 > if -1 l-err 0 l-src-n ! then
   false ;
 
-\ ------------------------------- tokenizer ------------------------------
+\ --- tokenizer ---
 : l-tok-add ( start len kind -- )
   l-ntok @ 255 > if -2 throw then
   l-ntok @ l-tok-k + !
@@ -216,14 +203,39 @@ create s-nil   110 c, 105 c, 108 c,
     l-ti @ l-src@ 10 = if 1 l-ti +! exit then
     1 l-ti +!
   repeat ;
-: l-scan-number
-  l-ti @ >r
-  begin l-ti @ l-src-n @ < while
-    l-ti @ l-src@ l-digit? 0= if
-      r@ l-ti @ r@ - 1 l-tok-add r> drop exit then
+
+\ An exponent marker: e or E, an optional sign and a digit.
+: l-exp ( -- f )
+  l-ti @ l-src@ dup 101 = swap 69 = or 0= if false exit then
+  l-ti @ 1+ l-src@ dup 43 = over 45 = or if
+    drop l-ti @ 2 + l-src@
+  else
+    drop l-ti @ 1+ l-src@
+  then
+  l-digit? 0= if false exit then
+  1 l-ti +!
+  l-ti @ l-src@ dup 45 = over 43 = or if drop 1 l-ti +! else drop then
+  begin l-ti @ l-src@ l-digit? while
     1 l-ti +!
   repeat
-  r@ l-ti @ r@ - 1 l-tok-add r> drop ;
+  true ;
+
+\ A number: digits, maybe a point with fraction digits, maybe an exponent.
+: l-scan-number
+  l-ti @ >r
+  begin l-ti @ l-src@ l-digit? while
+    1 l-ti +!
+  repeat
+  1 l-alen !
+  r@ 1+ l-src@ 46 = r@ 1+ 1+ l-src@ l-digit? and if
+    2 l-ti +!
+    begin l-ti @ l-src@ l-digit? while
+      1 l-ti +!
+    repeat
+    5 l-alen !
+  then
+  l-exp if 5 l-alen ! then
+  r@ l-ti @ r@ - l-alen @ l-tok-add r> drop ;
 : l-scan-name
   l-ti @ >r
   begin l-ti @ l-src-n @ < while
@@ -254,6 +266,7 @@ create s-nil   110 c, 105 c, 108 c,
   dup 61 = if drop 61 l-2nd= exit then
   dup 126 = if drop 61 l-2nd= exit then
   dup 46 = if drop 46 l-2nd= exit then
+  dup 47 = if drop 47 l-2nd= exit then
   drop false ;
 : l-token ( -- )
   l-ti @ l-src@
@@ -272,7 +285,7 @@ create s-nil   110 c, 105 c, 108 c,
   0 l-ntok ! 0 l-ti !
   begin l-ti @ l-src-n @ < while l-token repeat ;
 
-\ ------------------------------ symbol table ----------------------------
+\ --- symbol table ---
 : l-sym-addr ( i -- a ) 16 * l-sym + ;
 : l-sym-len@ ( i -- n ) l-sym-n + @ ;
 : l-slot ( a n -- slot )
@@ -291,7 +304,7 @@ create s-nil   110 c, 105 c, 108 c,
   l-sn @ r@ l-sym-n + !
   r> 1 l-nsym +! ;
 
-\ compile a string into the arena; return the length-cell address
+\ compile a string into the arena
 : l-astr ( a n -- addr )
   l-alen !
   l-ap @ l-alen @ + 1+ 500 > if -7 throw then
@@ -302,10 +315,8 @@ create s-nil   110 c, 105 c, 108 c,
   l-ap @ l-alen @ 1+ + l-ap !
   r> l-arena + ;
 
-\ ------------------------------- parser ---------------------------------
-\ Multiply an unsigned 32-bit pair by ten.  The low half goes through um*;
-\ its high half and ten times the old high half form the new high half.
-\ Any carry out of 32 bits or into the sign bit is a literal we cannot store.
+\ --- parser ---
+\ Multiply an unsigned 32-bit pair by ten; a carry out is -22.
 : l-10* ( lo hi -- lo' hi' )
   swap 10 um* rot 10 um*
   l-qhi ! l-qlo ! l-phi ! l-plo !
@@ -314,8 +325,7 @@ create s-nil   110 c, 105 c, 108 c,
   dup l-phi @ u< if -22 throw then
   l-plo @ swap ;
 
-\ Accumulate into a 32-bit unsigned pair, then reject values the signed
-\ payload cannot represent.
+\ Accumulate into a 32-bit pair; reject what the payload cannot hold.
 : l-num ( a n -- lo hi )
   l-num-n ! l-num-a !
   0 0
@@ -326,12 +336,17 @@ create s-nil   110 c, 105 c, 108 c,
   dup 0< if -22 throw then ;
 : l-expr0 ( -- ) 0 l-expr-xt @ execute ;
 
+\ A float literal goes through the kernel's own number scanner.
 : l-primary ( -- )
   l-eof? if -23 throw then
   l-kind@
   dup 1 = if drop
     l-pos @ l-tstart l-pos @ l-tlen l-num
     OP-PUSH code, swap code, code,
+    1 l-pos +! exit then
+  dup 5 = if drop
+    l-pos @ l-tstart l-pos @ l-tlen evaluate
+    OP-PUSHF code, swap code, code,
     1 l-pos +! exit then
   dup 3 = if drop
     l-pos @ l-tstart l-pos @ l-tlen l-astr
@@ -344,26 +359,33 @@ create s-nil   110 c, 105 c, 108 c,
   l-expr0
   p-rp 1 -10 l-op! ;               \ -23 at the end, -10 for anything else
 
+\ Unary minus binds looser than the power: -2^2 is -(2^2).
 : l-unary ( -- )
   p-minus 1 l-op? if
     1 l-pos +!
-    recurse
+    l-min @ >r l-bop @ >r
+    7 l-expr-xt @ execute
+    r> l-bop ! r> l-min !
     OP-NEG code,
   else l-primary then ;
 
 : l-setop ( prec op right -- prec ) l-bright? ! l-bop ! ;
 : l-binop ( -- prec )
   l-pos @ l-ntok @ < 0= if 0 exit then
+  p-caret  1 l-op? if 7 OP-POW  1 l-setop exit then
+  p-dslash 2 l-op? if 6 OP-IDIV 0 l-setop exit then
+  p-percent 1 l-op? if 6 OP-MOD 0 l-setop exit then
+  p-slash  1 l-op? if 6 OP-DIV  0 l-setop exit then
   p-cat   2 l-op? if 4 OP-CONCAT 1 l-setop exit then
-  p-le    2 l-op? if 3 OP-LE 0 l-setop exit then
-  p-ge    2 l-op? if 3 OP-GE 0 l-setop exit then
   p-eq    2 l-op? if 3 OP-EQ 0 l-setop exit then
   p-ne    2 l-op? if 3 OP-NE 0 l-setop exit then
+  p-lt    1 l-op? if 3 OP-LT 0 l-setop exit then
+  p-le    2 l-op? if 3 OP-LE 0 l-setop exit then
+  p-ge    2 l-op? if 3 OP-GE 0 l-setop exit then
+  p-gt    1 l-op? if 3 OP-GT 0 l-setop exit then
   p-plus  1 l-op? if 5 OP-ADD 0 l-setop exit then
   p-minus 1 l-op? if 5 OP-SUB 0 l-setop exit then
   p-star  1 l-op? if 6 OP-MUL 0 l-setop exit then
-  p-lt    1 l-op? if 3 OP-LT 0 l-setop exit then
-  p-gt    1 l-op? if 3 OP-GT 0 l-setop exit then
   0 ;
 
 : l-expr ( min -- )
@@ -379,13 +401,12 @@ create s-nil   110 c, 105 c, 108 c,
     l-min @ >r
     l-bop @ >r
     recurse
-    r> l-bop !
-    r> l-min !
+    r> l-bop ! r> l-min !
     l-bop @ code,
   repeat drop ;
 ' l-expr l-expr-xt !
 
-\ ----------------------------- statements -------------------------------
+\ --- statements ---
 : l-assign ( -- )
   l-pos @ l-tstart l-pos @ l-tlen l-slot
   1 l-pos +!
@@ -461,14 +482,11 @@ create s-nil   110 c, 105 c, 108 c,
 
 ' l-stmt l-stmt-xt !
 
-\ --------------------------------- VM -----------------------------------
+\ --- VM ---
 : vnum ( lo hi -- lo hi 1 ) 1 ;
 : vbool ( f -- b 0 2 ) if -1 else 0 then 0 2 ;
-: v2pop ( a1 a2 atag b1 b2 btag -- a1 a2 b1 b2 )
-  drop >r >r drop r> r> ;
 
-\ Multiply two 32-bit pairs modulo 2^32; only the low halves of the cross
-\ products can reach the high cell.
+\ Multiply two 32-bit pairs modulo 2^32.
 : d* ( alo ahi blo bhi -- lo hi )
   m-bhi ! m-blo ! m-ahi ! m-alo !
   m-alo @ m-blo @ um*
@@ -490,6 +508,7 @@ create s-nil   110 c, 105 c, 108 c,
   dup 2 = if drop drop 0= exit then
   drop 2drop false ;
 : v-print ( v1 v2 tag -- )
+  dup 5 = if drop f. exit then
   dup 1 = if drop 0 d.r exit then
   dup 3 = if drop type exit then
   dup 2 = if drop drop if s-true 4 type else s-false 5 type then exit then
@@ -506,21 +525,131 @@ create s-nil   110 c, 105 c, 108 c,
   l-rp @ c-tot @ 1+ + l-rp !
   r> 1+ c-tot @ 3 ;
 
+\ --- floats ---
+\ A float is a pair of cells, the low half of the IEEE single first, the
+\ order the kernel float words use.  The kernel has to be an FPU image.
+\ The operands of a binary operator are A (m-alo m-ahi, tag l-plo) and
+\ B (m-blo m-bhi, tag l-phi); an int is converted with v-i2f, which reads
+\ the signed high half and the plain low half of the pair separately.
+: v-i2f ( lo hi -- flo fhi )
+  c-a1 !
+  dup 32768 and c-n2 !
+  c-n2 @ -
+  s>f
+  c-n2 @ if 0x0000 0x4700 f+ then
+  0x0000 0x4780
+  c-a1 @ s>f
+  f* f+ ;
+
+: v-fa ( -- flo fhi )
+  m-alo @ m-ahi @ l-plo @ 5 = if exit then v-i2f ;
+: v-fb ( -- flo fhi )
+  m-blo @ m-bhi @ l-phi @ 5 = if exit then v-i2f ;
+
+\ Take the two operands off the value stack and check that both are numbers.
+: v-take ( a1 a2 atag b1 b2 btag -- )
+  >r m-bhi ! m-blo ! l-plo ! m-ahi ! m-alo ! r> l-phi !
+  l-plo @ 1 = l-plo @ 5 = or l-phi @ 1 = l-phi @ 5 = or and 0= if -26 throw then ;
+
+\ The floor of a float: f>s truncates toward zero, so one is taken off
+\ when the value is below the truncated one.
+: v-ffloor ( flo fhi -- t )
+  2dup f>s >r
+  2dup r@ s>f f<
+  if 2drop r> 1- else 2drop r> then ;
+
+: v-fdiv ( -- flo fhi )
+  m-blo @ 0= m-bhi @ 0= and if -24 throw then
+  v-fa v-fb f/ ;
+
+\ The quotient as a whole number: it has to fit in a signed cell.
+: v-qt ( -- t )
+  v-fdiv
+  fdup 0x0000 0x4700 f< 0= if -25 throw then
+  fdup 0x0000 0xC700 f< if -25 throw then
+  v-ffloor ;
+
+\ The arithmetic operators share a word: the opcode picks the kernel float
+\ word or the 32-bit word; a division is always a float.
+create l-fops ' f+ , ' f- , ' f* ,
+create l-iops ' d+ , ' d- , ' d* ,
+: op-arith
+  v-take
+  l-code l-pc @ + @ 3 - l-qlo !
+  l-plo @ 5 = l-phi @ 5 = or l-qlo @ 3 = or l-qhi !
+  l-qlo @ 3 = if v-fdiv else
+    l-qhi @ if l-fops else l-iops then l-qlo @ + @ >r
+    l-qhi @ if v-fa v-fb else m-alo @ m-ahi @ m-blo @ m-bhi @ then
+    r> execute
+  then
+  l-qhi @ if 5 else 1 then
+  1 l-pc +! ;
+
+\ The six comparisons share a word: the opcode picks the test (f= or f<),
+\ whether to swap the operands and whether to negate the answer.
+create l-fcmp ' f= , ' f< ,
+create l-icmp ' d= , ' d< ,
+: op-cmp
+  v-take
+  l-code l-pc @ + @ l-qlo !
+  l-plo @ 5 = l-phi @ 5 = or l-qhi !
+  l-qlo @ 8 > if 1 else 0 then c-tot !
+  l-qhi @ if v-fa v-fb else m-alo @ m-ahi @ m-blo @ m-bhi @ then
+  l-qlo @ 10 > if 2swap then
+  l-qhi @ if l-fcmp else l-icmp then c-tot @ + @ execute
+  dup l-qlo @ 1 and if 0= swap drop else drop then
+  vbool 1 l-pc +! ;
+
+\ The power is a float in Lua.  An integer exponent up to 64 is a chain
+\ of multiplications; anything else goes through exp and log.
+: op-pow
+  v-take
+  l-phi @ 1 = m-bhi @ 0= and m-blo @ 65 u< and if
+    0x0000 0x3F80
+    m-blo @ 0 ?do
+      v-fa f*
+    loop
+  else
+    v-fa flog
+    v-fb f*
+    fexp
+  then
+  5 1 l-pc +! ;
+
+: op-idiv
+  v-take
+  v-qt c-a2 !
+  l-plo @ 1 = l-phi @ 1 = and if
+    c-a2 @ s>d vnum
+  else
+    c-a2 @ s>f 5
+  then
+  1 l-pc +! ;
+
+\ The remainder is the dividend less the floor of the quotient times the
+\ divisor, so it takes the sign of the divisor.
+: op-mod
+  v-take
+  v-qt c-a2 !
+  l-plo @ 1 = l-phi @ 1 = and if
+    m-alo @ m-ahi @
+    c-a2 @ s>d
+    m-blo @ m-bhi @ d*
+    d- vnum
+  else
+    v-fa
+    c-a2 @ s>f
+    v-fb f*
+    f- 5
+  then
+  1 l-pc +! ;
+
 : op-push
   l-code l-pc @ 1+ + @
   l-code l-pc @ 2 + + @
   1 3 l-pc +! ;
 : op-load  l-code l-pc @ 1+ + @ v-load 2 l-pc +! ;
 : op-store l-code l-pc @ 1+ + @ v-store 2 l-pc +! ;
-: op-add v2pop d+ vnum 1 l-pc +! ;
-: op-sub v2pop d- vnum 1 l-pc +! ;
-: op-mul v2pop d* vnum 1 l-pc +! ;
-: op-eq  v2pop d= vbool 1 l-pc +! ;
-: op-lt  v2pop d< vbool 1 l-pc +! ;
-: op-gt  v2pop 2swap d< vbool 1 l-pc +! ;
-: op-le  v2pop 2swap d< 0= vbool 1 l-pc +! ;
-: op-ge  v2pop d< 0= vbool 1 l-pc +! ;
-: op-ne  v2pop d= 0= vbool 1 l-pc +! ;
 : op-jmp l-code l-pc @ 1+ + @ l-pc ! ;
 : op-jz
   v-falsy? >r
@@ -531,14 +660,21 @@ create s-nil   110 c, 105 c, 108 c,
 : op-eol cr 1 l-pc +! ;
 : op-pushs l-code l-pc @ 1+ + @ vpushs 2 l-pc +! ;
 : op-concat v-concat 1 l-pc +! ;
-: op-neg drop dnegate vnum 1 l-pc +! ;
+: op-pushf
+  l-code l-pc @ 1+ + @
+  l-code l-pc @ 2 + + @
+  5 3 l-pc +! ;
+: op-neg
+  dup 5 = if drop fnegate 5 else drop dnegate vnum then
+  1 l-pc +! ;
 : op-halt ;
 
 create l-ops
-' op-push , ' op-load , ' op-store , ' op-add , ' op-sub , ' op-mul ,
-' op-eq , ' op-lt , ' op-gt , ' op-le , ' op-ge , ' op-ne ,
+' op-push , ' op-load , ' op-store , ' op-arith , ' op-arith , ' op-arith ,
+' op-arith , ' op-cmp , ' op-cmp , ' op-cmp , ' op-cmp , ' op-cmp , ' op-cmp ,
 ' op-jmp , ' op-jz , ' op-print , ' op-tab , ' op-eol , ' op-pushs ,
-' op-concat , ' op-halt , ' op-neg ,
+' op-concat , ' op-halt , ' op-neg , ' op-pushf , ' op-pow , ' op-idiv ,
+' op-mod ,
 
 \ The runtime string arena is not reset here: a concatenation result that
 \ lives in a global has to survive the next line of the session.
@@ -550,10 +686,9 @@ create l-ops
     dup l-ops + @ swap drop execute
   again ;
 
-\ ------------------------------- top level ------------------------------
+\ --- top level ---
 \ A session keeps the symbol table and the globals from line to line, so
-\ `x = 3` on one line and `print(x)` on the next work on the same `x`.  The
-\ code buffer, the token stream and the parser position belong to one line.
+\ `x = 3` on one line and `print(x)` on the next work on the same `x`.
 
 : l-compile ( -- )
   0 l-pos ! 0 l-cp ! 0 l-ntok ! 0 l-ti !
@@ -561,14 +696,9 @@ create l-ops
   l-program ;
 
 \ Compile and run the pending source.  The flag is true when the source
-\ ended in the middle of a statement: the session then asks for another
-\ line and tries the whole pending source again.  Every other error is
-\ reported and the pending source is dropped.
-\
-\ A failed compile leaves the symbol table and the string arena as they
-\ were before the attempt, so the names it had consumed are given back and
-\ the next line starts from a clean table.  A failed run keeps them: the
-\ program may have stored values in the globals before it stopped.
+\ ended in the middle of a statement, so the session asks for another line.
+\ A failed compile gives the symbol table and the string arena back; a
+\ failed run keeps them, because the program may have stored values.
 : l-pending ( -- f )
   l-nsym @ l-save-nsym !
   l-ap @ l-save-ap !
@@ -583,14 +713,12 @@ create l-ops
   0 l-src-n !
   false ;
 
-\ The session itself.  The symbol table, the globals and the two string
-\ arenas are set up once and live as long as the session does.  A line that
-\ is empty ends the session; if a statement was still unfinished, that is
-\ reported first.
+\ The session itself: the tables live as long as the session does.  An empty
+\ line ends the session; an unfinished statement is reported first.
 : l-session ( -- )
   decimal
   0 l-nsym ! 0 l-ap ! 0 l-rp ! 0 l-src-n !
-  l-vars 96 0 fill
+  l-vars 48 0 fill
   begin
     l-prompt
     l-line if

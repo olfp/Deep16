@@ -6,10 +6,11 @@ three-cell tagged-value ABI used by `lila/value.fs`, `lila/hash.fs`,
 migration record; the source and tests are authoritative.
 
 An on-device conformance profile, `lila/native/lila-native.fth`, implements the
-ABI for tags 0–3 (nil, number, boolean, string) in a small Lua subset. It is
-verified by `node --test tests/native-lila.test.js`, which boots the segmented
-image, runs a compiled program against a `lua5.4` fixture, and checks that the
-data stack returns to depth 0. On the device it is a config-flash object:
+ABI for tags 0–3 (nil, number, boolean, string) and tag 5 (float) in a small
+Lua subset. It is verified by `node --test tests/native-lila.test.js`, which
+boots the segmented image with the soft-float library, runs a compiled program
+against a `lua5.4` fixture, and checks that the data stack returns to depth 0.
+On the device it is a config-flash object:
 `s" lila" need` loads it from the slice image, which
 `tests/native-lila-slice.test.js` reproduces in the simulator. It is a profile
 of the ABI, not a port of the full host compiler.
@@ -80,7 +81,7 @@ room to grow without changing the layout.
 | 2 | boolean | 0 or `0xFFFF` | 0 | false / true |
 | 3 | string | `c-addr` | `u` | immutable bytes, GC-managed |
 | 4 | table | header pointer | 0 | GC-managed |
-| 5 | float | low word | high word | reserved; high word on top, as `FLOATIMPL.md` |
+| 5 | float | low word | high word | IEEE 754 single; high word on top, as `FLOATIMPL.md`; used by the native profile |
 | 6 | function | closure pointer | 0 | GC closure `[seg][off][env]` |
 | 7 | multi | payload pointer | 0 | GC object `[count][v1][v2][v3]...`, count in values |
 | 8… | — | — | — | reserved |

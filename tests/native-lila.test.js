@@ -57,11 +57,57 @@ test('a successful run leaves the data stack at depth 0', () => {
   assert.equal(h.depth(), 0);
 });
 
+// The float profile. The kernel's f. prints four decimals and a trailing
+// space, not Lua's %.14g, so these expectations are the kernel's, not Lua's.
+const floats = [
+  ['a float literal', 'print(1.5)', '1.5000 '],
+  ['a fraction', 'print(0.25)', '0.2500 '],
+  ['an exponent', 'print(1.5e3)', '1500.0000 '],
+  ['an exponent without a point', 'print(1e3)', '1000.0000 '],
+  ['a negative exponent', 'print(1.5e-3)', '0.0015 '],
+  ['division always yields a float', 'print(1 / 2)', '0.5000 '],
+  ['an integer division', 'print(3 / 2)', '1.5000 '],
+  ['the power is a float', 'print(2 ^ 10)', '1024.0000 '],
+  ['a fractional power', 'print(2 ^ 0.5)', '1.4142 '],
+  ['a mixed sum', 'print(1.5 + 2)', '3.5000 '],
+  ['a mixed difference', 'print(1.5 - 2)', '-0.5000 '],
+  ['a mixed product', 'print(1.5 * 2)', '3.0000 '],
+  ['the quotient of two integers is an integer', 'print(7 // 2)', '3'],
+  ['the quotient of a float is a float', 'print(7.5 // 2)', '3.0000 '],
+  ['the remainder of two integers is an integer', 'print(7 % 3)', '1'],
+  ['the remainder of a float is a float', 'print(7.5 % 2)', '1.5000 '],
+  ['the unary minus binds looser than the power', 'print(-2 ^ 2)', '-4.0000 '],
+  ['a negated float', 'print(-1.5)', '-1.5000 '],
+  ['an int and a float compare', 'print(1 < 1.5)', 'true'],
+  ['an int equals a float', 'print(2 == 2.0)', 'true'],
+  ['a float above an int', 'print(1.5 > 1)', 'true'],
+];
+
+test('the float profile works', () => {
+  for (const [name, src, expected] of floats) {
+    assert.equal(h.runProgram([src]), expected, name);
+  }
+});
+
+test('a float keeps its value from one line to the next', () => {
+  assert.equal(h.runProgram(['y = 1.5', 'print(y)']), '1.5000 ');
+  assert.equal(h.runProgram(['y = 1.5', 'z = y + 2.5', 'print(z)']), '4.0000 ');
+  assert.equal(h.runProgram(['y = 1.5', 'print(y * 4)']), '6.0000 ');
+});
+
+test('a float works inside a block', () => {
+  assert.equal(h.runProgram(['if 1.5 < 2 then print("yes") else print("no") end']), 'yes');
+  assert.equal(h.runProgram(['y = 1.5', 'while y < 10 do y = y + 1 end', 'print(y)']),
+               '10.5000 ');
+});
+
+test('a float run leaves the data stack at depth 0', () => {
+  h.runProgram(['print(1.5 + 2)', 'y = 1.5', 'print(y * 4)']);
+  assert.equal(h.depth(), 0);
+});
+
 // Syntax outside the profile must be rejected with a code, not reinterpreted.
 const rejected = [
-  ['division', 'print(1 / 2)', -20],
-  ['power', 'print(2 ^ 3)', -20],
-  ['modulo', 'print(5 % 2)', -20],
   ['and', 'if 1 and 2 then print(1) end', -14],
   ['function', 'function f() end', -21],
   ['local', 'local x = 1', -21],
@@ -69,6 +115,13 @@ const rejected = [
   ['newline in string', 'print("a\nb")', -3],
   ['literal out of range', 'print(2147483648)', -22],
   ['literal far out of range', 'print(99999999999)', -22],
+  ['leading point', 'print(.5)', -9],
+  ['trailing point', 'print(1.)', -20],
+  ['malformed exponent', 'print(1.5e)', -20],
+  ['division by zero', 'print(1 / 0)', -24],
+  ['quotient out of range', 'print(100000 // 1)', -25],
+  ['string in an arithmetic operator', 'print("a" + 1)', -26],
+  ['string in a comparison', 'print("a" == "a")', -26],
 ];
 
 test('syntax outside the profile is rejected with a code', () => {
@@ -118,8 +171,8 @@ test('a block can be spread over several lines', () => {
 });
 
 test('a rejected line does not poison the next one', () => {
-  const out = h.runProgram(['print(1 / 2)', 'print(5)']);
-  assert.match(out, /LERR -20/, out);
+  const out = h.runProgram(['print(1 / 0)', 'print(5)']);
+  assert.match(out, /LERR -24/, out);
   assert.ok(out.endsWith('5'), out);
 });
 

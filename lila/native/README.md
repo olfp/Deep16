@@ -42,14 +42,15 @@ Lua:
 node --test tests/native-lila.test.js
 ```
 
-It boots the segmented D16D image, types the compiler in, runs the fixture
-program, compares the output with what `lua5.4` 5.4.8 prints, and asserts that
-the run leaves the data stack at depth 0. The compiler takes about 7.8k
-dictionary cells after the kernel boots, leaving about 5.1k free.
+It boots the segmented D16D image with the soft-float library, types the
+compiler in, runs the fixture program, compares the output with what
+`lua5.4` 5.4.8 prints, and asserts that the run leaves the data stack at
+depth 0. The compiler takes about 8.5k dictionary cells after the kernel
+boots, leaving about 4.1k free.
 
 ## On the device
 
-The compiler is 18,442 characters, so it needs ten source slices. It is
+The compiler is 20,036 characters, so it needs ten source slices. It is
 registered in the config-flash catalog as the TEXT object `lila`:
 
 ```sh
@@ -99,6 +100,7 @@ Values use the three-cell ABI from `lila/value.fs`, `( value1 value2 tag )`:
 | 1 | number | low 16 bits | high 16 bits |
 | 2 | boolean | `0xFFFF` (true) or 0 (false) | 0 |
 | 3 | string | address of the bytes | length |
+| 5 | float | low 16 bits | high 16 bits |
 
 Numbers are signed 32-bit two's-complement pairs with the high half on top, so
 they are ordinary DeepForth doubles. Arithmetic uses `d+`, `d-`, `dnegate`,
@@ -108,21 +110,31 @@ zero-filled at the start of a run, so an unassigned global reads as nil rather
 than 0. Literals outside `0 .. 2147483647` are rejected with code `-22`, and
 unary minus produces the signed negative.
 
-Booleans print `true`/`false`, nil prints `nil`, strings print with `type`, and
-numbers print with `0 d.r`, so the output matches Lua's `print`. Conditions
-use Lua truthiness: only nil and false are falsy, so `if 0 then` runs.
-Comparisons work on the payload cells, so `==` does not compare tags
-(`nil == false` is `true`) and string equality is descriptor equality, not
-content equality.
+Floats are IEEE 754 singles, split into low and high halves with the high half
+on top — the order the kernel float words read, so the pair goes straight into
+`f+`, `f-`, `f*`, `f/`, `f=`, `f<`, `flog`, `fexp` and `s>f`. The kernel has to
+be an FPU image: the compiler only loads on a board that carries the soft-float
+library.
+
+Booleans print `true`/`false`, nil prints `nil`, strings print with `type`,
+numbers print with `0 d.r` and floats print with `f.`, so the output of the
+first four matches Lua's `print`. A float prints as `1.5000 `, with four
+decimals and a trailing space, not Lua's `1.5`. Conditions use Lua truthiness:
+only nil and false are falsy, so `if 0 then` runs. Arithmetic and comparison
+reject a non-numeric operand with code `-26`.
 
 ## Supported subset
 
 Supported today:
 
 - global variables and assignment
-- decimal integer literals, string literals (no escapes), unary minus
-- `+`, `-`, `*`, `==`, `~=`, `<`, `>`, `<=`, `>=`, `..`
-- parentheses; `..` is right-associative
+- decimal integer and float literals, string literals (no escapes), unary minus
+- `+`, `-`, `*`, `/`, `//`, `%`, `^`, `==`, `~=`, `<`, `>`, `<=`, `>=`, `..`
+- parentheses; `..` is right-associative, `^` is right-associative and binds
+  tighter than the unary minus
+- the Lua 5.4 numeric tower: `+`, `-` and `*` keep the operand type, `/` and
+  `^` always give a float, `//` and `%` keep the operand type, and an integer
+  and a float compare by value
 - `print(...)` with comma-separated expressions (tab separated, one line)
 - `if ... then ... else ... end`
 - `while ... do ... end`
@@ -130,30 +142,32 @@ Supported today:
 - `--` comments to the end of the line
 
 Everything else is rejected with a negative code rather than given a new
-meaning. In particular this profile has no functions, locals, tables, floats,
-`/`, `//`, `%`, `^`, bitwise operators, `and`/`or`/`not`, varargs, multiple
-values, `#`, or libraries. Arithmetic and comparisons do not type-check their
-operands; only `..` concatenates, and it expects strings.
+meaning. In particular this profile has no functions, locals, tables, bitwise
+operators, `and`/`or`/`not`, varargs, multiple values, `#`, or libraries.
+Arithmetic and comparison reject a non-numeric operand with `-26`; only `..`
+concatenates, and it expects strings.
 
 ## Bytecode
 
-Operands follow the opcode inline. `PUSH` stores the low cell then the high
-cell; `LOAD`, `STORE` and `PUSHS` store one cell; `JMP` and `JZ` store an
-absolute target. Every other opcode has no operand.
+Operands follow the opcode inline. `PUSH` and `PUSHF` store the low cell then
+the high cell; `LOAD`, `STORE` and `PUSHS` store one cell; `JMP` and `JZ` store
+an absolute target. Every other opcode has no operand.
 
 | op | word | op | word |
 |----|------|----|------|
-| 0 | `PUSH` | 11 | `NE` |
-| 1 | `LOAD` | 12 | `JMP` |
-| 2 | `STORE` | 13 | `JZ` |
-| 3 | `ADD` | 14 | `PRINT` |
-| 4 | `SUB` | 15 | `TAB` |
-| 5 | `MUL` | 16 | `EOL` |
-| 6 | `EQ` | 17 | `PUSHS` |
-| 7 | `LT` | 18 | `CONCAT` |
-| 8 | `GT` | 19 | `HALT` |
-| 9 | `LE` | 20 | `NEG` |
-| 10 | `GE` |  |  |
+| 0 | `PUSH` | 13 | `JMP` |
+| 1 | `LOAD` | 14 | `JZ` |
+| 2 | `STORE` | 15 | `PRINT` |
+| 3 | `ADD` | 16 | `TAB` |
+| 4 | `SUB` | 17 | `EOL` |
+| 5 | `MUL` | 18 | `PUSHS` |
+| 6 | `DIV` | 19 | `CONCAT` |
+| 7 | `NE` | 20 | `HALT` |
+| 8 | `EQ` | 21 | `NEG` |
+| 9 | `GE` | 22 | `PUSHF` |
+| 10 | `LT` | 23 | `POW` |
+| 11 | `LE` | 24 | `IDIV` |
+| 12 | `GT` | 25 | `MOD` |
 
 ## Limits
 
@@ -163,8 +177,9 @@ absolute target. Every other opcode has no operand.
 | tokens | 256 |
 | global names | 16 |
 | bytecode | 1024 cells |
-| compiled string arena | 500 bytes (512 reserved) |
-| concatenation arena | 200 bytes (256 reserved) |
+| compiled string arena | 500 bytes (500 reserved) |
+| concatenation arena | 200 bytes (200 reserved) |
+| float quotient | a signed 16-bit cell |
 
 The global names, the globals themselves and the two string arenas live as
 long as the session does: a string assigned on one line is still there on the
@@ -202,12 +217,16 @@ statement, and the session waits for the next line.
 | -21 | expected `=` in an assignment |
 | -22 | integer literal outside the signed 32-bit range |
 | -23 | the source ended in the middle of a statement |
+| -24 | division by zero |
+| -25 | the quotient does not fit in a signed cell |
+| -26 | a non-numeric operand |
 
 ## Verified
 
 `tests/native-lila.test.js` covers compilation, the 32-bit payload in
-arithmetic, comparisons and printing, nil for an unassigned global, Lua
-truthiness for 0, the rejection cases above, the state carrying from one line
-to the next, a block spread over several lines, and the depth-0 assertion.
-`tests/native-lila-slice.test.js` repeats the program and the depth check
-with the compiler loaded from the config flash.
+arithmetic, comparisons and printing, the float profile, nil for an
+unassigned global, Lua truthiness for 0, the rejection cases above, the state
+carrying from one line to the next, a block spread over several lines, and the
+depth-0 assertion. `tests/native-lila-slice.test.js` repeats the program, the
+float profile and the depth check with the compiler loaded from the config
+flash.

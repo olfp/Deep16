@@ -89,7 +89,7 @@ asserts that the run leaves the data stack at depth 0.
 
 ### Getting the compiler onto the board
 
-The compiler is 18,442 characters, so it does not fit in one source slice
+The compiler is 20,036 characters, so it does not fit in one source slice
 (2,040 characters). There are two ways to get it onto the device.
 
 **The config-flash catalog.** `scripts/make_slices.mjs` registers the
@@ -122,7 +122,7 @@ from 15,671 cells to 11,575 after the catalog and the tools slice were
 loaded. A board that wants the old stack back has to give up the ten-slice
 chain - trim the compiler, or wait for packed slices.
 
-After the load the compiler has taken about 7.8k cells, leaving about 5.1k
+After the load the compiler has taken about 8.5k cells, leaving about 4.1k
 free in a D16D dictionary.
 
 **XMODEM over the serial line.** `xmodem` lives in the `edit` slice, which
@@ -155,7 +155,7 @@ before including it is the obvious next step.
 ### Lexical structure
 
 A program is a sequence of tokens. Whitespace (space, tab, CR, LF) separates
-tokens. `--` starts a comment that runs to the next newline. There are four
+tokens. `--` starts a comment that runs to the next newline. There are five
 token kinds:
 
 | kind | token | examples |
@@ -164,21 +164,24 @@ token kinds:
 | 2 | name | `x`, `total_2`, `print`, `while`, `_tmp` |
 | 3 | string | `"abc"`, `""` |
 | 4 | operator or punctuation | `+`, `==`, `..`, `(`, `,`, `=` |
+| 5 | float | `1.5`, `0.25`, `1.5e3`, `1e3` |
 
 Names start with an ASCII letter or `_` and continue with letters, digits or
 `_`. They are case-sensitive. Numbers are unsigned decimal digit strings; a
-leading `-` is the unary operator, not part of the literal. Strings are
+leading `-` is the unary operator, not part of the literal. A float is a digit
+string with a point and at least one fraction digit, or with an exponent, or
+with both; `1.`, `.5` and `1.5e` are not literals and are rejected. Strings are
 double-quoted byte strings with no escape processing: a backslash inside a
 string is an error, as is a newline, and an unterminated string is an error.
 
 The recognized operators and punctuation are:
 
 ```text
-+  -  *  ==  ~=  <  >  <=  >=  ..  (  )  ,  =
++  -  *  /  //  %  ^  ==  ~=  <  >  <=  >=  ..  (  )  ,  =
 ```
 
 `=` is assignment. It is not an equality operator; `==` is equality. There is
-no `!=`, `//`, `%`, `^`, `&`, `|`, `~`, `<<`, `>>`, or `#`.
+no `!=`, `&`, `|`, `~`, `<<`, `>>`, or `#`.
 
 ### Values
 
@@ -190,6 +193,7 @@ Every value is three cells, `( value1 value2 tag )`, matching `lila/value.fs`:
 | 1 | number | low 16 bits | high 16 bits |
 | 2 | boolean | `0xFFFF` (true) or 0 (false) | 0 |
 | 3 | string | address of the bytes | length |
+| 5 | float | low 16 bits | high 16 bits |
 
 A number is a signed 32-bit two's-complement value split into low and high
 halves, with the high half on top — the same order as a DeepForth double. The
@@ -197,6 +201,12 @@ representable range is `-2147483648` through `2147483647`. Runtime arithmetic
 wraps modulo 2^32; a *literal* outside `0 .. 2147483647` is rejected with code
 `-22`, because the parser cannot store it without silently changing the
 program.
+
+A float is an IEEE 754 single-precision value, split into low and high halves
+with the low half first and the high half on top — the order the kernel float
+words use, so the pair can be handed to `f+`, `f-`, `f*`, `f/`, `f<`, `f=`,
+`flog`, `fexp`, `s>f` and `f>s` unchanged. The kernel has to be an FPU image:
+the compiler only loads on a board that carries the soft-float library.
 
 One consequence: `-2147483648` cannot be written directly, because the parser
 sees the positive literal `2147483648` before applying unary minus. Write
@@ -212,7 +222,9 @@ including zero, is true, and every string, including the empty string, is true.
 `print` writes each argument and separates arguments with a tab, then writes a
 newline. Numbers print as signed 32-bit decimals, booleans as `true`/`false`,
 nil as `nil`, and strings as their bytes. The output for those tags matches
-Lua's `print`.
+Lua's `print`. Floats print with the kernel's `f.`, which writes the sign, the
+integer part, exactly four decimals and a trailing space — `1.5000 `, not Lua's
+`1.5`.
 
 ### Expressions
 
@@ -220,7 +232,7 @@ An expression is a primary, optionally negated with unary `-`, combined with
 binary operators:
 
 ```text
-primary   := number | string | name | "(" expression ")"
+primary   := number | float | string | name | "(" expression ")"
 unary     := "-" unary | primary
 binary    := unary ( binop unary )*
 ```
@@ -229,29 +241,44 @@ Precedence, from tightest to loosest:
 
 | level | operators | associativity | emitted opcode |
 |---:|---|---|---|
+| 7 | `^` | right | `POW` |
 | unary | `-` | right | `NEG` |
-| 6 | `*` | left | `MUL` |
+| 6 | `*` `/` `//` `%` | left | `MUL` `DIV` `IDIV` `MOD` |
 | 5 | `+` `-` | left | `ADD` `SUB` |
 | 4 | `..` | right | `CONCAT` |
 | 3 | `<` `>` `<=` `>=` `==` `~=` | left | `LT` `GT` `LE` `GE` `EQ` `NE` |
 
-This ordering places `..` below `+`/`-` and above the comparisons, which is
-Lua's relative order. `..` is right-associative, so `"a" .. "b" .. "c"` groups
-as `"a" .. ("b" .. "c")`.
+This ordering is Lua's: `..` sits below `+`/`-` and above the comparisons, `..`
+is right-associative, so `"a" .. "b" .. "c"` groups as `"a" .. ("b" .. "c")`,
+and `^` is tighter than the unary minus, so `-2 ^ 2` is `-(2 ^ 2)` and
+answers `-4.0000`.
 
-Comparisons operate on the two payload cells as a signed 32-bit double, and
-`v2pop` discards the tags before comparing. Equality is therefore correct for
-numbers and for the two canonical booleans, but it is not tag-aware:
-`nil == false` answers `true` here, because both carry the payload `(0 0)`,
-whereas Lua answers `false`. Strings compare as `(address length)`
-descriptors, so two separately compiled literals are not equal even when their
-bytes match. Ordering is meaningful for numbers only; applying `<` to
-booleans or nil is not.
+**The numeric tower.** Integers and floats are distinct types, as in Lua 5.4:
 
-Arithmetic does not check tags. `+`, `-`, `*` and unary `-` assume both
-operands are numbers; applying them to a string or nil produces a value built
-from those payload cells, not a runtime error. `..` assumes both operands are
-strings.
+- `+`, `-` and `*` keep the type of their operands. A float operand makes the
+  result a float; two integers give an integer.
+- `/` always gives a float, even for two integers: `3 / 2` is `1.5000`.
+- `^` always gives a float: `2 ^ 10` is `1024.0000`.
+- `//` and `%` keep the type of their operands: `7 // 2` is the integer `3`,
+  `7.5 // 2` is the float `3.0000`, `7 % 3` is the integer `1` and
+  `7.5 % 2` is the float `1.5000`.
+- A comparison between an integer and a float compares their numeric values:
+  `2 == 2.0` is `true`.
+
+Arithmetic and comparison reject a non-numeric operand with `-26`, so
+`"a" + 1` is an error instead of a number built from the payload cells. `..`
+still assumes two strings.
+
+`//` and `%` are computed in floating point and then rounded, because the
+kernel has no 32-bit division: the quotient has to fit in a signed cell (`-25`
+otherwise), and both operands have to be exactly representable as
+single-precision floats. `7 % 3` is exact, but a quotient that needs more than
+16 bits of integer precision is not.
+
+Comparisons operate on the two payload cells as a signed 32-bit double when
+both operands are integers, and on the float pair when either is a float.
+Strings, booleans and nil are not comparable and are rejected with `-26`.
+Ordering is meaningful for numbers only.
 
 ### Statements
 
@@ -345,6 +372,35 @@ print(-1 < 0, 100000 > 99999)
 true	true
 ```
 
+Floats print with the kernel's `f.`, so they carry four decimals and a
+trailing space:
+
+```lua
+print(1.5)
+print(1.5e3)
+print(3 / 2)
+print(2 ^ 10)
+print(1.5 + 2)
+print(7 // 2)
+print(7.5 // 2)
+print(7 % 3)
+print(7.5 % 2)
+print(-2 ^ 2)
+```
+
+```text
+1.5000 
+1500.0000 
+1.5000 
+1024.0000 
+3.5000 
+3
+3.0000 
+1
+1.5000 
+-4.0000 
+```
+
 ### What is rejected
 
 The profile has no fallback interpretation. These constructs are recognized
@@ -352,13 +408,18 @@ only far enough to reject them:
 
 | construct | example | code |
 |---|---|---|
-| division, modulo, power | `print(1 / 2)`, `print(5 % 2)`, `print(2 ^ 3)` | -20 |
 | `and` / `or` / `not` | `if 1 and 2 then print(1) end` | -14 |
 | `function` statement | `function f() end` | -21 |
 | `local` declaration | `local x = 1` | -21 |
 | table constructor | `t = {}` | -9 |
+| a float without a leading digit | `print(.5)` | -9 |
 | newline inside a string | `print("a` / `b")` | -3 |
 | literal above `2147483647` | `print(2147483648)` | -22 |
+| a float with a trailing point | `print(1.)` | -20 |
+| a float with a malformed exponent | `print(1.5e)` | -20 |
+| division by zero | `print(1 / 0)` | -24 |
+| a quotient that does not fit in a cell | `print(100000 // 1)` | -25 |
+| a non-numeric operand | `print("a" + 1)`, `print("a" == "a")` | -26 |
 
 A source that ends in the middle of a statement is not in this table: it is
 `-23`, and the session asks for another line instead of rejecting the
@@ -373,23 +434,29 @@ nothing.
 The profile follows Lua for the constructs it accepts, with these deliberate
 exceptions:
 
-- **`==` does not compare tags.** `nil == false` is `true`, because both are
-  `(0 0)` after the tags are dropped. Lua compares tags as well.
-- **String equality is descriptor equality.** Two literals with the same bytes
-  are different values, so `"a" == "a"` is `false`. Lua compares the bytes.
+- **Floats are single-precision.** Lua's floats are doubles, so a literal
+  beyond the single-precision range or with more than seven significant digits
+  is rounded here, and `0.1 + 0.2` is not exactly `0.3`.
+- **Floats print with four decimals.** The kernel's `f.` writes `1.5000 `, not
+  Lua's `1.5`.
+- **`//` and `%` go through the float path.** The quotient has to fit in a
+  signed cell and the operands have to be exactly representable as
+  single-precision floats.
+- **Comparisons are numeric only.** `==` and the relationals reject a string,
+  a boolean or nil with `-26`; Lua compares strings and answers `false` for
+  values of different types.
 - **Literals are range-checked.** `2147483648` is rejected with `-22` instead
   of wrapping to `-2147483648`, and `-2147483648` therefore has to be written
   as `-2147483647 - 1`. Runtime arithmetic still wraps, and it wraps at 32
   bits rather than Lua's 64.
-- **Operators do not type-check.** `1 + "a"` does not raise an error; it
-  combines the payload cells.
+- **Arithmetic rejects a non-numeric operand.** `1 + "a"` raises `-26`.
 - **`print()` is rejected.** Lua allows it.
 - **Reading an unknown global creates a slot.** The value is nil, as in Lua,
   but the name is consumed from the 16-name budget.
-- **There is no `local`, function, table, float, division, modulo, power,
-  bitwise operator, `and`/`or`/`not`, `break`, `return`, `repeat`, `for`,
-  vararg, multiple return, multiple assignment, escape sequence, long string,
-  long comment, or library.** Each is rejected with a code.
+- **There is no `local`, function, table, bitwise operator, `and`/`or`/`not`,
+  `break`, `return`, `repeat`, `for`, vararg, multiple return, multiple
+  assignment, escape sequence, long string, long comment, or library.** Each
+  is rejected with a code.
 
 ## How it is implemented
 
@@ -436,16 +503,16 @@ lets a block span several lines, and it is why the pending source is kept in
 | `l-code` | 1024 | bytecode |
 | `l-sym` | 256 | 16 name entries of 16 cells |
 | `l-sym-n` | 16 | name lengths |
-| `l-vars` | 96 | 32 three-cell slots (16 used) |
-| `l-arena` | 512 | compiled string literals |
-| `l-rstr` | 256 | concatenation results |
+| `l-vars` | 48 | 16 three-cell slots |
+| `l-arena` | 500 | compiled string literals |
+| `l-rstr` | 200 | concatenation results |
 
 The rest are scalar variables for parser and VM state. The arrays account for
 most of the compiler's footprint. On the D16SEG image used by the test, the
-booted kernel has `here = 0xcdaf`, so 12,865 of the 65,520 cells below
+booted kernel has `here = 0xceb9`, so 12,599 of the 65,520 cells below
 `limit = 0xfff0` are free - the boot loader's `text-buf` takes 20,480 of
-them. Loading the compiler from the flash takes 7,770 cells, leaving 5,095
-free; typing it in takes 7,791, 21 cells more.
+them. Loading the compiler from the flash takes 8,519 cells, leaving 4,080
+free; typing it in takes the same 8,519 cells.
 
 ### Input
 
@@ -476,13 +543,23 @@ character and dispatches:
 
 - whitespace (`32`, `9`, `10`, `13`) advances one character;
 - `-` followed by `-` skips through the next LF;
-- a digit scans a run of digits as kind 1;
+- a digit scans a run of digits as kind 1, or as kind 5 when the number has a
+  point with fraction digits or an exponent;
 - a letter or `_` scans a run of name characters as kind 2;
 - `"` scans to the closing quote as kind 3, rejecting LF (`-3`), backslash
   (`-4`) and end of source (`-5`);
 - a character that begins a two-character operator scans both characters as
-  kind 4. The pairs are `..`, `==`, `~=`, `<=`, `>=`;
+  kind 4. The pairs are `..`, `==`, `~=`, `<=`, `>=`, `//`;
 - anything else is a one-character kind 4 token.
+
+The number scanner is `l-scan-number`. It reads the digits, then looks for a
+point: a point followed by a digit makes the token a float and the fraction
+digits are part of it. `l-exp` then looks for `e` or `E`, an optional sign and
+at least one digit; an exponent also makes the token a float. A malformed
+exponent is left in the text, so it is read as a name and the line is
+rejected. A point that is not followed by a digit is not a point at all, so
+`1.` is the integer `1` followed by a `.` operator, and `.5` is a `.` operator
+followed by the integer `5`; both are rejected by the parser.
 
 For each token, `l-tok-add` records the start index, length and kind in the
 three parallel arrays. `l-tok-a` stores an index into `l-src`; the helpers
@@ -524,11 +601,14 @@ starts a new session with an empty table and nil globals.
 
 The parser is recursive descent with precedence climbing:
 
-- `l-primary` handles a number, a string, a name, or a parenthesized
-  expression. Numbers call `l-num`; strings call `l-astr`; names call
-  `l-slot` and emit `LOAD`; `(` parses a full expression and expects `)`.
-- `l-unary` handles a leading `-` by parsing another unary and emitting
-  `NEG`; otherwise it calls `l-primary`.
+- `l-primary` handles a number, a float, a string, a name, or a parenthesized
+  expression. Integers call `l-num` and emit `PUSH`; floats call `evaluate`
+  and emit `PUSHF`; strings call `l-astr`; names call `l-slot` and emit
+  `LOAD`; `(` parses a full expression and expects `)`.
+- `l-unary` handles a leading `-` by parsing its operand at precedence 7 and
+  emitting `NEG`; otherwise it calls `l-primary`. Precedence 7 is the power, so
+  the operand of a unary minus may be a power and nothing else: `-2 ^ 2` is
+  `-(2 ^ 2)`.
 - `l-expr ( min -- )` parses a unary, then repeatedly asks `l-binop` for the
   next operator's precedence. It consumes the operator when its precedence is
   at least `min`, recurses with `min` set to the operator's precedence (left
@@ -666,6 +746,13 @@ DeepForth double `d+`, so a carry from the low half is handled normally.
 At the end the two cells are emitted as raw operands. A negative number is not
 a negative literal: the tokenizer sees digits only, and `-` is unary `NEG`.
 
+A float literal is not parsed here. The compiler hands the token text to the
+kernel's own number scanner with `evaluate`, which reads `1.5`, `0.25`,
+`1.5e3` and `1e3` exactly as the kernel reads them, and leaves the pair on the
+stack as `(low high)`. The compiler emits those two cells as a `PUSHF`
+operand. `evaluate` inside a colon word works, and the kernel's scanner
+accepts the same forms the tokenizer recognizes, so the two agree.
+
 ### Compiled strings
 
 `l-astr` copies a string token into `l-arena` as `[length][bytes...]` and
@@ -674,13 +761,13 @@ operand. At runtime `vpushs` pushes `address+1`, `length`, tag 3. The compiler
 therefore keeps one length cell per literal even though the runtime value is
 just an `(address length)` pair.
 
-The compile-time arena is 512 cells and refuses to exceed 500 bytes used
+The compile-time arena is 500 cells and refuses to exceed 500 bytes used
 (`-7`). It is never reused during a run. Because a run compiles from scratch,
 the next `lila` call starts with `l-ap = 0`.
 
 ### Bytecode
 
-There are 20 opcodes. Column "operands" counts cells after the opcode; a cell
+There are 26 opcodes. Column "operands" counts cells after the opcode; a cell
 is 16 bits on the target.
 
 | # | opcode | operands | action |
@@ -688,37 +775,47 @@ is 16 bits on the target.
 | 0 | `PUSH` | 2 | push `(lo hi 1)` |
 | 1 | `LOAD` | 1 | push the slot's value |
 | 2 | `STORE` | 1 | pop a value into the slot |
-| 3 | `ADD` | 0 | pop two numbers, push the wrapped sum |
+| 3 | `ADD` | 0 | pop two numbers, push the sum |
 | 4 | `SUB` | 0 | pop two numbers, push `a - b` |
-| 5 | `MUL` | 0 | pop two numbers, push the low 32 bits |
-| 6 | `EQ` | 0 | push `a == b` |
-| 7 | `LT` | 0 | push `a < b` |
-| 8 | `GT` | 0 | push `a > b` |
-| 9 | `LE` | 0 | push `a <= b` |
-| 10 | `GE` | 0 | push `a >= b` |
-| 11 | `NE` | 0 | push `a ~= b` |
-| 12 | `JMP` | 1 | set `pc` to the target cell |
-| 13 | `JZ` | 1 | pop a value; jump when falsy |
-| 14 | `PRINT` | 0 | pop and print a value |
-| 15 | `TAB` | 0 | emit a tab |
-| 16 | `EOL` | 0 | emit a newline |
-| 17 | `PUSHS` | 1 | push a compiled string |
-| 18 | `CONCAT` | 0 | pop two strings, push their concatenation |
-| 19 | `HALT` | 0 | stop |
-| 20 | `NEG` | 0 | pop a number, push its negation |
+| 5 | `MUL` | 0 | pop two numbers, push the product |
+| 6 | `DIV` | 0 | pop two numbers, push the float quotient |
+| 7 | `NE` | 0 | push `a ~= b` |
+| 8 | `EQ` | 0 | push `a == b` |
+| 9 | `GE` | 0 | push `a >= b` |
+| 10 | `LT` | 0 | push `a < b` |
+| 11 | `LE` | 0 | push `a <= b` |
+| 12 | `GT` | 0 | push `a > b` |
+| 13 | `JMP` | 1 | set `pc` to the target cell |
+| 14 | `JZ` | 1 | pop a value; jump when falsy |
+| 15 | `PRINT` | 0 | pop and print a value |
+| 16 | `TAB` | 0 | emit a tab |
+| 17 | `EOL` | 0 | emit a newline |
+| 18 | `PUSHS` | 1 | push a compiled string |
+| 19 | `CONCAT` | 0 | pop two strings, push their concatenation |
+| 20 | `HALT` | 0 | stop |
+| 21 | `NEG` | 0 | pop a number, push its negation |
+| 22 | `PUSHF` | 2 | push `(flo fhi 5)` |
+| 23 | `POW` | 0 | pop two numbers, push the float power |
+| 24 | `IDIV` | 0 | pop two numbers, push the quotient |
+| 25 | `MOD` | 0 | pop two numbers, push the remainder |
 
-Every opcode except `PUSH` has at most one operand, and `PUSH` is the only one
-that pushes a literal payload directly. Branches are absolute, so patching is
-a single cell store. There is no explicit code-size check: the 256-token cap
-keeps emission inside the 1024-cell buffer.
+Every opcode except `PUSH` and `PUSHF` has at most one operand, and those two
+are the only ones that push a literal payload directly. Branches are absolute,
+so patching is a single cell store. There is no explicit code-size check: the
+256-token cap keeps emission inside the 1024-cell buffer.
+
+The comparison opcodes are packed: an odd opcode negates the answer, an opcode
+above 10 swaps the operands, and an opcode above 8 is a less-test rather than
+an equality test. So `NE`, `GE` and `LE` negate, `LE` and `GT` swap, and
+`GE`, `LT`, `LE` and `GT` use the less-test. One handler covers all six.
 
 ### VM
 
-`l-run` resets `l-pc` and the runtime string watermark `l-rp`, then loops:
+`l-run` resets `l-pc` and loops:
 
 ```forth
 : l-run ( -- )
-  0 l-pc ! 0 l-rp !
+  0 l-pc !
   begin
     l-code l-pc @ + @
     dup OP-HALT = if drop exit then
@@ -734,21 +831,37 @@ itself; values are left there in `(value1 value2 tag)` order.
 
 The arithmetic helpers are small:
 
-- `v2pop` drops the two tags and keeps both doubles:
-  `(a1 a2 atag b1 b2 btag -- a1 a2 b1 b2)`.
 - `vnum` appends the number tag: `(lo hi -- lo hi 1)`.
 - `vbool` turns any flag into `(0xFFFF 0 2)` or `(0 0 2)`.
 - `d*` multiplies two 32-bit pairs modulo 2^32 using three `um*` products:
   `lo1*lo2`, plus the low halves of `lo1*hi2` and `hi1*lo2` folded into the
   high cell.
-- Comparisons use `d=` and `d<`. `>` swaps the two pairs with `2swap` before
-  `d<`; `<=` and `>=` negate the opposite comparison.
-- `NEG` is `dnegate`.
+- `v-take` takes the two operands off the value stack and checks that both
+  carry a number or a float tag; anything else is `-26`.
+- `NEG` is `dnegate` for an integer and `fnegate` for a float.
+
+The binary operators share handlers. `op-arith` reads the opcode, picks the
+kernel word from `l-fops` (`f+`, `f-`, `f*`) or from `l-iops` (`d+`, `d-`,
+`d*`), and converts an integer operand with `v-i2f` when the other operand is
+a float. A division always takes the float path. `op-cmp` works the same way
+with `l-fcmp` (`f=`, `f<`) and `l-icmp` (`d=`, `d<`).
+
+`v-i2f` converts an integer pair to a float. The high half is signed and the
+low half is the plain magnitude, so the two halves are converted separately:
+the low half contributes its value below 32768 plus 32768 when bit 15 is set,
+and the high half contributes 65536 times its signed value. The kernel's `s>f`
+sign-extends a cell, so the mask has to be tested before the conversion, not
+after it.
+
+`v-ffloor` is the floor of a float. The kernel's `f>s` truncates toward zero,
+so one is taken off when the value is below the truncated one. `v-qt` is the
+quotient as a whole number: it rejects a quotient outside the signed 16-bit
+range with `-25`.
 
 `v-falsy?` implements Lua truthiness: tag 0 is falsy, tag 2 is falsy when
-`value1` is zero, and tags 1 and 3 are always truthy. `v-print` dispatches on
-the tag: tag 1 prints with `0 d.r`, tag 3 with `type`, tag 2 as `true`/`false`,
-and tag 0 as `nil`.
+`value1` is zero, and the other tags are always truthy. `v-print` dispatches on
+the tag: tag 5 prints with `f.`, tag 1 with `0 d.r`, tag 3 with `type`, tag 2
+as `true`/`false`, and tag 0 as `nil`.
 
 `v-concat` copies both inputs into `l-rstr` as `[total length][bytes...]`,
 advances `l-rp` by the length plus the length cell, and pushes
@@ -817,12 +930,19 @@ every `print` ends with a newline.
 | -21 | expected `=` in an assignment |
 | -22 | integer literal outside the signed 32-bit range |
 | -23 | the source ended in the middle of a statement |
+| -24 | division by zero |
+| -25 | the quotient does not fit in a signed cell |
+| -26 | a non-numeric operand |
 
 Several codes name the point where parsing stopped, not the construct itself.
-`print(1 / 2)` reports `-20` because `/` is not an operator in the expression
-grammar and the parser then expects `)`; `print(2 ^ 3)` and `print(5 % 2)` fail
-the same way. `function f() end` and `local x = 1` are parsed as assignments
-until the missing `=`, so they report `-21`.
+`print(1.)` reports `-20` because the `.` is an operator the expression
+grammar does not know and the parser then expects `)`. `function f() end` and
+`local x = 1` are parsed as assignments until the missing `=`, so they report
+`-21`.
+
+The last three codes are run-time errors, thrown by the VM: `-24` by a
+division, `-25` by a quotient that is too large, and `-26` by an operator
+that gets a string, a boolean or nil where a number belongs.
 
 `-23` is the one code that is not a failure. It says the line ended where a
 statement was still open, so the session waits for the next line and tries
@@ -842,8 +962,9 @@ reports `-23` first, so the user learns why the session ended.
 | tokens | 256 | three 256-cell token arrays |
 | global names | 16 names, 15 characters each | 16 name entries in `l-sym` |
 | bytecode | 1024 cells | `l-code` |
-| compiled strings | 500 bytes | `l-arena` is 512 cells |
-| concatenation | 200 bytes, never reclaimed | `l-rstr` is 256 cells |
+| compiled strings | 500 bytes | `l-arena` is 500 cells |
+| concatenation | 200 bytes, never reclaimed | `l-rstr` is 200 cells |
+| float quotient | a signed 16-bit cell | the kernel has no 32-bit division |
 
 The compiler is intentionally fixed-size. There is no heap, no GC and no
 allocation during compilation: every array is reserved when the Forth file is
@@ -851,7 +972,7 @@ loaded, and the limits that matter — source length, token count, name count,
 name length and the two arenas — are checked before anything is written. The
 bytecode buffer is the one exception; it relies on the token cap to stay
 inside 1024 cells. That is what makes it possible to run the whole pipeline in
-a dictionary that already has about 5.1k cells free.
+a dictionary that already has about 4.1k cells free.
 
 The name budget, the globals and the two string arenas are per *session*, not
 per line. That is what makes the state carry from one line to the next, and
@@ -863,25 +984,29 @@ reclaimed.
 
 `tests/native-lila.test.js` is the executable specification. It:
 
-1. assembles `asm/forth_nano.asm` with the D16SEG defines and scatters the
-   flat image into the segmented map, matching `flash_boot.sv`;
+1. assembles `asm/forth_nano.asm` with the D16SEG defines and the soft-float
+   library, and scatters the flat image into the segmented map, matching
+   `flash_boot.sv`;
 2. loads the SPI slices, types the compiler into the console one line at a
    time, and fails if the outer interpreter reports an error;
 3. types a fixture program line by line and compares the machine output with
    the `lua5.4` 5.4.8 fixture;
 4. types `depth . cr` and requires `0`;
-5. runs every rejection case and checks its negative code;
-6. runs every unfinished-source case and checks that it reports `-23`;
-7. checks that the state carries from one line to the next, that a block can
+5. runs the float cases and checks the kernel's `f.` output;
+6. runs every rejection case and checks its negative code;
+7. runs every unfinished-source case and checks that it reports `-23`;
+8. checks that the state carries from one line to the next, that a block can
    be spread over several lines, and that a rejected line does not poison the
    next one;
-8. checks that comment-only and empty sources compile to a halt.
+9. checks that comment-only and empty sources compile to a halt.
 
 To add a language case, add its lines to `program` and its expected lines to
-`expected` in the test, keeping them in `lua5.4` agreement. To add a rejection,
-append `[name, source, code]` to `rejected`; to add a source that may be
-continued, append `[name, source]` to `unfinished` and expect `-23`. The test
-embeds the expected output, so it does not need Lua installed.
+`expected` in the test, keeping them in `lua5.4` agreement. A float case does
+not fit that fixture, because the float output is the kernel's and not Lua's:
+add it to `floats` instead. To add a rejection, append `[name, source, code]`
+to `rejected`; to add a source that may be continued, append `[name, source]`
+to `unfinished` and expect `-23`. The test embeds the expected output, so it
+does not need Lua installed.
 
 `gforth lila/test.fs` is the separate host-compiler suite; it does not load
 the native profile.
@@ -898,15 +1023,15 @@ places:
 
 - **New binary operator:** add its static fragment near `p-plus`, give it a
   precedence and opcode in `l-binop`, add an opcode constant, add a handler
-  (`v2pop`, the operation, `vnum`), and append the handler to `l-ops`.
+  (`v-take`, the operation, `vnum`), and append the handler to `l-ops`.
 - **New unary operator:** add a fragment, match it in `l-unary`, and emit a
   new opcode that consumes one value and pushes one.
 - **New statement:** add a keyword fragment, match it in `l-stmt`, and write a
   handler that emits code. Use `l-block` for a body and `l-jz`/`l-jmp` plus
   `l-patch` for branches.
-- **New type:** add a tag, extend `v-falsy?` and `v-print`, and decide what
-  arithmetic and comparison mean for it. The value size is fixed at three
-  cells.
+- **New type:** add a tag, extend `v-falsy?`, `v-print` and `v-take`, and
+  decide what arithmetic and comparison mean for it. The value size is fixed
+  at three cells.
 - **Locals, functions or tables:** these need more than a parser hook. They
   need storage beyond the 16 global slots, a frame or heap layout, and a
   calling convention. The host compiler already has designs for all three;
@@ -921,8 +1046,12 @@ Some DeepForth-specific traps are worth remembering when editing the file:
 - `code,` stores cells, not bytes, and jump targets are cell indices.
 - Every opcode handler must advance `l-pc` by the opcode's total size,
   including operand cells.
-- `v2pop` deliberately keeps two-cell doubles while discarding tags; the
+- `v-take` deliberately keeps two-cell doubles while discarding tags; the
   stack order is `(low high)` with high on top.
+- The kernel's `s>f` sign-extends its cell, so a cell with bit 15 set cannot
+  be converted to a float directly; mask it first.
+- The float pair is `(low high)` with the high half on top, the same order the
+  kernel float words read.
 
 ## File map
 

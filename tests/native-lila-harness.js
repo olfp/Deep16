@@ -4,19 +4,17 @@
 // a person at the keyboard does. `native-lila.test.js` types the compiler in
 // line by line; `native-lila-slice.test.js` loads it from the config flash,
 // the way the device does with `s" lila" need`.
-import assert from 'node:assert/strict';
+//
+// The image carries the FPU: the soft-float library and the Forth float words
+// (`f+`, `f.`, `s>f`, ...). The float datatype needs them, so the compiler
+// only loads on an FPU board.
 import fs from 'node:fs';
 import path from 'node:path';
-import { assemble, loadBrowserScripts, MEM_WORDS, ROOT } from './helpers.js';
+import vm from 'node:vm';
+import { loadBrowserScripts, ROOT } from './helpers.js';
 import { buildSlices, SCREEN_BASE } from '../scripts/make_slices.mjs';
 
-const WINDOW = 0x6000;
 const DS_SEG = 0x1000;
-const BIOS_SEG = 0x3000;
-const DS_LO = 0x3000;
-const DS_HI = 0x57dc;
-const BIOS_LO = 0x4a00;
-const BIOS_HI = 0x57ff;
 
 // The fixture program, and the output lua5.4 5.4.8 prints for it.
 export const PROGRAM = [
@@ -61,25 +59,29 @@ export const EXPECTED = [
 ].join('\n');
 
 export function bootNative() {
-  loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
+  loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js',
+                     'js/deep16_d16d_image.js');
+  const Deep16D16DImage = vm.runInThisContext('Deep16D16DImage');
 
-  const kernel = assemble(fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8'),
-                          { defines: { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1, D16D: 1,
-                                       CONSOLE_MIRROR: 1 } });
-  assert.ok(kernel.success, kernel.errors.join('\n'));
-  const sym = kernel.symbols;
+  const kernel = fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8');
+  const softfloat = fs.readFileSync(path.join(ROOT, 'asm', 'softfloat.asm'), 'utf8');
+  const forthFloat = fs.readFileSync(path.join(ROOT, 'asm', 'forth_float.asm'), 'utf8');
 
-  const mem = new Array(MEM_WORDS).fill(0xffff);
-  for (const c of kernel.memoryChanges) {
-    if (c.address < WINDOW) mem[c.address] = c.value & 0xffff;
-  }
-  for (let w = DS_LO; w <= DS_HI; w++) mem[(DS_SEG << 4) + w] = mem[w];
-  for (let w = BIOS_LO; w <= BIOS_HI; w++) mem[(BIOS_SEG << 4) + (w - BIOS_LO)] = mem[w];
+  // The FPU image: the soft-float library at 0x5800 and the Forth float words
+  // at 0x417D, with the ILL trap wired to the BIOS copy of the library.
+  const image = Deep16D16DImage.assembleNano({
+    kernel, softfloat, forthFloat,
+    defines: { D16D: 1, CONSOLE_MIRROR: 1 },
+  });
+  const sym = image.result.symbols;
 
   const slices = buildSlices();
   const sim = new globalThis.Deep16Simulator();
-  sim.loadProgram(mem);
+  // The same three copies the RTL flash loader makes: the flat image, the
+  // kernel data in DS=0x1000 and the BIOS code in CS=0x3000.
+  Deep16D16DImage.scatterD16SEG(image.words, { memory: sim.memory });
   sim.spiFlash.mem.set(slices.bytes, SCREEN_BASE);
+  sim.d16nano = true;
   sim.segmentRegisters.CS = 0xffff;
   sim.running = true;
 

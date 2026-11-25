@@ -107,17 +107,21 @@ core-language gaps are:
   reports code `-22` for a larger one instead of wrapping it at parse time.
   Runtime arithmetic still wraps to 32 bits. The host prototype continues to
   wrap the literal.
-- **No floats.** The float tag is reserved but unimplemented. `1.5` is not
-  tokenized as a number and currently evaluates to `nil`;
-  `tonumber("1.5")` also returns `nil`.
+- **No floats in the host prototype.** The float tag is reserved but
+  unimplemented. `1.5` is not tokenized as a number and currently evaluates to
+  `nil`; `tonumber("1.5")` also returns `nil`. The native profile on the
+  device does have floats: `lila/native/lila-native.fth` reads them as IEEE
+  754 singles and implements the Lua 5.4 numeric tower, with the deviations
+  listed in `lila/LILANATIVE.md`.
 - **Integer-only `math` library.** `abs`, `max`, `min`, `floor`, `ceil`,
   `type`, `tointeger`, `maxinteger`, and `mininteger` are implemented. Missing:
   `random`, trigonometry, logarithms, and the rest of Lua's `math` table.
 - **No bitwise operators.** `&`, `|`, `~`, `<<`, and `>>` are not parsed. `%`,
   `^`, and floor division `//` are implemented with 32-bit integer semantics;
   `^` rejects negative exponents.
-- **No integer/float distinction, `NaN`, infinities, or 64-bit integers.**
-  `tonumber`, `tostring`, and `math.type` exist but cover 32-bit integers only.
+- **No integer/float distinction, `NaN`, infinities, or 64-bit integers in the
+  host prototype.** `tonumber`, `tostring`, and `math.type` exist but cover
+  32-bit integers only.
 - **Overflow and division edge cases are not Lua-compatible.**
 
 ## 5. Errors and runtime facilities
@@ -141,11 +145,12 @@ core-language gaps are:
 - LILA compiles to Forth, not Lua bytecode.
 - **A second implementation runs on the device.** `lila/native/lila-native.fth`
   compiles a deliberately smaller Lua subset directly to bytecode on Deep16 and
-  runs it there. It supports globals, 32-bit integers, strings, `+ - *`,
-  relationals, `..`, `print`, `if`, `while` and `do`; functions, locals, tables,
-  floats, `/ % ^`, bitwise operators, `and`/`or`/`not`, varargs and the
-  libraries are rejected with negative codes. Its value ABI matches
-  `TYPEPLAN.md`; its limits and codes are in `lila/native/README.md`.
+  runs it there. It supports globals, 32-bit integers, single-precision floats,
+  strings, `+ - * / // % ^`, relationals, `..`, `print`, `if`, `while` and
+  `do`; functions, locals, tables, bitwise operators, `and`/`or`/`not`,
+  varargs and the libraries are rejected with negative codes. Its value ABI
+  matches `TYPEPLAN.md`; its limits and codes are in
+  `lila/native/README.md`.
 - The collector is a simple conservative mark-sweep, without Lua's
   generational or incremental behavior.
 - The standard library is implemented as native closures installed as dotted
@@ -167,6 +172,12 @@ core-language gaps are:
 
 Completed work, newest first:
 
+- **Float datatype in the native profile:** `lila/native/lila-native.fth` now
+  has Lua 5.4's numeric tower. Integers and floats are distinct types, a
+  mixed operation promotes to float, `/` and `^` always give a float, `//` and
+  `%` keep the operand type, and an integer compares with a float by value.
+  A float is an IEEE 754 single in the three-cell ABI under tag 5, printed
+  with the kernel's `f.`. The kernel has to be an FPU image.
 - **Native compiler and VM:** `lila/native/lila-native.fth` tokenizes, parses and
   compiles a Lua subset on Deep16, then runs the bytecode on a small VM. Values
   use the three-cell ABI with signed 32-bit number pairs, `(0xFFFF 0 2)`/`(0 0 2)`

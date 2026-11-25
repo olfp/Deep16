@@ -42,6 +42,11 @@ test('the program compiles and runs with lua5.4 output', () => {
   assert.ok(h.sim.running);
 });
 
+test('the compiler loaded from the flash has the float profile', () => {
+  assert.equal(h.runProgram(['print(1.5)']), '1.5000 ');
+  assert.equal(h.runProgram(['print(7 // 2)', 'print(1 / 2)']), '3\n0.5000 ');
+});
+
 test('a successful run leaves the data stack at depth 0', () => {
   assert.equal(h.depth(), 0);
 });

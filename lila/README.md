@@ -56,9 +56,10 @@ flash:slices` writes it into the slice image and `s" lila" need` loads it at
 the prompt, the way `tests/native-lila-slice.test.js` does in the simulator.
 `lila/native/README.md` lists the supported subset, bytecode, limits and error
 codes; `lila/LILANATIVE.md` explains the language and how the compiler works.
-In short: globals, 32-bit integers, strings, `+ - *`, relationals, `..`,
-`print`, `if`, `while` and `do`; functions, locals, tables, floats and the
-libraries are rejected with codes.
+In short: globals, 32-bit integers, single-precision floats, strings,
+`+ - * / // % ^`, relationals, `..`, `print`, `if`, `while` and `do`; functions,
+locals, tables and the libraries are rejected with codes. The float datatype
+needs the kernel's float words, so the compiler only loads on an FPU image.
 
 ## Values
 
@@ -83,13 +84,15 @@ A tag is a whole cell; payloads are never bit-packed. The current tags are:
 | 2 | boolean | 0 or `0xFFFF` | 0 |
 | 3 | string | address | length |
 | 4 | table | header pointer | 0 |
-| 5 | float | reserved | reserved |
+| 5 | float | low half | high half |
 | 6 | function | closure pointer | 0 |
 | 7 | multi | payload pointer | 0 |
 
 Numbers are signed 32-bit two's-complement values split across the two payload
 cells. Strings are `c-addr u` descriptors allocated by the garbage collector.
-Tables are pointers. The float tag is reserved for future use. A function value
+Tables are pointers. A float is an IEEE 754 single-precision value split
+across the two payload cells, low half first; the native profile uses tag 5
+for it, the host prototype does not implement it yet. A function value
 points at a GC-managed closure that records the code entry point and the
 lexical frame in which the function was created. A multi value (tag 7) is an
 internal GC-managed list of values used for multiple returns and varargs.
