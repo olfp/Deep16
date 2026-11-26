@@ -1,19 +1,15 @@
 ; ============================================================
-; bdos_block.asm - the BDOS chapter for CS=0x4000 (MEMFIXPLAN 2b + 2c-1)
+; bdos_block.asm - the BDOS chapter for CS=0x4000 (MEMFIXPLAN 2b + 2c)
 ;
 ; Assembled with segment-relative addresses: every .org value is an offset
 ; inside CS=0x4000, and the linker lays the chapter at 0x40000 + offset. The
 ; entry is at offset 0x2D4A; kernel callers set CS=0x4000 and PC=0x2D4A.
 ;
-; The chapter owns the entry, jump table, fns 0..7, the SPI/slice helpers,
-; the fcreate/fdelete/fsize slice, the flash drivers and the bd_* cells.
-; Fns 8..26 are still in the kernel; their table entries are far stubs at
-; 0x5000 that set CS=0 and jump to the kernel handler, whose return pair
-; R10:R11 goes straight back to the caller. Phase 2c-2 moves them here and
-; deletes the stubs.
-;
-; The kernel keeps copies of the SPI/slice/flash helpers for its own flash
-; words and the PS/2 host code.
+; The chapter owns the entry, jump table, all 30 functions, the SPI/slice
+; helpers, the fcreate/fdelete/fsize slice, the flash drivers, the PS/2 host
+; helpers and the bd_* cells. The kernel keeps flat copies of the gap handlers
+; for the non-nano profile, where the restored flat table dispatches through
+; them; under D16D the chapter table is the only dispatcher.
 ;
 ; Three 2b adjustments remain in the copied text, all forced by CS=0x4000:
 ;   - fd_pack writes the packed name to ES and mirrors it to CS;
@@ -24,9 +20,8 @@
 ; ---- entry, jump table and fns 0..7 (copied from the kernel) -----------
 .org 0x2D4A
 ; Function codes are unsigned, so a code at or above BDOS_FN_COUNT is
-; unknown. The table is absolute addresses: BDOS runs with CS=0, so a handler
-; anywhere in the kernel image (including the 0x4400 free block) is one JMP
-; away.
+; unknown. The table holds in-segment offsets: BDOS runs with CS=BDOS_SEG, so
+; the dispatcher reads the word with LDS R2, CS, R3 and JMPs to it.
 .ifdef D16NANO
 .equ BDOS_FN_COUNT, 30          ; 0..29; 27..29 are fcreate/fdelete/fsize
 .else
@@ -1477,139 +1472,761 @@ fd_pg_done:
 ; BDOS 7 (fwrite): program one slice from the caller buffer
 ; ============================================================
 
-
-; ---- far stubs for the handlers still in the kernel (2c-2) -------------
-.org 0x5000
+; ---- the PS/2 host helpers (copied) ---------------------------------
+.ifdef D16D
+.org 0x198B
 .code
+; R1 = byte -> R0 = 1 when the keyboard clocked the frame, 0 otherwise.
+bps2_send:
+    LDI 7
+    SWI
+    SMV R0, AR0
+    JMP LR
+    NOP
+
+; R1 = milliseconds; waits on the millisecond timer with I=1.
+bps2_wait_ticks:
+    MOV R6, R1
+    LDI 8
+    SWI
+    SMV R1, AR1
+    MOV R7, R1
+    ADD R7, R6
+bps2_wt_loop:
+    LDI 8
+    SWI
+    SMV R1, AR1
+    MOV R6, R1
+    SUB R6, R7
+    JN bps2_wt_loop
+    NOP
+    JMP LR
+    NOP
+
+; R1 = milliseconds -> R0 = 1 when the frame toggle changed, 0 on timeout.
+bps2_wait_frame:
+    MOV R6, R1
+    LDI 8
+    SWI
+    SMV R0, AR0
+    SMV R1, AR1
+    LDI 0x0080
+    MOV R7, R0
+    AND R7, R0
+    MOV R8, R1
+    ADD R8, R6
+bps2_wf_loop:
+    LDI 8
+    SWI
+    SMV R0, AR0
+    SMV R1, AR1
+    MOV R9, R0
+    LDI 0x0080
+    MOV R2, R0
+    AND R9, R2
+    CMP R9, R7
+    JNZ bps2_wf_seen
+    NOP
+    MOV R9, R1
+    SUB R9, R8
+    JN bps2_wf_loop
+    NOP
+    LSI R0, 0
+    JMP LR
+    NOP
+bps2_wf_seen:
+    LSI R0, 1
+    JMP LR
+    NOP
+
+
+; ---- bdos_ps2_init (copied) ---------------------------------
+.org 0x1F78
 bdos_ps2_init:
-    LSI R2, 0               ; these handlers are still in the kernel (2c-2)
-    LDI 0x1f78
-    MOV R3, R0
-    JML R2
+    LDI 0x2FB0
+    MOV R2, R0
+    STS R10, CS, R2
+    ADD R2, 1
+    STS R11, CS, R2
+
+    ; Erased memory (the JS core has no PS/2 model) reads 0xFFFF.
+    LDI 8
+    SWI
+    SMV R0, AR0
+    LSI R2, -1
+    CMP R0, R2
+    JZ bps2_done
     NOP
+
+    ; The keyboard's power-on self test can take over a second. Wait it out
+    ; before the first command, so a 0xFF reset does not land in the middle of
+    ; it. After the settle, reset once: that provokes a fresh BAT (the LED
+    ; blink) on a keyboard that missed its own power-on test.
+    LDI 1200
+    MOV R1, R0
+    LDI bps2_wait_ticks
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI 0xFF
+    MOV R1, R0
+    LDI bps2_send
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI 800                  ; let the BAT finish
+    MOV R1, R0
+    LDI bps2_wait_ticks
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+
+    ; Enable (0xF4) blindly, several times. Do not wait for the ACK frame:
+    ; the receiver can miss it while the keyboard still enables and scans.
+    ; Eight tries over about two seconds cover a keyboard that comes up late.
+    LDI 0x2FB2
+    MOV R2, R0
+    LSI R3, 8
+    STS R3, CS, R2
+bps2_enable:
+    LDI 0xF4
+    MOV R1, R0
+    LDI bps2_send
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI 250
+    MOV R1, R0
+    LDI bps2_wait_ticks
+    MOV R4, R0
+    LINK
+    JMP R4
+    NOP
+    LDI 0x2FB2
+    MOV R2, R0
+    LDS R3, CS, R2
+    SUB R3, 1
+    STS R3, CS, R2
+    AND R3, R3
+    JNZ bps2_enable
+    NOP
+bps2_flush:
+    ; Drain the hardware FIFO through the non-blocking console read.
+    LDI 4
+    SWI
+    SMV R0, AR0
+    LSI R2, -1
+    CMP R0, R2
+    JNZ bps2_flush
+    NOP
+bps2_done:
+    LDI 0x2FB0
+    MOV R2, R0
+    LDS R10, CS, R2
+    ADD R2, 1
+    LDS R11, CS, R2
+    LSI R0, 0
+    JML R10
+    NOP
+.endif
+
+
+; ---- bdos_serial_read (copied) ---------------------------------
+.org 0x4800
+.code
 bdos_serial_read:
-    LSI R2, 0               ; these handlers are still in the kernel (2c-2)
-    LDI 0x0800
-    OR R0, 14
-    MOV R3, R0
-    JML R2
+    ; ( addr pairs -- n )  read `pairs` UART bytes-pairs, packing two bytes
+    ; into one cell: low byte first.  One PSRAM store per pair instead of per
+    ; byte: on the board every store is a serial PSRAM transaction and one per
+    ; byte was slower than 115200, so the 16-deep RX FIFO overran.
+    ; BDOS function 10: R1 = addr, R4 = pairs; BDOS has no stack. The return
+    ; pair is parked in the 0x44E0 cells: the loop below uses R10 for the
+    ; first byte, and R8 cannot be used under ER=8.
+    LDI 0x2470
+    SL R0, 1                  ; R0 = 0x44E0
+    STS R10, CS, R0
+    ADD R0, 1
+    STS R11, CS, R0
+    MOV R2, R1               ; addr
+    MOV R1, R4               ; pairs
+    LSI R3, 0                ; pairs stored
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0               ; ES = 0xF000
+    LDI 0x40
+    MOV R4, R0               ; UART status
+    LDI 0x42
+    MOV R9, R0               ; UART data
+    LSI R0, 1                ; bit 0 mask
+sread_loop:
+    AND R1, R1
+    JZ sread_done
     NOP
+sread_wa:
+    LDS R7, ES, R4           ; status
+    AND R7, R0
+    JNZ sread_ga
+    NOP
+    LDI 0x60                 ; idle: a PS/2 key aborts
+    MOV R12, R0
+    LDS R7, ES, R12
+    LSI R0, 1
+    AND R7, R0
+    JNZ sread_done
+    NOP
+    CLRZ
+    JNZ sread_wa
+    NOP
+sread_ga:
+    LDS R10, ES, R9          ; first byte
+sread_wb:
+    LDS R7, ES, R4           ; wait for the second byte
+    AND R7, R0
+    JNZ sread_gb
+    NOP
+    CLRZ
+    JNZ sread_wb
+    NOP
+sread_gb:
+    LDS R7, ES, R9           ; second byte
+    SL R7, 8
+    OR R7, R10
+    ST R7, R2, 0             ; one store per pair
+    ADD R2, 1
+    ADD R3, 1
+    SUB R1, 1
+    JNZ sread_loop
+    NOP
+sread_done:
+    LDI 0x2470
+    SL R0, 1                  ; R0 = 0x44E0
+    LDS R10, CS, R0
+    ADD R0, 1
+    LDS R11, CS, R0
+    MOV R0, R3               ; count
+    LSI R1, 0
+    JML R10
+    NOP
+
+
+; ---- bdos_read_slice (copied) ---------------------------------
+.org 0x4680
+.code
 bdos_read_slice:
-    LSI R2, 0               ; these handlers are still in the kernel (2c-2)
-    LDI 0x0680
-    OR R0, 14
-    MOV R3, R0
-    JML R2
+    MVS R3, DS
+    LDI bd_src_ds
+    MOV R2, R0
+    STS R3, CS, R2
+    MVS R3, ES
+    LDI bd_src_es
+    MOV R2, R0
+    STS R3, CS, R2
+    LDI bd_src_dest
+    MOV R2, R0
+    STS R4, CS, R2
+    MOV R7, R1               ; slice_read takes the slice in R7
+    LSI R1, 1                ; direct SPI busy mask
+    LDI 0x0FFF
+    INV R0
+    MVS DS, R0               ; SPI registers
+    LDI 0x86
+    MOV R2, R0
+    LSI R3, 0
+    STS R3, DS, R2           ; SPDIV = 0, like dir_read and bdos_load
+    LDI 0x4000
+    SL R0, 1
+    MVS ES, R0               ; 0x8000: the BDOS slice buffer
+    LDI slice_read
+    MOV R5, R0
+    LDI brs_back / 2
+    SL R0, 1
+    MOV R12, R0
+    JMP R5
     NOP
+brs_back:
+    LDI 0x4000
+    SL R0, 1
+    MVS DS, R0               ; source segment
+    LDI bd_src_ds
+    MOV R2, R0
+    LDS R3, CS, R2
+    MVS ES, R3               ; caller's DS
+    LDI bd_src_dest
+    MOV R2, R0
+    LDS R3, CS, R2           ; caller's destination
+    LSI R2, 0
+    LDI 2048
+    MOV R5, R0
+brs_copy:
+    LDS R4, DS, R2
+    STS R4, ES, R3
+    ADD R2, 1
+    ADD R3, 1
+    SUB R5, 1
+    JNZ brs_copy
+    NOP
+    LDI bd_src_es
+    MOV R2, R0
+    LDS R3, CS, R2
+    MVS ES, R3               ; BDOS preserves ES, and the caller may be the SPI
+                             ; console holding 0xF000 there
+    LDI bd_src_ds
+    MOV R2, R0
+    LDS R3, CS, R2
+    MVS DS, R3               ; back to the caller's data segment
+    LSI R0, 0
+    LSI R1, 0
+    JML R10
+    NOP
+
+; ============================================================
+; SPI Forth wrappers and BDOS functions 12/13
+;
+; essentials no longer touches 0xF0080..0xF0086. The CS/divider word and one
+; byte transfer go through BDOS, which uses the non-blocking BIOS f20..f22
+; primitives and keeps the Forth-side API unchanged.
+; ============================================================
+
+; ---- bdos_spi_ctrl (copied) ---------------------------------
+.org 0x4780
+.code
 bdos_spi_ctrl:
-    LSI R2, 0               ; these handlers are still in the kernel (2c-2)
-    LDI 0x0780
-    OR R0, 14
-    MOV R3, R0
-    JML R2
+    ; 12: R1 = control, R4 = divider. BIOS f20 writes both registers.
+    MOV R2, R4
+    LDI 20
+    SWI
+    LSI R0, 0
+    LSI R1, 0
+    JML R10
     NOP
+
+
+; ---- bdos_spi_xfer (copied) ---------------------------------
+.org 0x47C0
+.code
 bdos_spi_xfer:
-    LSI R2, 0               ; these handlers are still in the kernel (2c-2)
-    LDI 0x07c0
-    OR R0, 14
-    MOV R3, R0
-    JML R2
+    ; 13: R1 = byte; returns R0 = received byte. Busy-waits through f22.
+    MOV R7, R1
+    LDI 21
+    SWI
+    LDI bd_poll
+    LSI R5, -1
+    STS R5, CS, R0
+sxi_wait:
+    LDI 22
+    SWI
+    SMV R0, AR0
+    AND R0, R0
+    JNZ sxi_done
     NOP
+    LDI bd_poll
+    MOV R2, R0
+    LDS R5, CS, R2
+    SUB R5, 1
+    STS R5, CS, R2
+    JNZ sxi_wait
+    NOP
+    LSI R0, 0
+    LSI R1, 4
+    JML R10
+    NOP
+sxi_done:
+    ; The ready poll already read SPI_DATA into the handler's R1; reading it
+    ; again would advance the flash's response stream.
+    SMV R0, AR1
+    LSI R1, 0
+    JML R10
+    NOP
+
+; ============================================================
+; BDOS 14..23: palette, I2S, SIC and the sound window
+; ============================================================
+
+; ============================================================
+; BDOS 7: config-flash write driver, part 2
+; ============================================================
+
+; ---- bdos_fwrite (copied) ---------------------------------
+.org 0x49C3
+.code
+bdos_fwrite:
+        LDI bd_ent
+        MOV R2, R0
+        STS R12, CS, R2
+        MVS R2, DS
+        LDI bd_wr_ds
+        MOV R3, R0
+        STS R2, CS, R3
+        MVS R2, ES
+        LDI bd_wr_es
+        MOV R3, R0
+        STS R2, CS, R3
+        LDI bd_slice
+        MOV R2, R0
+        STS R1, CS, R2
+        LDI bd_wr_src
+        MOV R2, R0
+        STS R4, CS, R2
+        LDI 512
+        MOV R2, R0
+        CMP R1, R2
+        JC fw_slice_ok
+        NOP
+fw_err5:
+        LDI fw_restore - 0x4000
+        OR R0, 14
+        MOV R2, R0
+        LSI R0, -1
+        LSI R1, 5
+        MOV PC, R2
+        NOP
+fw_slice_ok:
+        LDI bd_wr_ds
+        MOV R2, R0
+        LDS R2, CS, R2
+        MVS ES, R2
+        LDI bd_count
+        MOV R2, R0
+        LDS R3, DS, R2
+        LSI R4, 0
+        CMP R3, R4
+        JNZ fw_count_ok
+        NOP
+        LDI 2048
+        MOV R3, R0
+fw_count_ok:
+        LDI 2049
+        MOV R2, R0
+        CMP R3, R2
+        JC fw_count_ok2
+        NOP
+        LDI fw_restore - 0x4000
+        OR R0, 14
+        MOV R2, R0
+        LSI R0, -1
+        LSI R1, 6
+        MOV PC, R2
+        NOP
+fw_count_ok2:
+        LDI fw_part2
+        MOV PC, R0
+        NOP
+
+
+; ---- palette/I2S/SIC/sample (copied) ---------------------------------
+.org 0x4900
+.code
 bdos_palette:
-    LSI R2, 0               ; these handlers are still in the kernel (2c-2)
-    LDI 0x0900
-    OR R0, 14
+    ; 14: R1 = bank * 8 + pair, R4 = background | ink << 8.
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    MOV R2, R1
+    SR R1, 3                 ; bank
+    LDI 7
     MOV R3, R0
-    JML R2
+    AND R2, R3               ; pair
+    SL R1, 4                 ; bank * 16
+    SL R2, 1                 ; pair * 2
+    ADD R1, R2
+    LDI 0x2080               ; 0x6080 cannot be an LDI immediate: it sign-extends
+    MOV R2, R0
+    LDI 1
+    SL R0, 14
+    OR R2, R0
+    ADD R1, R2
+    MOV R3, R4
+    LDI 0x00FF
+    MOV R5, R0
+    AND R3, R5               ; background
+    STS R3, ES, R1
+    SR R4, 8                 ; ink
+    ADD R1, 1
+    STS R4, ES, R1
+    LSI R0, 0
+    LSI R1, 0
+    JML R10
     NOP
 bdos_i2s_write:
-    LSI R2, 0               ; these handlers are still in the kernel (2c-2)
-    LDI 0x091d
-    OR R0, 14
-    MOV R3, R0
-    JML R2
+    ; 15: R1 = sample.
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDI 0x00A0
+    MOV R2, R0
+    STS R1, ES, R2
+    LSI R0, 0
+    LSI R1, 0
+    JML R10
     NOP
 bdos_i2s_ctrl:
-    LSI R2, 0               ; these handlers are still in the kernel (2c-2)
-    LDI 0x0927
-    OR R0, 14
-    MOV R3, R0
-    JML R2
+    ; 16: R1 = control.
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDI 0x00A2
+    MOV R2, R0
+    STS R1, ES, R2
+    LSI R0, 0
+    LSI R1, 0
+    JML R10
     NOP
 bdos_i2s_read:
-    LSI R2, 0               ; these handlers are still in the kernel (2c-2)
-    LDI 0x0931
-    OR R0, 14
-    MOV R3, R0
-    JML R2
+    ; 17: R0 = status, R1 = level.
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDI 0x00A4
+    MOV R2, R0
+    LDS R1, ES, R2
+    MOV R3, R1
+    LDI 0x00A0
+    MOV R2, R0
+    LDS R1, ES, R2
+    MOV R0, R3
+    JML R10
     NOP
 bdos_sic_enable_write:
-    LSI R2, 0               ; these handlers are still in the kernel (2c-2)
-    LDI 0x093e
-    OR R0, 14
-    MOV R3, R0
-    JML R2
+    ; 18: R1 = mask.
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDI 0x00B2
+    MOV R2, R0
+    STS R1, ES, R2
+    LSI R0, 0
+    LSI R1, 0
+    JML R10
     NOP
 bdos_sic_enable_read:
-    LSI R2, 0               ; these handlers are still in the kernel (2c-2)
-    LDI 0x0948
-    OR R0, 14
-    MOV R3, R0
-    JML R2
+    ; 19: R0 = mask.
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDI 0x00B2
+    MOV R2, R0
+    LDS R0, ES, R2
+    JML R10
     NOP
 bdos_sic_pending:
-    LSI R2, 0               ; these handlers are still in the kernel (2c-2)
-    LDI 0x0950
-    OR R0, 14
-    MOV R3, R0
-    JML R2
+    ; 20: R1 = mask.
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDI 0x00B0
+    MOV R2, R0
+    STS R1, ES, R2
+    LSI R0, 0
+    LSI R1, 0
+    JML R10
     NOP
 bdos_sample_write:
-    LSI R2, 0               ; these handlers are still in the kernel (2c-2)
-    LDI 0x095a
-    OR R0, 14
-    MOV R3, R0
-    JML R2
+    ; 21: R1 = offset, R4 = value.
+    LDI 0x1FFF
+    INV R0
+    MVS ES, R0
+    STS R4, ES, R1
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LSI R0, 0
+    LSI R1, 0
+    JML R10
     NOP
 bdos_sample_read:
-    LSI R2, 0               ; these handlers are still in the kernel (2c-2)
-    LDI 0x0965
-    OR R0, 14
+    ; 22: R1 = offset -> R0 = value.
+    LDI 0x1FFF
+    INV R0
+    MVS ES, R0
+    LDS R0, ES, R1
     MOV R3, R0
-    JML R2
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    MOV R0, R3
+    JML R10
     NOP
 bdos_sample_copy:
-    LSI R2, 0               ; these handlers are still in the kernel (2c-2)
-    LDI 0x0970
-    OR R0, 14
-    MOV R3, R0
-    JML R2
+    ; 23: R1 = source in DS, R4 = destination offset; bd_count cells.
+    LDI 0x1FFF
+    INV R0
+    MVS ES, R0
+    LDI bd_count
+    MOV R2, R0
+    LD R3, R2, 0
+    LDI 0
+    CMP R3, R0
+    JZ bdos_sample_copy_done
     NOP
+bdos_sample_copy_loop:
+    LDS R5, DS, R1
+    STS R5, ES, R4
+    ADD R1, 1
+    ADD R4, 1
+    SUB R3, 1
+    JNZ bdos_sample_copy_loop
+    NOP
+bdos_sample_copy_done:
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LSI R0, 0
+    LSI R1, 0
+    JML R10
+    NOP
+
+; ============================================================
+; BDOS 24..26: the remaining graphics registers
+; ============================================================
+
+; ============================================================
+; Forth entry for BDOS 7 (fwrite)
+; ============================================================
+
+; ---- gfx 24..26 (copied) ---------------------------------
+.org 0x49A0
+.code
 bdos_gfx_read:
-    LSI R2, 0               ; these handlers are still in the kernel (2c-2)
-    LDI 0x09a0
-    OR R0, 14
-    MOV R3, R0
-    JML R2
+    ; 24: R1 = offset inside 0xF000 -> R0 = value.
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDS R0, ES, R1
+    JML R10
     NOP
 bdos_gfx_write:
-    LSI R2, 0               ; these handlers are still in the kernel (2c-2)
-    LDI 0x09a6
-    OR R0, 14
-    MOV R3, R0
-    JML R2
+    ; 25: R1 = offset, R4 = value.
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    STS R4, ES, R1
+    LSI R0, 0
+    LSI R1, 0
+    JML R10
     NOP
 bdos_gfx_copy:
-    LSI R2, 0               ; these handlers are still in the kernel (2c-2)
-    LDI 0x09ae
-    OR R0, 14
-    MOV R3, R0
-    JML R2
+    ; 26: R1 = source in DS, R4 = offset, bd_count cells.
+    LDI 0x0FFF
+    INV R0
+    MVS ES, R0
+    LDI bd_count
+    MOV R2, R0
+    LD R3, R2, 0
+    LDI 0
+    CMP R3, R0
+    JZ bdos_gfx_copy_done
     NOP
-bdos_fwrite:
-    LSI R2, 0               ; these handlers are still in the kernel (2c-2)
-    LDI 0x09c3
-    OR R0, 14
-    MOV R3, R0
-    JML R2
+bdos_gfx_copy_loop:
+    LDS R5, DS, R1
+    STS R5, ES, R4
+    ADD R1, 1
+    ADD R4, 1
+    SUB R3, 1
+    JNZ bdos_gfx_copy_loop
     NOP
+bdos_gfx_copy_done:
+    LSI R0, 0
+    LSI R1, 0
+    JML R10
+    NOP
+
+; ============================================================
+; PS/2 host: reset and enable the keyboard (D16D only)
+; ============================================================
+; The receiver (rtl/ps2_rx.sv) is receive-only by itself: some keyboards do not
+; scan until the host resets them. The sender drives the open-drain pads
+; through control 6 (0x200C): bit 9 pulls CLK low, bit 10 pulls DATA low. The
+; synchronised levels are 0xF0066 bits 5/6, and bit 7 is the receiver's frame
+; toggle (one flip per good frame, ACK and BAT included), so the init can wait
+; for the keyboard's answer instead of sleeping blindly.
+;
+; This block used to be asm/ps2_host.asm, a type-4 slice loaded at segment
+; 0x4000 by screens/flash/games.fth. It lives in the BIOS now and binit calls
+; it, so the keyboard is ready before the menu or the prompt is reached.
+; Function 7 sends one byte, function 8 re-runs the init without clearing.
+.ifdef CONSOLE_UART
+; Common BIOS state (LAYERPLAN 1.4). 0x5790 is inside every CONSOLE_UART
+; BIOS block: 0x4A00 for D16NANO/D16D, 0x5600 for the D16MINI UART build.
+
+; ---- cells used by the copied gap handlers -----------------------------
+.org 0x2FA7
+bd_src_ds:
+    .word 0
+bd_src_dest:
+    .word 0
+bd_src_es:
+    .word 0
+.org 0x2FB8
+bd_count:
+    .word 0
+
+; ---- fwrite flash programming step (copied) ----------------------------
+.org 0x2FC8
+.code
+fw_part2:
+        LDI bd_wr_left
+        MOV R2, R0
+        STS R3, CS, R2
+        LDI bd_tmp
+        MOV R2, R0
+        STS R3, CS, R2
+        LDI bd_wr_src
+        MOV R2, R0
+        LDS R4, CS, R2
+        LDS R3, ES, R4
+        LDI 1
+        SL R0, 15
+        AND R3, R0
+        JZ fw_unprot
+        NOP
+        LDI fw_err5 - 0x4000
+        OR R0, 14
+        MOV PC, R0
+        NOP
+fw_unprot:
+        LDI 0x0FFF
+        MOV R2, R0
+        INV R2
+        MVS DS, R2
+        LSI R1, 1
+        LDI fd_fw_ret
+
+        MOV R12, R0
+        LDI bd_slice
+        MOV R2, R0
+        LDS R7, CS, R2
+        LDI fd_program
+        MOV PC, R0
+        NOP
+fd_fw_ret:
+        LDI bd_wr_err
+        MOV R2, R0
+        LDS R3, CS, R2
+        LSI R4, 0
+        CMP R3, R4
+        JZ fw_ok
+        NOP
+        LDI fw_restore - 0x4000
+        OR R0, 14
+        MOV R2, R0
+        LSI R0, -1
+        LSI R1, 4
+        MOV PC, R2
+        NOP
+fw_ok:
+        LDI fw_restore - 0x4000
+        OR R0, 14
+        MOV R2, R0
+        LDI bd_tmp
+        MOV R3, R0
+        LDS R0, CS, R3
+        LSI R1, 0
+        MOV PC, R2
+        NOP
+
+
+.endif

@@ -427,11 +427,19 @@ mirrors. Two hard-coded `-0x4000` address builders (`fw_restore`,
   `.ifndef D16NANO`, so the legacy/D16SIM examples still build (gated call
   sites). The editor and menu slices jump to the shared kernel stub at
   `0x3FE2`, so they do not hard-code `0x4000`.
-* **2c-2 — the gap handlers (remaining).** Move `0x4680`–`0x49FB` and
-  `0x1F78` into the chapter, delete the far stubs, and migrate the CS-relative
-  scratch with kernel mirrors for the cells the kernel writes directly
-  (`bd_count` is DS-relative and stays shared). The flash helpers are either
-  duplicated or shimmed; decide per helper.
+* **2c-2 — the gap handlers (done).** The chapter now owns `bdos_serial_read`,
+  `bdos_read_slice`, `bdos_spi_ctrl`/`spi_xfer`, `bdos_fwrite`, the
+  palette/I2S/SIC/sample handlers, the gfx handlers, `bdos_ps2_init`, the
+  `bps2_send`/`bps2_wait_ticks` helpers, `fw_part2`/`fw_err5` and the
+  `bd_src_*`/`bd_count` cells. The `0x5000` far stubs are gone; the chapter's
+  table points straight at the real handlers, and the total is 1,789 words.
+  The kernel keeps its flat copies of the gap handlers because the non-nano
+  profile still dispatches through the restored flat table; under D16D those
+  copies are unreachable (the chapter table is the only dispatcher). Gating or
+  deleting them belongs with retiring the flat profile (Phase 4a/5), not this
+  step. `bd_count` stays DS-relative and shared; the other cells are
+  chapter-local. The flash drivers (`fd_pg_part2`, the `0x0475` block) and
+  `fw_restore` remain in both places for the same reason.
 
   Note: the 2b `fd_pack` CS mirror adds one word, so the chapter handlers are
   at `0x3FFD`/`0x40AB`/`0x411F`; the kernel's 2b trampolines were corrected to

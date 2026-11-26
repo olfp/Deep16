@@ -47,7 +47,7 @@ let doneAt = -1;
 for (let i = 0; i < 60_000_000; i++) {
   const pc = sim.registers[15] & 0xFFFF;
   const cs = sim.segmentRegisters.CS & 0xFFFF;
-  const at = cs === 0 && pc === sym.bdos_read_slice;
+  const at = cs === 0x4000 && pc === sym.bdos_read_slice;
   if (at && !inReadSlice) readSliceCalls++;
   inReadSlice = at;
   sim.step();
