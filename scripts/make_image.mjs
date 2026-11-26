@@ -43,11 +43,9 @@ export const NANO = !!process.env.D16NANO;
 // packed BSRAM console is built without it (the tile kernel already fills the
 // 16-block budget).
 export const D16D = !!process.env.D16D;
-// Pac-Man now lives in the config flash, not in the image: the kernel grew
-// past 0x4330, the gap the block used to sit in, and the block is loaded into
-// segment 0x2000 at run time (`s" pacman" game-run` in games.fth). BAKE_PACMAN=1
-// still places it in the gap for a build that has the room back.
-export const BAKE_PACMAN = process.env.BAKE_PACMAN === '1';
+// Pac-Man is a config-flash slice, not image content: the block is loaded into
+// segment 0x2000 at run time (`s" pacman" game-run` in games.fth). The 0x4330
+// gap it used to occupy stays free; there is no baked-image path.
 // The Pac-Man block uses the free gap that only the segmented (tile) map has;
 // without D16SEG that gap is still kernel data.  Every D16D image is a tile
 // image, so require the segmented map instead of silently corrupting it.
@@ -125,10 +123,6 @@ export function buildImage() {
   if (D16D && !D16SEG) {
     throw new Error('the D16D image needs D16SEG=1 (the segmented kernel)');
   }
-  if (FPU && BAKE_PACMAN) {
-    throw new Error('BAKE_PACMAN=1 is incompatible with the FPU image ' +
-                    '(the 7,808-word pacman block does not fit under the 0x4A00 BIOS)');
-  }
   if (FPU && !NANO) {
     throw new Error('FPU=1 needs D16NANO=1 (the FPU trap lives in the nano ILL handler)');
   }
@@ -186,7 +180,7 @@ export function buildImage() {
   }
   if (FPU) {
     // The Forth float words live in the free 0x417D gap. They must stop
-    // before the BAKE_PACMAN block at 0x4330 and before the BIOS at 0x4A00.
+    // before the freed 0x4330 gap and before the BIOS at 0x4A00.
     if (!(sym.fpu_words_base >= 0x417D && sym.fpu_words_end > sym.fpu_words_base)) {
       throw new Error('the float word block has no usable range');
     }
@@ -292,19 +286,10 @@ export function buildImage() {
         words[pa] = value;
       } else outOfWindow.add(pa);
     }
-    // Pac-Man can still be baked into the free image gap for a build that has
-    // the room back; the board loads it as a slice.
+    // Pac-Man is only a config-flash slice now; keep the assembled block for
+    // the slice manifest and build hash, but never write it into the image.
     pacman = buildPacman();
     checkPacman(pacman);
-    if (BAKE_PACMAN) {
-      for (const [addr, value] of pacman.words) {
-        const pa = PACMAN_SEG_BASE + addr;
-        if (pa < WINDOW) {
-          if (words[pa] !== FILL) collisions.push(pa);
-          words[pa] = value;
-        } else outOfWindow.add(pa);
-      }
-    }
   }
 
   const build = crypto.createHash('sha256')
@@ -348,13 +333,6 @@ export function checkImage(img) {
   const unexpected = img.outOfWindow.filter((a) => a !== ECHO_FLAG);
   if (unexpected.length) fail.push(`words outside the window: ${unexpected.map((a) => '0x' + a.toString(16)).join(', ')}`);
   if (D16D && !img.showcase) fail.push('D16D image has no showcase block');
-  if (D16D && BAKE_PACMAN && !img.pacman)
-    fail.push('BAKE_PACMAN is on but there is no pacman block');
-  if (D16D && img.pacman && BAKE_PACMAN) {
-    if (PACMAN_SEG_BASE < img.dictFree) fail.push('pacman block starts inside the kernel image');
-    if (PACMAN_SEG_BASE + img.pacman.size > img.biosEntry) fail.push('pacman block runs into the BIOS');
-    checkPacman(img.pacman);
-  }
   if (D16D && img.showcase) checkShowcase(img.showcase);
   const collisions = img.collisions ?? [];
   if (collisions.length) {

@@ -45,9 +45,9 @@ BDOS `0x2D4A`, BIOS `0x4A00`, RP `0x5800`, SP `0x5FF0`; FloatLib was absent.
 It is archived/ignored here, not a build profile.
 
 D16nano extra fixed blocks in the same flat image: showcase menu `0x4D34`–`0x547F`
-(sparse), Pac-Man gap `0x4330` (normally a config-flash slice, `BAKE_PACMAN`
-only), PS/2 layout tables `0x6A90`–`0x6C8F`, echo cell `0xF0064` (the one
-deliberate word outside the image window).
+(sparse), the free Pac-Man gap `0x4330` (Pac-Man is a config-flash slice), PS/2
+layout tables `0x6A90`–`0x6C8F`, echo cell `0xF0064` (the one deliberate word
+outside the image window).
 
 ### 1.1 Measured D16nano symbols
 
@@ -91,7 +91,7 @@ address. The build has guards, but they are pairwise and after-the-fact.
 |---|---|---|
 | 1 | **`.org` rewind = silent overwrite** | `tests/forth.test.js:33` ("silently overwrote `interpret_done` — the REPL hung"); `forth_nano.asm:4818` ("grew the interpreter by twenty words … silently overran it"); `forth_nano.asm:1405` (`0x0100` block vs `.org 0x0500`); `tests/segmented.test.js:960` (`gfx_back` ran into the ILL trampoline at `0x4CF4`) |
 | 2 | **The working tree is fixing exactly this** | `forth_float.asm:1635` puts the literal trampolines at `0x2D3F` because `waqr_scan` owns `0x2D2F`–`0x2D38`; `forth_nano.asm` moved `bdos_word_call` from `0x18C3` to `0x1FC2` so `word_esstore`'s tail is whole; `scan_number_entry` is pinned at `0x1FF9`. The Phase 0 layout pass also moved `fitdemo`, `sfx_table`, `bios_f14/15` and `ill_pc_save_bios` into free runs (`MEMFIXPLAN.md`, Phase 0). |
-| 3 | **Dictionary grows *up* into fixed blocks** | Static data ends at `dict_free=0x3FC4`; BDOS 27–29 occupy `0x3FCD`–`0x417C`, float words `0x417D`–`0x430B`, `BAKE_PACMAN` `0x4330`, BIOS `0x4A00`. `checkImage` rejects `dict_free >= 0x5800` and dictionary-into-BIOS; `FPU && BAKE_PACMAN` is rejected outright. |
+| 3 | **Dictionary grows *up* into fixed blocks** | Static data ends at `dict_free=0x3FC4`; BDOS 27–29 occupy `0x3FCD`–`0x417C`, float scanner and words `0x3FE9`–`0x430F`, the free Pac-Man gap `0x4330`, BIOS `0x4A00`. `checkImage` rejects `dict_free >= 0x5800` and dictionary-into-BIOS. |
 | 4 | **Return stack grows *down* into everything** | Flat nano puts RP at `0x5800`, only ~144 words above the nano BIOS end and 0 words above the FPU library start — hence `FPU && !D16SEG` is rejected ("the `0x5800` return stack would collide with the library", `make_image.mjs:118`). Historical segmented build had RP at `0x5FF0` with dictionary from `0x5800`: ~300 frames, `1000 deep` overwrote the running word and froze the board (`HARDWARE.md:302`). Both stacks share `0x5800`–`0x5FFF` in the flat map. |
 | 5 | **One flat address, three owners after the loader scatter** | Flat `0x4A00..0x5FFF` is BIOS/FloatLib in `CS=0`, the same words are BIOS/data in `DS=0x1000` and executable code in `CS=0x3000`. Adding a block at a flat address changes three physical maps at once. `MEMMAP.md:64` calls the flat stack/BIOS gap "a deeply nested line can overwrite the BIOS". |
 | 6 | **Sparse blocks planted over live words** | Showcase menu writes only into `0xFFFF` FILL gaps; `serial-read` once sat at `0x4E42` under the menu and xmodem died on the first SOH (`make_image.mjs:235`, `tests/d16d-image.test.js:71`). PS/2 layout table overwrites are rejected (`deep16_d16d_image.js:210`). |

@@ -240,14 +240,10 @@ class Deep16D16DImage {
 
   static build({ kernel, softfloat = null, forthFloat = null, bdosBlock = null,
                  illBlock = null, showcase, flappy, flappyDefs,
-                 pacmanMap, pacmanGame, frogger, defines = {}, bakePacman = false, packs = {},
+                 pacmanMap, pacmanGame, frogger, defines = {}, packs = {},
                  layouts = null, layoutBase = 0x6a90 } = {}) {
     if (typeof kernel !== 'string' || !kernel.trim()) throw new Error('D16D image needs kernel source');
     if (typeof showcase !== 'string') throw new Error('D16D image needs the showcase source');
-    if (bakePacman && forthFloat !== null) {
-      throw new Error('bakePacman is incompatible with the FPU image ' +
-                      '(the 7,808-word pacman block does not fit under the 0x4A00 BIOS)');
-    }
 
     // The board image carries the soft-float library so the D16D ILL handler
     // can execute trapped FPU words from the BIOS segment. Callers that do not
@@ -287,7 +283,6 @@ class Deep16D16DImage {
 
     const WINDOW = words.length;
     const SHOWCASE_BASE = 0x4A00;
-    const PACMAN_BASE = 0x4330;
     const collisions = [];
     for (const change of sres.memoryChanges) {
       if (change.address < 0 || change.address >= 0x10000) {
@@ -300,20 +295,8 @@ class Deep16D16DImage {
         words[pa] = change.value & 0xFFFF;
       } else outOfWindow.add(pa);
     }
-    // Pac-Man can still be baked into the free image gap for a build that has
-    // the room back; the board loads it from the config flash instead.
-    if (bakePacman) {
-      for (const change of pres.memoryChanges) {
-        if (change.address < 0 || change.address >= 0x2000) {
-          throw new Error(`pacman address out of range: 0x${change.address.toString(16)}`);
-        }
-        const pa = PACMAN_BASE + change.address;
-        if (pa < WINDOW) {
-          if (words[pa] !== 0xFFFF) collisions.push(pa);
-          words[pa] = change.value & 0xFFFF;
-        } else outOfWindow.add(pa);
-      }
-    }
+    // Pac-Man is only a config-flash slice; the block returned below feeds the
+    // slice manifest, and the image itself never carries it.
 
     // PS/2 layout data lives in the free BIOS-image tail. The browser build
     // receives it from the generator; without it the ASCII host path still

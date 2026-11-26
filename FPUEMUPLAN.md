@@ -503,10 +503,9 @@ low trampolines `0x2D3F`, and the build/parse halves sit after `f.` in the
 `0x6724..0x6862` tail. The scanner keeps its state in fifteen cells it
 allocates on the data stack, so it needs no fixed cell block, and it saves the
 caller's `R10` in the `0x18E7` cell. The scanner no longer uses the `0x4330`
-PACMAN base. The `FPU`/`BAKE_PACMAN` guard remains for a different reason: the
-baked pacman block is 7,808 words (`0x4330..0x61AF`) and does not fit under the
-`0x4A00` BIOS in this map; the build reports that instead of overwriting the
-kernel.
+PACMAN base. The historical `BAKE_PACMAN` image path was removed: Pac-Man is
+only a config-flash slice loaded into segment `0x2000`, so the `0x4330` gap is
+free and no baked copy is ever written.
 
 A float is two cells with the high half on top, like the kernel's double-cell
 words. `f+` reads B from `SP+0/1` and A from `SP+2/3`, puts them in

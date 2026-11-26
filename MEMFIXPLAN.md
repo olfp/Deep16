@@ -500,9 +500,8 @@ mirrors. Two hard-coded `-0x4000` address builders (`fw_restore`,
   `0x3FE9..0x40E7` run at the head of the freed BDOS slice. The float words
   stay in `0x417D..0x42EF`, the transcendental headers/words at
   `0x42EF..0x430F`, and the build/parse halves plus the `f.` cells in the
-  `0x6724..0x6862` tail. The `FPU && BAKE_PACMAN` exclusion remains, but for
-  size rather than overlap: the baked pacman block is 7,808 words
-  (`0x4330..0x61AF`) and cannot fit below the `0x4A00` BIOS in this map.
+  `0x6724..0x6862` tail. The old `BAKE_PACMAN` image path was removed, so the
+  `0x4330` gap is free and Pac-Man exists only as the config-flash slice.
   `tests/d16d-fpu.test.js` pins the scanner run, and
   `scripts/make_image.mjs` rejects an out-of-run scanner.
 * **Acceptance:** the library exists *only* in the system chapter, flat

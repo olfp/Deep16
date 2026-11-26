@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 // scripts/make_showcase.mjs - assemble the D16D showcase menu + Flappy game,
-// and the separate Pac-Man block that sits at physical 0x4330.
+// and the separate Pac-Man block. Pac-Man is a config-flash slice loaded into
+// segment 0x2000 at run time; the tests and the renderer mount the same block
+// at 0x4330 for direct execution.
 //
 // Both sources are concatenated so the menu and game share labels, constants
 // and string data. The result is sparse: only the words the source actually
@@ -98,8 +100,9 @@ export function buildShowcase() {
   };
 }
 
-// Pac-Man is a second, independent block: assembled with .org 0 and placed at
-// physical 0x4330.  The menu jumps to it with R10/R11 as the far return pair.
+// Pac-Man is a second, independent block: assembled with .org 0 and used as a
+// config-flash slice (loaded at segment 0x2000). Tests and the renderer mount
+// the same words at 0x4330 for direct execution.
 export function buildPacman() {
   const Deep16Assembler = loadAssembler();
   const sources = ['asm/showcase/pacman_map.asm', 'asm/showcase/pacman_game.asm']
