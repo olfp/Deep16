@@ -56,11 +56,11 @@ test('browser builder matches the Node D16D image word for word', () => {
   assert.equal(browser.fpuWords, true, 'the browser build carries the Forth words');
   assert.equal(node.fpuWords, true, 'the Node build carries the Forth words');
   // f_unpack is the first library word at 0x5800 (BIOS offset 0x0E00).
-  assert.notEqual(node.words[0x5800], 0xFFFF, 'the soft-float library is in the image');
-  assert.equal(browser.words[0x5800], node.words[0x5800], 'library word matches');
+  assert.equal(node.words[0x5800], 0xFFFF, 'the flat library is FILL');
+  assert.equal(browser.sys.words[0x0E00], node.sys.words[0x0E00], 'library word matches');
   assert.equal(browser.symbols.h_fdot, 0x417D, 'the Forth header block starts at 0x417D');
-  assert.equal(browser.symbols.h_fexp, 0x42EB, 'fexp/flog headers end the 0x417D block');
-  assert.equal(browser.words[browser.symbols.forth_wl], 0x42EB,
+  assert.equal(browser.symbols.h_fexp, 0x42EF, 'fexp/flog headers end the 0x417D block');
+  assert.equal(browser.words[browser.symbols.forth_wl], browser.symbols.h_fexp,
                'forth_wl names the newest float header');
   assert.notEqual(node.words[0x417D], 0xFFFF, 'the Forth float headers are in the image');
   assert.equal(browser.words[browser.symbols.d16d_exit], browser.symbols.d16d_menu_boot,
@@ -113,11 +113,11 @@ test('the BIOS scatter carries the FPU library to segment 0x3000', () => {
   assert.equal(memory[0x40000 + 0x2D4A], image.bdos.words[0x2D4A],
                'the scatter placed the BDOS chapter at 0x40000');
   // 0x5800 - 0x4A00 = 0x0E00, and 0x30000 + 0x0E00 = 0x30E00.
-  assert.equal(memory[0x30E00], image.words[0x5800], 'f_unpack reached the BIOS copy');
+  assert.equal(memory[0x30E00], image.sys.words[0x0E00], 'f_unpack reached the system copy');
   // fexp32 sits at 0x6000: 0x6000 - 0x4A00 = 0x1600, so 0x31600.
-  assert.equal(memory[0x31600], image.words[0x6000], 'fexp32 reached the BIOS copy');
+  assert.equal(memory[0x31600], image.sys.words[0x1600], 'fexp32 reached the system copy');
   const libEnd = image.symbols.fpu_lib_end;
-  assert.equal(memory[0x30E00 + (libEnd - 0x5800 - 1)], image.words[libEnd - 1],
+  assert.equal(memory[0x30E00 + (libEnd - 0x5800 - 1)], image.sys.words[0x0E00 + (libEnd - 0x5800 - 1)],
                'the last library word too');
   assert.equal(memory[0x325FF], 0xFFFF, 'the FILL tail below 0x7000 is copied as the loader does');
 });

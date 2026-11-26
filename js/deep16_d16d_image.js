@@ -23,6 +23,16 @@ class Deep16D16DImage {
   // supplied it is appended, at its own .org 0x5800, and FPU_KERNEL turns on
   // the ILL dispatch that calls it. forthFloat adds the Forth surface at
   // 0x417D and defines FPU_WORDS.
+  // Phase 3b: the flat FloatLib shifts by -0x4A00 into the system chapter's
+  // copy destinations. The only external label is the ILL handler's
+  // ill_restore_shared, which is at 0x0728 in the system chapter.
+  static systemSoftfloat(text) {
+    const body = String(text)
+      .replace(/^\.org 0x5800$/m, '.org 0x0E00')
+      .replace(/^\.org 0x6000$/m, '.org 0x1600');
+    return `.equ ill_restore_shared, 0x0728\n${body}`;
+  }
+
   static assembleNano({ kernel, softfloat = null, forthFloat = null, bdosBlock = null,
                         illBlock = null, defines = {} } = {}) {
     if (typeof Deep16Assembler !== 'function') throw new Error('Deep16Assembler is not loaded');
@@ -46,7 +56,8 @@ class Deep16D16DImage {
     const sources = [kernel];
     if (softfloat !== null) {
       defs.FPU_KERNEL = 1;
-      sources.push(softfloat);
+      // Phase 3b: under D16D the library is a system chapter, not flat code.
+      if (!defs.D16D) sources.push(softfloat);
     }
     if (forthFloat !== null) {
       defs.FPU_WORDS = 1;
@@ -60,7 +71,9 @@ class Deep16D16DImage {
       // CS=0x3000, offset 0x0600 (plus its dispatch helpers). The flat copy
       // is FILL under D16D; scatterD16SEG() places this at 0x30000 after the
       // BIOS copy, so the trap entry still finds it at 0x0600.
-      chapters.push({ id: 'sys', seg: 0x3000, base: 0, relative: true, sources: [illBlock] });
+      const systemSources = [illBlock];
+      if (softfloat !== null) systemSources.push(this.systemSoftfloat(softfloat));
+      chapters.push({ id: 'sys', seg: 0x3000, base: 0, relative: true, sources: systemSources });
     }
     if (typeof bdosBlock === 'string' && bdosBlock.trim()) {
       // Phase 2c-0: the BDOS chapter is a segment-relative chapter. It does not

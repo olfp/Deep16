@@ -1,3 +1,12 @@
+.equ fpu_lib_end, 0x6476
+.equ i2f_sys, 0x0E4F
+.equ u2f_sys, 0x0E8E
+.equ f2i_sys, 0x0E93
+.equ fpu_sys_i2f_ret, 0x1B00
+.equ fpu_sys_f2i_ret, 0x1B08
+.equ fpu_far_ret, 0x2F36
+.equ fpu_far_i2f, 0x46DC
+.equ fpu_far_f2i, 0x46EA
 ; asm/forth_float.asm - Forth surface for the soft-float library
 ;
 ; Included after asm/softfloat.asm when FPU_WORDS is defined. The words use
@@ -312,6 +321,18 @@ f0lt_done:
 word_s2f:
     MOV R9, R6                 ; park TIB
     LD R10, SP, 0              ; the LDI below writes R0
+.ifdef D16D
+s2f_call:
+    LDI i2f_sys
+    MOV R7, R0
+    LDI 0x06DC
+    OR R0, 14
+    MOV R8, R0
+    MOV R0, R10
+    LINK
+    JMP R8
+    NOP
+.else
     MOV R11, PC
 s2f_call:
     LDI i2f - s2f_call
@@ -320,6 +341,7 @@ s2f_call:
     LINK
     JMP R11
     NOP
+.endif
     MOV R6, R9
     SUB SP, 1
     ST R2, SP, 0
@@ -333,6 +355,17 @@ word_f2s:
     MOV R9, R6
     LD R2, SP, 0
     LD R3, SP, 1
+.ifdef D16D
+f2s_call:
+    LDI f2i_sys
+    MOV R7, R0
+    LDI 0x06EA
+    OR R0, 14
+    MOV R8, R0
+    LINK
+    JMP R8
+    NOP
+.else
     MOV R11, PC
 f2s_call:
     LDI f2i - f2s_call
@@ -340,6 +373,7 @@ f2s_call:
     LINK
     JMP R11
     NOP
+.endif
     MOV R6, R9
     ST R0, SP, 1
     ADD SP, 1
@@ -507,7 +541,7 @@ f_ten_powers_neg:
     .word 0x0208, 0x1CEA
 f_ten_powers_neg_end:
 
-.org 0x67B8
+.org 0x67C8
 fpu_dot_base:
 f_dot_high:
     .word 0
@@ -1110,6 +1144,17 @@ fd_sci_jl:
 fd_print:
     ; ---- integer part ----
     MOV R9, R6                 ; park TIB
+.ifdef D16D
+fd_i2f:
+    LDI f2i_sys
+    MOV R7, R0
+    LDI 0x06EA
+    OR R0, 14
+    MOV R8, R0
+    LINK
+    JMP R8
+    NOP
+.else
     MOV R11, PC
 fd_i2f:
     LDI f2i - fd_i2f
@@ -1117,6 +1162,7 @@ fd_i2f:
     LINK
     JMP R11
     NOP
+.endif
     MOV R6, R9
     MOV R9, R0                 ; keep the integer while the V test uses R0
     LDI 4
@@ -1143,6 +1189,18 @@ fd_cell_7:
     LDS R0, CS, R10
     MOV R10, R0                ; the LDI below writes R0
     MOV R9, R6
+.ifdef D16D
+fd_frac_i2f:
+    LDI i2f_sys
+    MOV R7, R0
+    LDI 0x06DC
+    OR R0, 14
+    MOV R8, R0
+    MOV R0, R10
+    LINK
+    JMP R8
+    NOP
+.else
     MOV R11, PC
 fd_frac_i2f:
     LDI i2f - fd_frac_i2f
@@ -1151,6 +1209,7 @@ fd_frac_i2f:
     LINK
     JMP R11
     NOP
+.endif
     MOV R6, R9
     MOV R4, R2                 ; F1 = integer part
     MOV R5, R3
@@ -1197,6 +1256,17 @@ fd_cell_12:
 
     ; ---- fraction as an integer 0..9999 ----
     MOV R9, R6
+.ifdef D16D
+fd_frac_f2i:
+    LDI f2i_sys
+    MOV R7, R0
+    LDI 0x06EA
+    OR R0, 14
+    MOV R8, R0
+    LINK
+    JMP R8
+    NOP
+.else
     MOV R11, PC
 fd_frac_f2i:
     LDI f2i - fd_frac_f2i
@@ -1204,6 +1274,7 @@ fd_frac_f2i:
     LINK
     JMP R11
     NOP
+.endif
     MOV R6, R9
     MOV R9, R0                 ; rounded fraction, 0..10000
     LDI 10000
@@ -1769,6 +1840,18 @@ sf_build:
     ; Integer float -> SP+11/12.
     LD R10, SP, 9
     MOV R9, R6
+.ifdef D16D
+sf_u2f_int_lo:
+    LDI u2f_sys
+    MOV R7, R0
+    LDI 0x06DC
+    OR R0, 14
+    MOV R8, R0
+    MOV R0, R10
+    LINK
+    JMP R8
+    NOP
+.else
     MOV R11, PC
 sf_u2f_int_lo:
     LDI u2f - sf_u2f_int_lo
@@ -1777,6 +1860,7 @@ sf_u2f_int_lo:
     LINK
     JMP R11
     NOP
+.endif
     MOV R6, R9
     ST R2, SP, 11
     ST R3, SP, 12
@@ -1785,6 +1869,18 @@ sf_u2f_int_lo:
     JZ sf_int_low_only
     NOP
     MOV R9, R6
+.ifdef D16D
+sf_u2f_int_hi:
+    LDI u2f_sys
+    MOV R7, R0
+    LDI 0x06DC
+    OR R0, 14
+    MOV R8, R0
+    MOV R0, R10
+    LINK
+    JMP R8
+    NOP
+.else
     MOV R11, PC
 sf_u2f_int_hi:
     LDI u2f - sf_u2f_int_hi
@@ -1793,6 +1889,7 @@ sf_u2f_int_hi:
     LINK
     JMP R11
     NOP
+.endif
     MOV R6, R9
     ; high * 65536.0 + low
     MOV R4, R2
@@ -1817,6 +1914,18 @@ sf_int_low_only:
     NOP
     LD R10, SP, 10
     MOV R9, R6
+.ifdef D16D
+sf_u2f_frac_lo:
+    LDI u2f_sys
+    MOV R7, R0
+    LDI 0x06DC
+    OR R0, 14
+    MOV R8, R0
+    MOV R0, R10
+    LINK
+    JMP R8
+    NOP
+.else
     MOV R11, PC
 sf_u2f_frac_lo:
     LDI u2f - sf_u2f_frac_lo
@@ -1825,6 +1934,7 @@ sf_u2f_frac_lo:
     LINK
     JMP R11
     NOP
+.endif
     MOV R6, R9
     ST R2, SP, 13
     ST R3, SP, 14
@@ -1834,6 +1944,18 @@ sf_u2f_frac_lo:
     JZ sf_frac_low_only
     NOP
     MOV R9, R6
+.ifdef D16D
+sf_u2f_frac_hi:
+    LDI u2f_sys
+    MOV R7, R0
+    LDI 0x06DC
+    OR R0, 14
+    MOV R8, R0
+    MOV R0, R10
+    LINK
+    JMP R8
+    NOP
+.else
     MOV R11, PC
 sf_u2f_frac_hi:
     LDI u2f - sf_u2f_frac_hi
@@ -1842,6 +1964,7 @@ sf_u2f_frac_hi:
     LINK
     JMP R11
     NOP
+.endif
     MOV R6, R9
     ; high * 65536.0 + low
     MOV R4, R2
@@ -2048,3 +2171,45 @@ sf_reject:
     LDI scan_number_normal
     MOV PC, R0
     NOP
+
+.ifdef D16D
+; ---- far-call shims for the direct i2f/f2i calls ----------------------
+; The library is in CS=0x3000, so the old PC-relative call cannot be used.
+; LR carries the caller's return (set by LINK at the call site); the shims
+; save it in 0x2F36, point LR at the system return stub and far-jump.
+; The i2f arg is R0, the f2i arg is R2:R3; each shim preserves the one it
+; needs and uses R10:R11 for the JML pair.
+.org 0x2F36
+fpu_far_ret:
+    .word 0
+.org 0x46DC
+.code
+fpu_far_i2f:
+    MOV R1, R0
+    LDI fpu_far_ret
+    MOV R2, R0
+    MOV R0, LR
+    STS R0, CS, R2
+    LDI fpu_sys_i2f_ret
+    MOV LR, R0
+    LDI 0x3000
+    MOV R10, R0
+    LDI i2f_sys
+    MOV R11, R0
+    MOV R0, R1
+    JML R10
+    NOP
+fpu_far_f2i:
+    LDI fpu_far_ret
+    MOV R1, R0
+    MOV R0, LR
+    STS R0, CS, R1
+    LDI fpu_sys_f2i_ret
+    MOV LR, R0
+    LDI 0x3000
+    MOV R10, R0
+    LDI f2i_sys
+    MOV R11, R0
+    JML R10
+    NOP
+.endif

@@ -689,3 +689,31 @@ ill_flags:
 ; re-runs the instruction the IRQ interrupted.  R0..R3 are the handler's
 ; shadow scratch; SWI/ILL runs with I=0, so an IRQ never nests on them.
 
+
+; ---- far-return stubs for the five direct i2f/f2i calls -----------------
+; The callers in yet CS=0 store their return PC in the kernel cell 0x2F36
+; through the shims at 0x4310/0x4320, then enter i2f/f2i at CS=0x3000. The
+; routine's LR point is here; these stubs read the caller PC via ES=0 and
+; far-return. The i2f stub uses JML R10 so R2:R3 (the result) survives; the
+; f2i stub uses JML R2 so R0 and the R10 flags survive.
+.org 0x1B00
+.code
+fpu_sys_i2f_ret:
+    LDI 0
+    MVS ES, R0
+    LDI 0x2F36
+    MOV R1, R0
+    LDS R11, ES, R1
+    LSI R10, 0
+    JML R10
+    NOP
+fpu_sys_f2i_ret:
+    MOV R1, R0
+    LSI R2, 0
+    LDI 0x2F36
+    MOV R3, R0
+    LDS R11, ES, R3
+    MOV R0, R1
+    MOV R3, R11
+    JML R2
+    NOP

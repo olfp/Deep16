@@ -34,8 +34,10 @@ const BIOS_FEXP = 0x30000 + (FEXP - 0x4A00); // 0x31600
 const BIOS_HANDLER = 0x30000 + (0x5000 - 0x4A00);
 
 assert.equal(sym.ill_trampoline, 0x4D24, 'the D16D trap vector is the BIOS trampoline');
-assert.notEqual(image.words[LIB], 0xFFFF, 'the library is in the image');
-assert.notEqual(image.words[FEXP], 0xFFFF, 'fexp32 is in the image');
+assert.equal(image.words[LIB], 0xFFFF, 'the flat library is FILL');
+assert.notEqual(image.sys.words[0x0E00], 0xFFFF, 'the library is in the system chapter');
+assert.equal(image.words[FEXP], 0xFFFF, 'flat fexp32 is FILL');
+assert.notEqual(image.sys.words[0x1600], 0xFFFF, 'fexp32 is in the system chapter');
 
 function boot() {
   const sim = new globalThis.Deep16Simulator();
@@ -45,8 +47,8 @@ function boot() {
   sim.memory[0] = sym.ill_trampoline;
 
   // Prove the BIOS copy, not the flat copy, is what executes.
-  assert.equal(sim.memory[BIOS_LIB], image.words[LIB], 'f_unpack copied to 0x30E00');
-  assert.equal(sim.memory[BIOS_FEXP], image.words[FEXP], 'fexp32 copied to 0x31600');
+  assert.equal(sim.memory[BIOS_LIB], image.sys.words[0x0E00], 'f_unpack is at 0x30E00');
+  assert.equal(sim.memory[BIOS_FEXP], image.sys.words[0x1600], 'fexp32 is at 0x31600');
   assert.equal(sim.memory[BIOS_HANDLER], image.sys.words[0x0600],
                'the ILL handler is in the system chapter');
   assert.equal(image.words[0x5000], 0xFFFF, 'the flat ILL range is FILL');

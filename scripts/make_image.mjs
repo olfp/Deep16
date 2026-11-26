@@ -99,6 +99,13 @@ function loadLinker() {
   return vm.runInThisContext('Deep16Linker');
 }
 
+// Phase 3b: the flat FloatLib shifts by -0x4A00 into the system chapter.
+function systemSoftfloat(text) {
+  return `.equ ill_restore_shared, 0x0728\n` + text
+    .replace(/^\.org 0x5800$/m, '.org 0x0E00')
+    .replace(/^\.org 0x6000$/m, '.org 0x1600');
+}
+
 // Assemble the kernel and lay it into the window. Returns the words plus the
 // facts the assertions and the manifest need.
 export const DEFINES = { CONSOLE_UART: 1 };
@@ -133,14 +140,19 @@ export function buildImage() {
   const source = fs.readFileSync(SOURCE_PATH, 'utf8');
   const library = FPU ? fs.readFileSync(SOFTFLOAT_PATH, 'utf8') : '';
   const forthFloat = FPU ? fs.readFileSync(FORTH_FLOAT_PATH, 'utf8') : '';
-  const sources = FPU ? [source, library, forthFloat] : [source];
+  const sources = FPU
+    ? (D16D ? [source, forthFloat] : [source, library, forthFloat])
+    : [source];
   const bdosBlock = NANO ? fs.readFileSync(BDOS_PATH, 'utf8') : null;
   const chapters = [Deep16Linker.flat({ id: 'flat', sources })];
   if (D16D) {
-    // Phase 3: the ILL handler lives in the system chapter at CS=0x3000,
-    // offset 0x0600. The flat copy is FILL; the simulator scatter places it.
+    // Phase 3: the ILL handler and the FloatLib live in the system chapter at
+    // CS=0x3000 (offsets 0x0600 and 0x0E00/0x1600). The flat range is FILL;
+    // the simulator scatter places the chapter after the BIOS copy.
+    const sysSources = [fs.readFileSync(ILL_PATH, 'utf8')];
+    if (FPU) sysSources.push(systemSoftfloat(library));
     chapters.push({ id: 'sys', seg: 0x3000, base: 0, relative: true,
-                    sources: [fs.readFileSync(ILL_PATH, 'utf8')] });
+                    sources: sysSources });
   }
   if (bdosBlock) {
     // Phase 2c-0: the BDOS chapter is segment-relative and does not enter the

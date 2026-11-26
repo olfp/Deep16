@@ -155,8 +155,8 @@ const { buildImage, crc16 } = await import('../scripts/make_image.mjs');
 
 test('the Phase 2c image keeps the linker output stable', () => {
   const img = buildImage();
-  assert.equal(img.build, 'bf80c93ffe133ecd', 'build id changed');
-  assert.equal(crc16(img.words), 0x5d82, 'image bytes changed');
+  assert.equal(img.build, 'd8be284376ab6273', 'build id changed');
+  assert.equal(crc16(img.words), 0xe218, 'image bytes changed');
   assert.equal(img.words.length, 28672);
   assert.equal(img.biosWords, 8848);
 });

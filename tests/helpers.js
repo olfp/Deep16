@@ -119,13 +119,20 @@ export function placeBdos(mem) {
   return mem;
 }
 
-// The system chapter (phase 3): the ILL handler at CS=0x3000, offset 0x0600.
+// The system chapter (phase 3): the ILL handler at CS=0x3000, offset 0x0600,
+// plus the FloatLib at 0x0E00/0x1600 and the i2f/f2i far-return stubs.
 let sysImageCache = null;
+function systemSoftfloat(text) {
+  return `.equ ill_restore_shared, 0x0728\n` + text
+    .replace(/^\.org 0x5800$/m, '.org 0x0E00')
+    .replace(/^\.org 0x6000$/m, '.org 0x1600');
+}
 export function sysBlockImage() {
   if (sysImageCache) return sysImageCache;
-  const source = fs.readFileSync(path.join(ROOT, 'asm', 'ill_block.asm'), 'utf8');
-  const res = assemble(source, {
-    defines: { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1, D16D: 1 },
+  const ill = fs.readFileSync(path.join(ROOT, 'asm', 'ill_block.asm'), 'utf8');
+  const soft = fs.readFileSync(path.join(ROOT, 'asm', 'softfloat.asm'), 'utf8');
+  const res = assemble(ill + '\n' + systemSoftfloat(soft), {
+    defines: { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1, D16D: 1, FPU_KERNEL: 1 },
   });
   if (!res.success) throw new Error('ill_block.asm: ' + res.errors.join('; '));
   sysImageCache = res;

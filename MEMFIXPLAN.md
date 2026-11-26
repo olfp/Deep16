@@ -481,25 +481,30 @@ mirrors. Two hard-coded `-0x4000` address builders (`fw_restore`,
   The browser builder, Node builder, UI, render harness and `buildMemory()`
   all carry the sys chapter; `tests/d16d-fpu.test.js` asserts the handler is
   in the system chapter and the flat ILL range is FILL.
-* **3b — FloatLib.** Move `softfloat.asm` (`0x5800`, `0x6000`) into the same
-  system chapter at offsets `0x0E00`/`0x1600` (the existing BIOS-copy
-  destinations), leaving flat `0x5800`–`0x6475` FILL. The library is
-  position-independent, so the `.org`s shift by `-0x4A00`; `ill_fpu` stays at
-  system `0x151B` and `ill_restore_shared` becomes `0x0728`.
-* **3c — the direct calls and the Forth surface.** Route the five direct
-  `i2f`/`f2i` call sites (`asm/forth_float.asm:311,331,1114,1147,1201`)
-  through a short far-call shim in `CS=0` or convert them to trap words;
-  replace `ill_fpu`'s PC-relative return to `ill_restore_shared` with a far
-  return. Keep the Forth float word surface, scanner, trampolines and power
-  tables in the kernel chapter but move them out of the old free gaps
-  (`0x417D`, `0x4330`, `0x48A9`, `0x6900`) into declared space — no more
-  `FPU && BAKE_PACMAN` mutual exclusion.
-* **Acceptance (3a):** `tests/d16d-fpu.test.js` asserts the ILL handler is in
-  the system chapter and flat `0x5000`–`0x519F` is FILL; `divtest`, the FPU
-  traps, `fexp`/`flog` and the Forth float suite pass. **Acceptance (3b/3c):**
-  the library exists *only* at `CS=0x3000`, with flat `0x5800`–`0x6475` FILL;
-  `s>f`, `f>s`, `f+`, `fexp` and float literals all run; the `CS=0` entry stub
-  remains a far jump, never a literal handler address.
+* **3b — FloatLib (done).** `systemSoftfloat()` shifts the flat library's two
+  `.org` blocks by `-0x4A00` (`0x0E00`/`0x1600`) and defines
+  `ill_restore_shared=0x0728`; the result joins the `sys` chapter after the ILL
+  block. Flat `0x5800`–`0x6475` is FILL; `ill_fpu` is at system `0x151B`,
+  `f_unpack` at `0x0E00` and `fexp32` at `0x1600`.
+* **3c — direct calls (done).** There are **nine**, not five: `i2f` at `s>f`
+  and the `f.` integer/fraction, `f2i` at `f>s` and the `f.` fraction, plus
+  four `u2f` calls in the literal builder. `CS=0` shims at
+  `0x46DC`/`0x46EA` store the `LINK` return PC in the cell `0x2F36` and
+  far-jump; system stubs at `0x1B00`/`0x1B08` read it via `ES=0` and return.
+  The i2f/u2f stub preserves `R2:R3`; the f2i stub preserves both `R0` and the
+  `R10` flags. The stubs sit after the library and before the PS/2 decoder
+  copy (`0x1F9C`). The call sites are gated so the non-D16D flat FPU build
+  keeps the old PC-relative calls.
+* **3d — surface relocation (remaining).** The Forth float word surface
+  (`0x417D`, `0x4330`, `0x48A9`, `0x6900`, and the `f.` cells now at `0x67C8`)
+  still lives in the old free gaps; moving it into declared space and dropping
+  the `FPU && BAKE_PACMAN` exclusion is still open. `h_fexp` moved to `0x42EF`
+  because the shim call sites are two words larger.
+* **Acceptance:** the library exists *only* in the system chapter, flat
+  `0x5800`–`0x6475` is FILL, and `s>f`, `f>s`, `f+`, `fexp` and float literals
+  all run through the chapter (verified by `d16d-fpu`, `ps2-raw`,
+  `native-lila` and the full suite). The `CS=0` ILL entry trampoline remains a
+  far jump. The surface relocation of 3d is the remaining item.
 * **Files:** `asm/forth_nano.asm`, new `asm/ill_block.asm`,
   `asm/softfloat.asm`, `asm/forth_float.asm`, the linker/builders,
   `tests/d16d-fpu.test.js`, `tests/ill-fpu.test.js`, `tests/forth-float.test.js`.
