@@ -20,7 +20,7 @@ import {
   readFontWords,
   tileFontWords,
 } from './make_tile_font.mjs';
-import { BAKED_SPRITE_WORDS as GENERATED_SPRITE_WORDS, bakedBirdSpriteWords } from './make_bird_sprite.mjs';
+import { SPRITE_WORDS as GENERATED_SPRITE_WORDS, bakedBirdSpriteWords } from './make_bird_sprite.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -28,7 +28,7 @@ export const MAGIC = 'D16G';
 export const VERSION = 1;
 export const ASSET_BASE = 0x300000;
 export const TILE_WORDS = TILE_BANK_WORDS;      // 256 tiles x 32 words
-export const SPRITE_WORDS = GENERATED_SPRITE_WORDS; // 16 groups x 256
+export const SPRITE_WORDS = GENERATED_SPRITE_WORDS; // 24 groups x 256
 export const PALETTE_WORDS = 48;                // text, art, sprite banks
 export const HEADER_BYTES = 12;
 export const TARGET = path.join(ROOT, 'js', 'deep16_flash_assets.js');

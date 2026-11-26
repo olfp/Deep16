@@ -117,7 +117,7 @@ fit alongside this without a diet).
 ## FiT graphics (text mode, first board build)
 
 **FiT** — *Frogger inspired tile-based* — is the name of this graphics layer:
-the 82×26 tilemap, two 1bpp text pages plus 32-word 4bpp art, 16 sprite pattern groups, the
+the 82×26 tilemap, two 1bpp text pages plus 32-word 4bpp art, 24 sprite pattern groups, the
 three palette banks and the pair-mode text styles. `dvi_tile` is the module
 that implements it.
 
@@ -243,11 +243,15 @@ a tile pixel cost the same lookup:
   `w1 = {group[4:0], free, y[9:0]}`. Only eight are visible at a time; slot
   `n` reads descriptor `(oam_base + n) % 64`, and control 5 bits 7:2 hold the
   base.
-* **Pattern bank** at `0xF4000..0xF4FFF`: 16 groups x 16 8x8 4bpp patterns
-  (4,096 words). A 32x32 sprite is 16 tiles; `tile = group*16 + (row/8)*4 +
+* **Pattern bank** at `0xF4000..0xF57FF`: 24 groups x 16 8x8 4bpp patterns
+  (6,144 words). A 32x32 sprite is 16 tiles; `tile = group*16 + (row/8)*4 +
   column`, `word = tile*16 + (row%8)*2 + half`. The window is flat: the OAM
   group and the CPU offset are the same absolute index, and control 5 is a
-  legacy no-op.
+  legacy no-op. The bank is two arrays (4,096 + 2,048 words) read through one
+  2:1 mux: a single 6,144-word array makes the tool widen the read mux and
+  costs over 300 logic cells. The address itself is a pure field
+  concatenation, `{group, row[4:3], lw[2:1], row[2:0], lw[0]}` (lw is the
+  4-pixel column word), so the loader needs no adder.
 * **Per-line row cache.** During the blanking the loader fetches the eight
   4-pixel words of each sprite's row into an 8x8x16 row cache (the flow infers
   distributed RAM: eight read ports, one write port). The fill selects the

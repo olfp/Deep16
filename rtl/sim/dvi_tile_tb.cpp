@@ -59,7 +59,7 @@ static void write_tile(int addr, uint16_t data) {
 }
 
 // Every window shares the same write shape; the address is the offset into
-// the window (16 groups x 256 words fit in the 12-bit window).
+// the window (24 groups x 256 words fit in the 13-bit window).
 static void write_win(int tgt, int addr, uint16_t data) {
   top->cpu_we = 1; top->cpu_ctrl = 0; top->cpu_tgt = tgt;
   top->cpu_addr = addr & 0x1FFF; top->cpu_data = data;
@@ -654,8 +654,8 @@ int main(int argc, char** argv) {
   check("vblank level is observable", vblank_seen ? 1 : 0, 1);
   check("frame toggle changes across frames", ft_changes >= 1 ? 1 : 0, 1);
 
-  // ---- flat sprite groups: all 16 in one window --------------------------
-  // The CPU window covers the whole 16-group bank (4,096 words); the OAM group
+  // ---- flat sprite groups: all 24 in one window --------------------------
+  // The CPU window covers the whole 24-group bank (6,144 words); the OAM group
   // pointer is absolute and control 5 no longer pages the pattern bank.
   write_ctrl(8, 0);                          // map write page 0
   for (int w = 0; w < 64; w++) write_win(2, 8 * 256 + w, 0x0444);   // group 8, entry 4
@@ -665,25 +665,24 @@ int main(int argc, char** argv) {
   check("group 8 written in the flat window (blue)",
         r * 1000 + g * 10 + b, 0 * 1000 + 0 * 10 + 255);
 
-  // Group 15 is the last one; the store at offset 15*256 is inside the 12-bit
-  // window. Group 16 is out of range and must not draw.
-  write_win(3, 0xA5, 0x00E0);               // sprite entry 5 = full red
-  for (int w = 0; w < 64; w++) write_win(2, 15 * 256 + w, 0x0555);
-  write_win(3, 1, 160 | (15 << 11));         // y=160, absolute group 15
+  // Group 23 is the last one; the store at offset 23*256 is inside the 13-bit
+  // window. Palette 4 is blue, so a blue pixel proves the group drew.
+  for (int w = 0; w < 64; w++) write_win(2, 23 * 256 + w, 0x0444);
+  write_win(3, 1, 160 | (23 << 11));         // y=160, absolute group 23
   sample_pixel(17, 160, &r, &g, &b, &seen);
-  check("group 15 (last) written in the flat window (red)",
-        r * 1000 + g * 10 + b, 255 * 1000 + 0 * 10 + 0);
+  check("group 23 (last) written in the flat window (blue)",
+        r * 1000 + g * 10 + b, 0 * 1000 + 0 * 10 + 255);
 
   write_win(3, 1, 160 | (0 << 11));          // same sprite, absolute group 0
   sample_pixel(17, 160, &r, &g, &b, &seen);
   check("absolute group 0 selects the group 0 pattern (green)",
         r * 1000 + g * 10 + b, 0 * 1000 + 255 * 10 + 0);
 
-  // A group past the 16-group bank disables the sprite; page 3 is not a
+  // A group past the 24-group bank disables the sprite; page 3 is not a
   // valid write page and clamps to 0.
-  write_win(3, 1, 160 | (16 << 11));
+  write_win(3, 1, 160 | (28 << 11));
   sample_pixel(17, 160, &r, &g, &b, &seen);
-  check("group 16 is out of range and draws nothing",
+  check("group 28 is out of range and draws nothing",
         r * 1000 + g * 10 + b, 255 * 1000 + 0 * 10 + 0);
 
   // The legacy page has no effect on where a store lands: with page 2

@@ -164,10 +164,10 @@ What is in it:
   60) as black-and-white DVI. It parses the ANSI the kernel emits, scrolls with a
   circular row offset and draws a block cursor. Two BSRAM blocks; no CPU cost and
   no PSRAM traffic. `ver` works as usual, and `FORTH.md` has the word list.
-- **Resources.** The archived packed build baked the image into BSRAM: Logic
-  8,173 / 8,640 (95 %), CLS 4,211 / 4,320 (98 %), registers 2,577 / 6,771,
-  **BSRAM 23/26** (five-block tilemap + 8 tilefont + 4 sprite + 2 cache data
-  + cache tags + line buffers + scene; I2S FIFO in SSRAM), 0 TNS.
+- **Resources.** The tile build: Logic 8,369 / 8,640 (97 %), CLS 4,239 / 4,320
+  (98 %), registers 2,821 / 6,771, **BSRAM 26/26** (five-block tilemap + 8
+  tilefont + 6 sprite + 2 cache data + cache tags + line buffers + scene +
+  I2S FIFO), 0 setup violations.
 - **Archived:** the 24K BSRAM builds (`synth:board`, `synth:flash`,
   `synth:tile:packed`) and their `sim:board`/`sim:flash` regressions are retired;
   see `archive/24k-bsram/README.md`. The tile build is the board.

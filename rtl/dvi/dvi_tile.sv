@@ -89,10 +89,10 @@ module dvi_tile #(
   localparam int TM_WORDS   = TILE_COLS * TILE_ROWS;                // 2,132
   localparam int TM_AW      = 12;
   // The CPU windows match the arrays exactly: 256 x 32 words is 13 bits, and
-  // 16 groups x 256 words is 12 bits, so every address in a window is valid.
+  // 24 groups x 256 words is 13 bits, so every address in a window is valid.
   localparam int TILE_WORDS = TILE_COUNT * 32;                      // 8,192
-  localparam int SPR_GROUPS = 16;
-  localparam int SPR_WORDS  = SPR_GROUPS * 256;                    // 4,096
+  localparam int SPR_GROUPS = 24;
+  localparam int SPR_WORDS  = SPR_GROUPS * 256;                    // 6,144
   localparam int NSPR       = 8;                                  // visible sprites
   localparam int OAM_DESCS  = 64;                                 // descriptor bank
   localparam int OAM_WORDS  = OAM_DESCS * 2;                      // 128 words
@@ -226,7 +226,11 @@ module dvi_tile #(
   end
 
   logic [15:0] tilefont [0:TILE_WORDS-1];
-  logic [15:0] sprite   [0:SPR_WORDS-1];
+  // Two power-of-two arrays instead of one 6,144-word array: the tool infers
+  // 1Kx16 blocks cleanly for both, and the read is a single 2:1 mux on the
+  // top address bit (groups 0..15 low, 16..23 high).
+  logic [15:0] sprite_lo [0:4095];
+  logic [15:0] sprite_hi [0:2047];
   // One 1,024 x 16 BSRAM holds the sprite descriptors and the palettes:
   //   word   0..127  64 OAM descriptors x 2 words
   //   word 128..639  palette set 0..7 x bank 0..3 x entry 0..15
@@ -237,7 +241,8 @@ module dvi_tile #(
   logic [7:0]  linebuf  [0:LB_DEPTH-1];
   initial begin
     $readmemh("tilefont.hex", tilefont);
-    $readmemh("birdsprite.hex", sprite);
+    $readmemh("birdsprite_lo.hex", sprite_lo);
+    $readmemh("birdsprite_hi.hex", sprite_hi);
     $readmemh("tilepal3.hex", scene_mem);
   end
 
@@ -254,7 +259,7 @@ module dvi_tile #(
   logic [7:0]   spon_bits, spbh_bits, sphf_bits;
 
   // Sprite bank read port (one word fetched per loader request).
-  logic [11:0] spr_raddr;
+  logic [12:0] spr_raddr;
   logic [15:0] spr_q;
 
 
@@ -268,7 +273,7 @@ module dvi_tile #(
   // scroll registers; all other writes go to the window selected by cpu_tgt:
   //   0 tilemap   0xF1000..  (2,132 words)
   //   1 tile bank 0xF3000..  (256 x 32 words, page-selected writes)
-  //   2 sprites   0xF4000..  (16 groups x 16 patterns x 16 words, 4,096)
+  //   2 sprites   0xF4000..  (24 groups x 16 patterns x 16 words, 6,144)
   //   3 OAM/pal   0xF6000..  (OAM 0x00..0x0F, palette 0x80..0x27F:
   //                           8 sets x 4 banks x 16 entries)
   logic [4:0] row_off;
@@ -326,7 +331,8 @@ module dvi_tile #(
                 endcase
               end
         2'd1: tilefont[(tile_wpage ? 13'd4096 : 13'd0) + 13'(cpu_addr[11:0])] <= cpu_data;
-        2'd2: sprite[cpu_addr[11:0]] <= cpu_data;
+        2'd2: if (cpu_addr[12]) sprite_hi[cpu_addr[10:0]] <= cpu_data;
+              else              sprite_lo[cpu_addr[11:0]] <= cpu_data;
         2'd3: begin
           if (cpu_addr < 13'(OAM_WORDS))
             scene_mem[{3'b0, cpu_addr[6:0]}] <= cpu_data;
@@ -342,7 +348,8 @@ module dvi_tile #(
     tq2 <= tmap2[tm_raddr_all[9:0]];
     tq3 <= tmap3[tm_raddr_all[9:0]];
     tq4 <= tmap4[tm_raddr_all[7:0]];
-    spr_q <= sprite[spr_raddr];
+    spr_q <= spr_raddr[12] ? sprite_hi[spr_raddr[10:0]]
+                           : sprite_lo[spr_raddr[11:0]];
   end
 
   // One request per visit to the compare line. The match is a level that can
@@ -928,25 +935,25 @@ module dvi_tile #(
   logic [2:0]  lspr;
   logic [3:0]  lw;
   logic [9:0]  lline;
-  logic [3:0]  lgrp;
+  logic [4:0]  lgrp;
   logic        lcap;
   logic [4:0]  lrow;
-  logic [11:0] laddr;
+  logic [12:0] laddr;
   logic [15:0] loam0, loam1;
 
   wire [6:0]  om_addr = {oam_desc, oam_phase};
   wire [4:0]  loam_group = loam1[15:11];
-  wire        loam_group_ok = (loam_group < 5'd16);
+  wire        loam_group_ok = (loam_group < 5'd24);
 
   assign spr_raddr = laddr;
 
-  logic [7:0] ltile;
+  // Word = group*256 + (row/8)*64 + (column/4)*16 + (row%8)*2 + (column%4)/4.
+  // Those five fields sit on disjoint address bits, so the address is a plain
+  // concatenation and needs no adder.
   always_comb begin
-    ltile = 8'({1'b0, lgrp, 4'b0} + {5'b0, lrow[4:3], 2'b0} +
-                   {7'b0, lw[2:1]});
-    laddr = 12'd0;
+    laddr = 13'd0;
     if (lstate == L_REQ)
-      laddr = 12'({ltile, 4'd0} + {9'd0, lrow[2:0], 1'b0} + {12'd0, lw[0]});
+      laddr = {lgrp, lrow[4:3], lw[2:1], lrow[2:0], lw[0]};
   end
 
   always_ff @(posedge clk_render) begin
@@ -956,7 +963,7 @@ module dvi_tile #(
       oam_desc <= 6'd0;
       for (int i = 0; i < NSPR; i++)
         for (int j = 0; j < 8; j++) spw[i][j] <= 16'd0;
-      lgrp <= 4'd0; lcap <= 1'b0; lrow <= 5'd0;
+      lgrp <= 5'd0; lcap <= 1'b0; lrow <= 5'd0;
       for (int i = 0; i < NSPR; i++) begin
         spx0_bits[i*11 +: 11] <= 11'd0;
         spon_bits[i] <= 1'b0; spbh_bits[i] <= 1'b0; sphf_bits[i] <= 1'b0;
@@ -985,7 +992,7 @@ module dvi_tile #(
           lstate <= L_SPR;
         end
         L_SPR: begin
-          lgrp <= loam_group[3:0];
+          lgrp <= loam_group;
           if (!loam0[11] || !loam_group_ok || (lline < loam1[9:0]) ||
               ((lline - loam1[9:0]) >= 10'd32)) begin
             spon_bits[lspr] <= 1'b0;

@@ -43,7 +43,7 @@ State, mirroring `rtl/dvi/dvi_tile.sv`:
 |---|---|---|
 | `tilemap[2]` | 2 x 2,132 words | `0xF1000..0xF1853`, bank from control 4 b0 |
 | `tileBank` | 8,192 words (256 tiles x 32) | `0xF3000..0xF3FFF`, page in control 5 b12 |
-| `spriteBank` | 4,096 words (16 groups x 256) | `0xF4000..0xF4FFF` |
+| `spriteBank` | 6,144 words (24 groups x 256) | `0xF4000..0xF57FF` |
 | `oam` | 128 words (64 descriptors x 2) | `0xF6000..0xF607F` |
 | `palette` | 512 x RGB332 (8 sets x 4 banks) | `0xF6080..0xF627F` |
 | controls | cursor, `row_off`, `scroll_x_next`, `scroll_y`, write/display page | `0xF2000..0xF2008` |

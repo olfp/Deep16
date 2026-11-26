@@ -161,9 +161,10 @@ art bank (`0xF6090`) and text bank (`0xF6080`) are separate.
 
 ## 8. Build and flash
 
-`birdsprite.hex` is baked into the sprite bank at synthesis
-(`$readmemh("birdsprite.hex", sprite)` in `rtl/dvi/dvi_tile.sv`), and
-`make_image.mjs` regenerates it. A CPU-image-only rebuild is **not** enough:
+`birdsprite_lo.hex` and `birdsprite_hi.hex` are baked into the sprite bank at
+synthesis (`$readmemh` in `rtl/dvi/dvi_tile.sv`), and `make_image.mjs`
+regenerates them (plus the full `birdsprite.hex` for archives). A
+CPU-image-only rebuild is **not** enough:
 
 ```
 npm test

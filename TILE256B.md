@@ -1,16 +1,19 @@
-# TILE256B — Route B implementation plan: 16 sprite groups + 256 tiles
+# TILE256B — 256 tiles, and the sprite bank back at 24 groups
 
-Status: **Phase 2 and Phase 3 implemented (2026-11-24).** Phase 3 synthesis:
-**23 SDPB**, CLS 4,316 / 4,320, logic 8,584 / 8,640, registers 2,818.
-The text pages also carry the seven German glyphs at slots 96..102.
-Pole is excluded from the default image and slice set until ported.
+Status: **implemented.** Phase 2/3 shipped 16 sprite groups; Phase 5 restored
+24 after the 8 KB cache experiment showed the freed blocks bought no speed.
+Final synthesis: **26 SDPB / 26**, CLS 4,239 / 4,320, logic 8,369 / 8,640,
+registers 2,821.
+The text pages carry the seven German glyphs at slots 96..102.
+Pole is excluded from the default image and slice set, developer-only.
 Parent analysis: `TILE256.md`. Related: `MEMMAP.md` §7.4,
 `doc/FiT-Graphics-howto.md`, `rtl/dvi/dvi_tile.sv`, `rtl/deep16_top.sv`,
 `asm/showcase/flappy_game.asm`, `asm/showcase/pacman_game.asm`.
 
 ## 1. Decision
 
-Route B funds 256 tiles by cutting the sprite bank from 24 to 16 groups:
+Phase 3 funded 256 tiles by cutting the sprite bank from 24 to 16 groups
+(Phase 5 restored it; see §7):
 
 | Change | SDPB |
 |---|---:|
@@ -97,14 +100,14 @@ frame conventions before the bank shrinks.
 
 ### 3.2 Baked bird bank and Flappy source
 
-`scripts/make_bird_sprite.mjs` emits two products:
+`scripts/make_bird_sprite.mjs` keeps 24 groups (6,144 words) for Flappy's
+source pack, and Flappy still copies one 2,048-word page into groups 0..7.
 
-- `birdSpriteWords()` keeps 24 groups (6,144 words) for Flappy's source pack.
-- `bakedBirdSpriteWords()` returns 4,096 words: the red page at groups 0..7
-  plus zeros.
-- `writeBirdSprite()` writes the 4,096-word baked bank; `birdsprite.hex` is
-  half its old size.
-- Flappy keeps its 6,144-word source pack and copies one 2,048-word page.
+Phase 3 baked only the red page (4,096 words). Phase 5 restored the full
+three-page bank, so `bakedBirdSpriteWords()` returns all 6,144 words again,
+split into `birdsprite_lo.hex` (groups 0..15) and `birdsprite_hi.hex`
+(groups 16..23) for the two RTL arrays. `birdsprite.hex` remains the full
+file for tooling and archives.
 
 The menu is plain text and does not depend on the baked bird/cloud page.
 
@@ -255,14 +258,69 @@ Added or updated coverage:
 | Slices | `scripts/make_slices.mjs`, `screens/flash/*.fth`, game binaries |
 | Docs/tests | `TILE256.md`, `TILE256B.md`, `MEMMAP.md`, `HARDWARE.md`, `tests/pacman.test.js`, `tests/showcase-*.test.js`, `tests/pole-*.test.js` |
 
-## 7. Acceptance
+## 7. Phase 5 — restore the 24-group sprite bank
+
+The 8 KB PSRAM cache experiments are recorded in `rtl/psram/README.md`:
+4-word lines were **4.1 % slower**, and 2-word lines were only 1.2 % faster
+while taking 26/26 blocks. Neither justified the 16-group sprite cut, so the
+bank went back to 24 groups (6,144 words, `0xF4000..0xF57FF`).
+
+The first attempt made one 6,144-word array and failed synthesis at
+**8,676 logic / 8,640** with the I2S FIFO in BSRAM, and 8,761 with it in SSRAM.
+The cause was not the extra address bit: a depth that is not a power of two
+makes the tool widen the BSRAM read mux, costing over 300 cells.
+
+Splitting the bank into two power-of-two arrays fixes it:
+
+- `sprite_lo[0:4095]` = groups 0..15 (4 SDPB)
+- `sprite_hi[0:2047]` = groups 16..23 (2 SDPB)
+- one 2:1 output mux, selected by `laddr[12]` (= group bit 4)
+- `birdsprite_lo.hex` / `birdsprite_hi.hex` are written by
+  `scripts/make_bird_sprite.mjs`; the full `birdsprite.hex` is still emitted
+  for tooling and archives
+
+The sprite word address needs no adder at all: the group, row and column
+fields occupy disjoint bits, so
+`laddr = {group, row[4:3], lw[2:1], row[2:0], lw[0]}`.
+
+Final build:
+
+| Resource | Result |
+|---|---|
+| BSRAM | **26 / 26 SDPB** |
+| CLS | **4,239 / 4,320** |
+| Logic | **8,369 / 8,640** |
+| Registers | **2,821 / 6,771** |
+| SSRAM | 178 RAM16 |
+| Setup violations | 0 |
+
+The 26 blocks are tilemap 5, tilefont 8, sprite 6, line buffers 2,
+scene/OAM-palette 1, I2S FIFO 1, PSRAM data 2 and PSRAM tags 1. The I2S FIFO
+went back to BSRAM: with the 24-group bank the SSRAM version counts
+8,480 logic and 4,320 CLS, then fails placement with 8 LUTs unplaced.
+
+**Hardware (2026-11-25).** The config flash at `0x100000`/`0x200000` was
+written with the 76 KB boot image and 57 slices (both read back byte-identical),
+and the board booted after a power cycle: LED 0 slow blink (`boot_done`), menu
+text, then Flappy. The PS/2 bring-up needed its own fix: the old init sent the
+reset during the keyboard's BAT, never saw an ACK, and then skipped the enable,
+so some cold boots came up with no keyboard. The new sequence (1.2 s settle,
+one reset, 0.8 s BAT guard, 8 x `0xF4`, ACK-independent; see `PS2PLAN.md`)
+started the keyboard on **five cold power cycles in a row**. That exercises the 4 KB cache (the kernel runs from PSRAM),
+the five-block tilemap and the sprite loader. Groups 16..23 are covered by
+`npm run sim:dvi:tile` (group 23 drawn from palette 4) and by the CPU window
+test; no shipped game uses them yet, they are there for Pole.
+
+## 8. Acceptance
 
 - Phase 2 synthesis: **22 SDPB**, timing clean.
-- Phase 3 synthesis: **23 SDPB** after the tilemap segmentation, 4 KB cache and
-  I2S SSRAM move, timing clean.
+- Phase 3 synthesis: **23 SDPB** after the tilemap segmentation and 4 KB
+  cache, with the I2S FIFO in SSRAM.
+- Phase 5 synthesis: **26 SDPB**, 24 sprite groups, I2S FIFO back in BSRAM,
+  0 setup violations.
 - 256 tiles render, text page unchanged, page bit works, the seven German
-glyphs render, Flappy/Pac/Frogger behave. Pole is excluded from the default image and slice set; its cells use
-  the clean format, but its 18 sprite groups still need a 16-group port before
-  it is safe to ship.
+glyphs render, Flappy/Pac/Frogger behave. Pole is excluded from the default
+  image and slice set as developer-only; its 18 groups would fit the 24-group
+  bank but it has not been re-enabled.
 - `npm test` green; the RTL tile console covers 256-tile art, text styles and
   the selected sprite pages.

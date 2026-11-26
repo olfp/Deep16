@@ -404,49 +404,77 @@ te-done @ 1 = if te-save else ." discarded" cr then ;
 0x40 constant serial-status
 0x42 constant serial-data
 : serial-emit ( c -- )
+0xF000 seg-base!
 begin serial-status es@ 2 and until
 serial-data es! ;
-: serial-ready? ( -- f ) serial-status es@ 1 and 0<> ;
+: serial-ready? ( -- f )
+0xF000 seg-base!
+serial-status es@ 1 and 0<> ;
 : serial-key ( -- c )
+0xF000 seg-base!
 begin serial-status es@ 1 and until
 serial-data es@ 0xff and ;
+\ Interactive serial input: wait on the UART or the local PS/2 keyboard, so
+\ Ctrl-D (0x04) on the keyboard ends `serial` without a serial line.
+: serial-wait ( -- c )
+begin
+  serial-ready? if serial-key exit then
+  key? if key exit then
+again ;
 0x64 constant echo-flag
-: mirror-on ( -- )  echo-flag es@ 0x80 or echo-flag es! ;
-: mirror-off ( -- ) echo-flag es@ 0x7f and echo-flag es! ;
+: mirror-on ( -- )  0xF000 seg-base! echo-flag es@ 0x80 or echo-flag es! ;
+: mirror-off ( -- ) 0xF000 seg-base! echo-flag es@ 0x7f and echo-flag es! ;
 create serial-buf 128 allot
 variable serial-len drop
 variable serial-echo drop
 : serial-crlf ( -- ) 13 serial-emit 10 serial-emit ;
+\ The prompt and ` ok` go through the console with the mirror bit raised, the
+\ same path the result already uses. Direct serial-emit writes did not reach
+\ the terminal on the board.
+: serial-prompt ( -- )
+0xF000 seg-base!
+echo-flag es@ 0x80 or echo-flag es!
+." ser> "
+0xF000 seg-base! echo-flag es@ 0x7f and echo-flag es! ;
 : serial-eval ( -- )
+0xF000 seg-base!
 echo-flag es@ serial-echo !
 echo-flag es@ 0x80 or echo-flag es!
 serial-buf serial-len @
 ['] evaluate catch ?dup if
 ." serial: error " . cr
 2drop
+else
+." ok" cr
 then
-serial-echo @ echo-flag es! ;
+0xF000 seg-base! serial-echo @ echo-flag es! ;
 : serial ( -- )
 ." serial: interpreted, Ctrl-D exits" cr
 0 serial-len !
+serial-prompt
 begin
-serial-key
-dup 0x04 = if drop exit then
+serial-wait
+dup 0x04 = if
+drop
+cr exit
+then
 dup 0x0d = over 0x0a = or if
 drop
-serial-crlf
+cr                        \ the echo lives on the screen; end its line there
+serial-crlf               \ the terminal line ends on the UART only
 serial-eval
 0 serial-len !
+serial-prompt
 else
 dup 0x08 = over 0x7f = or if
 drop
 serial-len @ if
-8 serial-emit 32 serial-emit 8 serial-emit
+8 emit 32 emit 8 emit
 serial-len @ 1- serial-len !
 then
 else
 dup 32 127 within if
-dup serial-emit
+dup emit                  \ mirror bit is off here: screen echo only
 serial-len @ 128 < if
 serial-buf serial-len @ + c!
 serial-len @ 1+ serial-len !
@@ -495,7 +523,7 @@ dup i + c@ x-run @ swap crc-byte x-run !
 loop drop x-run @ ;
 : x-ack ( -- ) ack serial-emit ;
 : x-nak ( -- ) nak serial-emit ;
-: x-now ( -- ms ) 0x22 es@ ;
+: x-now ( -- ms ) 0xF000 seg-base! 0x22 es@ ;
 : x-unp ( -- )
 66 0 do
 i x-pack + @
@@ -561,7 +589,7 @@ while
 x-len @ 1- x-len !
 repeat ;
 : x-flush-kbd ( -- ) 16 0 do key? if key drop then loop ;
-: x-flush-uart ( -- ) 1 0x46 es! ;
+: x-flush-uart ( -- ) 0xF000 seg-base! 1 0x46 es! ;
 : xmodem ( -- )
   x-flush-kbd
   x-flush-uart

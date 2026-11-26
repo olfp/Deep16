@@ -258,7 +258,7 @@ test('Flappy reinstalls its sprite bank after another game', () => {
   // slice carries the bird/Pac-Man pack at 0x2000 and copies it back on entry.
   const sim = new globalThis.Deep16Simulator();
   placeFlappy(sim);
-  for (let i = 0; i < 4096; i++) sim.memory[0xF4000 + i] = 0xAAAA;
+  for (let i = 0; i < 6144; i++) sim.memory[0xF4000 + i] = 0xAAAA;
   sim.d16nano = true;
   sim.registers[9] = 0;
   sim.registers[10] = 0x04A0;

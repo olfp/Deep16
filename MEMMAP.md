@@ -85,7 +85,7 @@ The `D16SEG` build fixes the layout instead of the constant — see §4.4.
 | `0x0F1000` | display window (screen RAM or tilemap, build-specific) |
 | `0x0F2000`–`0x0F200E` | tile control registers (tile build only) |
 | `0x0F3000`–`0x0F3FFF` | tile bank window, 128 tiles per page; control 5 bit 12 selects tiles 0–127/128–255 (tile build only) |
-| `0x0F4000`–`0x0F4FFF` | sprite pattern bank, all 16 groups (tile build only) |
+| `0x0F4000`–`0x0F57FF` | sprite pattern bank, all 24 groups (tile build only) |
 | `0x0F6000`–`0x0F60FF` | OAM / palette window (tile build only) |
 | `0x0F8000` | BIOS entry in the 1 MiB screen build |
 | `0x0FFFF0`–`0x0FFFFF` | 16-word boot ROM |
@@ -232,8 +232,8 @@ Each of those blocks carries its tile art at segment offset `0x1000` (magic
 bank before entering the game, because the three art sets overlap (14 + 24 +
 79 tiles in 79 usable slots). The bitstream bakes only the console font.
 
-Pole is **developer-only** and is not in the default slice image: its 18
-sprite groups do not fit the 16-group bank. Build a local image with
+Pole is **developer-only** and is not in the default slice image. Build a
+local image with
 `node scripts/make_slices.mjs --with-pole` (or `npm run flash:slices:pole`),
 then launch it with `s" pole" game-run`; the menu no longer binds R. It
 carries its own raw art blocks at `0x1000`/`0x1400`/`0x2600` and copies
@@ -478,7 +478,7 @@ This is the benchmark time base; it is not a writable register.
 ### 7.4 FiT tile engine (`D16nano`/`DVI_TILE`)
 
 **FiT** (*Frogger inspired tile-based*) is the 82×26 tile/sprite layer: tilemap,
-4bpp tile bank, 16 sprite groups, palette banks and text styles. The
+4bpp tile bank, 24 sprite groups, palette banks and text styles. The
 programming guide is [`doc/FiT-Graphics-howto.md`](doc/FiT-Graphics-howto.md).
 
 Each window has a fixed base; the CPU write is forwarded to the tile engine
@@ -496,7 +496,7 @@ and is also a normal PSRAM/Forth store at the same address.
 | `0xF200C` | control 6 | per-row fine scroll: `{en, row[4:0], fine[2:0]}`; latched at the frame boundary. Row 31 is not a tile row: it sets the scroll window `{col[6:0], side}`, where `side` 0 keeps columns `0..col` static (left panel) and 1 keeps the rest static (right panel) |
 | `0xF200E` | control 7 | raster line compare 0..359 (`b9:0`); one SIC bit-3 pulse per frame |
 | `0xF3000`–`0xF3FFF` | tile bank | CPU window over **128 of the 256 tiles** × 32 words (page in control 5 b12): 30 words of 8×15 4bpp, words 30–31 reserved (currently zero). Tiles 128–131 hold the German regular/italic glyph extras |
-| `0xF4000`–`0xF4FFF` | sprite bank | **all 16 groups** × 16 patterns × 16 words = 4,096 words, contiguous; the OAM group is absolute. Control 5 is a compatibility no-op. |
+| `0xF4000`–`0xF57FF` | sprite bank | **all 24 groups** × 16 patterns × 16 words = 6,144 words, contiguous; the OAM group is absolute. Control 5 is a compatibility no-op. |
 | `0xF6000`–`0xF607F` | OAM | 64 descriptors × 2 words: `w0={behind,vflip,hflip,free,enable,xsign,x[9:0]}`, `w1={group[4:0],free,y[9:0]}`. Visible slot `n` = descriptor `(base+n) mod 64` |
 | `0xF6080`–`0xF627F` | palettes | 8 sets × 4 banks × 16 entries: set `s`, bank `b` (0 text, 1 art, 2 sprite, 3 spare), entry `e` at `0xF6080 + s*64 + b*16 + e`. Set 0 is the old text/art/sprite layout |
 | rest of `0xF6280`–`0xF62FF` | — | reserved |

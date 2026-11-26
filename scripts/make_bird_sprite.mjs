@@ -22,7 +22,7 @@ export const DIZZY_GROUPS = [3, 4, 5];
 export const CLOUD_GROUP = 2;
 export const SPRITE_GROUPS = 24;          // source pack: three bird pages
 export const SPRITE_WORDS = SPRITE_GROUPS * 16 * 16;
-export const BAKED_SPRITE_GROUPS = 16;    // resident bank
+export const BAKED_SPRITE_GROUPS = 24;    // resident bank
 export const BAKED_SPRITE_WORDS = BAKED_SPRITE_GROUPS * 16 * 16;
 
 function writeFrame(words, group, g) {
@@ -61,21 +61,26 @@ export function birdSpriteWords() {
   return words;
 }
 
-// The bitstream's resident bank is 16 groups. The menu is plain text, so only
-// one default page (red, groups 0..7) is baked; Flappy copies the selected
-// page from its slice at run time.
+// The bitstream's resident bank is 24 groups: all three bird pages and the
+// shared cloud are baked. Flappy still copies its selected page into groups
+// 0..7 at run time, so the baked content is the fallback for other scenes.
 export function bakedBirdSpriteWords() {
-  const out = new Array(BAKED_SPRITE_WORDS).fill(0);
-  const red = birdSpriteWords();
-  for (let i = 0; i < 2048; i++) out[i] = red[i];
-  return out;
+  return birdSpriteWords();
 }
+
+const hex = (words) =>
+  words.map((w) => w.toString(16).padStart(4, '0')).join('\n') + '\n';
 
 export function writeBirdSprite(outDir) {
   const words = bakedBirdSpriteWords();
   fs.mkdirSync(outDir, { recursive: true });
-  fs.writeFileSync(path.join(outDir, 'birdsprite.hex'),
-                   words.map((w) => w.toString(16).padStart(4, '0')).join('\n') + '\n');
+  // The RTL keeps the bank as two power-of-two arrays (4,096 + 2,048 words).
+  // One 6,144-word array makes the tool fall back to a much wider read mux
+  // and costs over 300 logic cells, so the split is a resource decision, not
+  // a cosmetic one. The single full file stays for tooling and archives.
+  fs.writeFileSync(path.join(outDir, 'birdsprite.hex'), hex(words));
+  fs.writeFileSync(path.join(outDir, 'birdsprite_lo.hex'), hex(words.slice(0, 4096)));
+  fs.writeFileSync(path.join(outDir, 'birdsprite_hi.hex'), hex(words.slice(4096)));
   return words.length;
 }
 
@@ -83,5 +88,5 @@ const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPat
 if (isMain) {
   const out = path.resolve(process.argv[2] ?? path.join(ROOT, 'artifacts', 'image'));
   const n = writeBirdSprite(out);
-  console.log(`wrote ${path.relative(ROOT, out)}/birdsprite.hex (${n} words, one baked page; Flappy source has three)`);
+  console.log(`wrote ${path.relative(ROOT, out)}/birdsprite.hex (${n} words, three pages + cloud)`);
 }

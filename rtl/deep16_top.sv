@@ -640,7 +640,7 @@ module deep16_top
   // fixed base, so the decode is one comparison per window; the tile engine
   // gets a 2-bit target:
   //   0xF1000  tilemap (82x26)     0xF3000  tile bank (128 x 32, all writable)
-  //   0xF4000  sprite bank (16 groups, 4,096 words = 0xF4000..0xF4FFF)
+  //   0xF4000  sprite bank (24 groups, 6,144 words = 0xF4000..0xF57FF)
   //   0xF6000  OAM (0x000..0x00F), palettes (0x080..0x27F, 8 sets x 4 banks)
   //   0xF2000/2/4/6  cursor, row offset, scroll_x, scroll_y
   //   0xF2008        tilemap page select (bit 0 write, bit 1 display)
@@ -649,7 +649,7 @@ module deep16_top
   //   0xF200E        control 7: raster line compare
   wire tile_hit = mem_we && (mem_waddr >= 21'h0F1000) && (mem_waddr <= 21'h0F1853);
   wire bank_hit = mem_we && (mem_waddr >= 21'h0F3000) && (mem_waddr <= 21'h0F3FFF);
-  wire spr_hit  = mem_we && (mem_waddr >= 21'h0F4000) && (mem_waddr <= 21'h0F4FFF);
+  wire spr_hit  = mem_we && (mem_waddr >= 21'h0F4000) && (mem_waddr <= 21'h0F57FF);
   wire attr_hit = mem_we && (mem_waddr >= 21'h0F6000) && (mem_waddr <= 21'h0F627F);
   wire ctrl_hit = mem_we && ((mem_waddr == 21'h0F2000) || (mem_waddr == 21'h0F2002) ||
                              (mem_waddr == 21'h0F2004) || (mem_waddr == 21'h0F2006) ||
@@ -658,9 +658,10 @@ module deep16_top
   assign tile_we   = tile_hit || bank_hit || spr_hit || attr_hit || ctrl_hit;
   assign tile_ctrl = ctrl_hit;
   assign tile_tgt  = tile_hit ? 2'd0 : bank_hit ? 2'd1 : spr_hit ? 2'd2 : 2'd3;
-  // Every window is now 4 KiB or smaller, so its offset is the low 12 bits
-  // of the CPU address.
-  assign tile_addr = ctrl_hit ? {9'd0, mem_waddr[3:0]} : {1'b0, mem_waddr[11:0]};
+  // The sprite bank is the only window over 4 KiB: it spans 6,144 words and
+  // needs the 13th address bit. Every other window is 4 KiB or smaller.
+  assign tile_addr = ctrl_hit ? {9'd0, mem_waddr[3:0]} :
+                     spr_hit ? mem_waddr[12:0] : {1'b0, mem_waddr[11:0]};
   assign tile_data = mem_wdata;
 `endif
 

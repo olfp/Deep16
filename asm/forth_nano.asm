@@ -12980,19 +12980,17 @@ bdos_ps2_init:
     JZ bps2_done
     NOP
 
-    LDI 300                  ; settle before the first reset frame
+    ; The keyboard's power-on self test can take over a second. Wait it out
+    ; before the first command, so a 0xFF reset does not land in the middle of
+    ; it. After the settle, reset once: that provokes a fresh BAT (the LED
+    ; blink) on a keyboard that missed its own power-on test.
+    LDI 1200
     MOV R1, R0
     LDI bps2_wait_ticks
     MOV R4, R0
     LINK
     JMP R4
     NOP
-
-    LDI 0x2FB2
-    MOV R2, R0
-    LSI R3, 4
-    STS R3, CS, R2
-bps2_reset:
     LDI 0xFF
     MOV R1, R0
     LDI bps2_send
@@ -13000,52 +12998,20 @@ bps2_reset:
     LINK
     JMP R4
     NOP
-    AND R0, R0
-    JNZ bps2_reset_ok
-    NOP
-    LDI 300                  ; ~0.3 s between reset attempts
+    LDI 800                  ; let the BAT finish
     MOV R1, R0
     LDI bps2_wait_ticks
     MOV R4, R0
     LINK
     JMP R4
     NOP
+
+    ; Enable (0xF4) blindly, several times. Do not wait for the ACK frame:
+    ; the receiver can miss it while the keyboard still enables and scans.
+    ; Eight tries over about two seconds cover a keyboard that comes up late.
     LDI 0x2FB2
     MOV R2, R0
-    LDS R3, CS, R2
-    SUB R3, 1
-    STS R3, CS, R2
-    AND R3, R3
-    JNZ bps2_reset
-    NOP
-    LDI bps2_flush
-    MOV PC, R0
-    NOP
-bps2_reset_ok:
-    LDI 1000                 ; ACK, then BAT, each up to a second
-    MOV R1, R0
-    LDI bps2_wait_frame
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    LDI 1000
-    MOV R1, R0
-    LDI bps2_wait_frame
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    LDI 400                  ; let the self test finish
-    MOV R1, R0
-    LDI bps2_wait_ticks
-    MOV R4, R0
-    LINK
-    JMP R4
-    NOP
-    LDI 0x2FB2
-    MOV R2, R0
-    LSI R3, 4
+    LSI R3, 8
     STS R3, CS, R2
 bps2_enable:
     LDI 0xF4
@@ -13055,12 +13021,9 @@ bps2_enable:
     LINK
     JMP R4
     NOP
-    AND R0, R0
-    JZ bps2_flush
-    NOP
-    LDI 400
+    LDI 250
     MOV R1, R0
-    LDI bps2_wait_frame
+    LDI bps2_wait_ticks
     MOV R4, R0
     LINK
     JMP R4

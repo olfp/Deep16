@@ -308,7 +308,8 @@ test('control 5 still latches but no longer pages the sprite window', () => {
   // group 0 (the old paging would have written group 16).
   for (let i = 0; i < 256; i++) engine.write(0xF4000 + i, 0x1111);
   assert.equal(engine.spriteBank[0], 0x1111);
-  assert.equal(engine.spriteBank[16 * 256], undefined);
+  assert.equal(engine.spriteBank[16 * 256], 0);
+  assert.equal(engine.spriteBank[24 * 256], undefined);
   engine.write(0xF60A1, 0xE0);
   engine.write(0xF6000, 0x0800);
   engine.write(0xF6001, 0);
@@ -316,29 +317,35 @@ test('control 5 still latches but no longer pages the sprite window', () => {
   assert.deepEqual(pixel(engine, 0, 0), [255, 0, 0, 255]);
 });
 
-test('a group at or beyond 16 is disabled', () => {
+test('a group at or beyond 24 is disabled and outside the window', () => {
   const { engine } = loaded();
   for (let i = 0; i < 256; i++) engine.write(0xF4000 + i, 0x1111);
+  // 0xF5800..0xF5FFF is past the 6,144-word window and must be ignored.
+  for (let i = 0; i < 256; i++) engine.write(0xF5800 + i, 0xEEEE);
   engine.write(0xF60A1, 0xE0);
   engine.write(0xF6000, 0x0800);
-  engine.write(0xF6001, 16 << 11);
+  engine.write(0xF6001, 24 << 11);
   engine.render();
-  assert.ok(isBlack(pixel(engine, 0, 0)));
+  assert.ok(isBlack(pixel(engine, 0, 0)), 'group 24 has no pattern data');
+  engine.write(0xF6001, 0);
+  engine.render();
+  assert.deepEqual(pixel(engine, 0, 0), [255, 0, 0, 255], 'group 0 is untouched');
 });
 
-test('the window covers all 16 sprite groups, including group 15', () => {
+test('the window covers all 24 sprite groups, including group 23', () => {
   const { engine } = loaded();
   for (let i = 0; i < 256; i++) engine.write(0xF4000 + i, 0x1111);        // group 0 red
-  for (let i = 0; i < 256; i++) engine.write(0xF4000 + 15 * 256 + i, 0x2222); // group 15 blue
+  for (let i = 0; i < 256; i++) engine.write(0xF4000 + 23 * 256 + i, 0x2222); // group 23 blue
   engine.write(0xF60A1, 0xE0);                    // entry 1 red
   engine.write(0xF60A2, 0x03);                    // entry 2 blue
   engine.write(0xF6000, 0x0800);
   engine.write(0xF6001, 0);
   engine.render();
   assert.deepEqual(pixel(engine, 0, 0), [255, 0, 0, 255]);
-  engine.write(0xF6001, 15 << 11);
+  engine.write(0xF6001, 23 << 11);
   engine.render();
-  assert.deepEqual(pixel(engine, 0, 0), [0, 0, 255, 255], 'group 15 is directly addressable');
+  assert.deepEqual(pixel(engine, 0, 0), [0, 0, 255, 255], 'group 23 is directly addressable');
+  assert.equal(engine.spriteBank.length, 6144);
 });
 
 test('the display bank and scroll_x latch together at tick()', () => {

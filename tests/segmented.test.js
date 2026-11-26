@@ -356,22 +356,42 @@ test('the editors refuse the wrong slice type', () => {
   assert.ok(sim.running);
 });
 
-test('serial interprets the UART stream until Ctrl-D', () => {
-  // The REPL echoes what it reads and runs the line through `evaluate`. The
-  // typed characters go to the serial stream only; the result reaches it too
-  // because `serial` raises ECHO_FLAG bit 7 while it evaluates.
-  for (const ch of '2 3 + .\r') sim.uartRxPush(ch.charCodeAt(0));
+// The serial screen prints its own `> ` prompt, so `line('serial')` stops
+// there. Feed the stream afterwards and pump until the result and the next
+// prompt, so the simulator is left at the interpreter, not inside `serial`.
+function serialRun(text, until) {
+  line('serial');
+  const from = out.length;
+  for (const ch of text) sim.uartRxPush(ch.charCodeAt(0));
   sim.uartRxPush(0x04);
-  const captured = line('serial');
-  assert.match(captured, /2 3 \+ \.\r\n5/, 'the typed line and its result');
+  // The result appears before the serial prompt; keep pumping after it so the
+  // queued Ctrl-D is consumed and the simulator leaves `serial`.
+  let extra = -1;
+  for (let i = 0; i < 8_000_000; i++) {
+    step(1);
+    if (!sim.running) break;
+    const seen = out.slice(from);
+    if (extra < 0 && seen.includes(until)) extra = 200_000;
+    if (extra === 0) break;
+    if (extra > 0) extra--;
+  }
+  return out.slice(from);
+}
+
+test('serial interprets the UART stream until Ctrl-D', () => {
+  // The typed echo is screen-only in the board build (mirror bit 7 clear).
+  // This profile sets CONSOLE_MIRROR, which mirrors every console byte, so the
+  // captured stream also carries the screen echo; the result and prompt are
+  // what this test can pin down here.
+  const captured = serialRun('2 3 + .\r', '5');
+  assert.match(captured, /5/, 'the result reaches the UART');
+  assert.match(captured, /> /, 'a fresh prompt is printed');
   assert.ok(sim.running);
   assert.equal(sim.memory[0xF0064] & 0x80, 0, 'the serial mirror bit is cleared');
 });
 
 test('serial catches a bad line and keeps going', () => {
-  for (const ch of 'nonesuch\r4 5 + .\r') sim.uartRxPush(ch.charCodeAt(0));
-  sim.uartRxPush(0x04);
-  const captured = line('serial');
+  const captured = serialRun('nonesuch\r4 5 + .\r', '9');
   assert.match(captured, /error -13/, 'undefined word is reported');
   assert.match(captured, /9/, 'the next line still runs');
   assert.ok(sim.running);

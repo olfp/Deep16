@@ -1,6 +1,6 @@
 // The type-4 binary slice: Pac-Man, Flappy and Frogger stored in config flash
 // instead of being baked into the image. Pole and its timing harness are
-// opt-in because Pole still needs a 16-group sprite port. Payload cell 0 is
+// opt-in because Pole is developer-only. Payload cell 0 is
 // the magic, then version, entry offset and word count, then the block words
 // (which include the tile pack at 0x1000). A block may span linked
 // continuation slices.

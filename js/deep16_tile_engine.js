@@ -23,7 +23,7 @@ class Deep16TileEngine {
     this.MAP_ROWS = 26;
     this.TILE_COUNT = 256;
     this.TILE_WORDS = 32;
-    this.SPR_GROUPS = 16;
+    this.SPR_GROUPS = 24;
     this.SPR_WORDS = this.SPR_GROUPS * 256;
     this.SPR_WINDOW_WORDS = this.SPR_WORDS;
     this.OAM_DESCS = 64;
@@ -156,7 +156,7 @@ class Deep16TileEngine {
       }
     } else if (addr >= 0xF3000 && addr <= 0xF3FFF) {
       this.tileBank[(this.tilePage ? 4096 : 0) + (addr - 0xF3000)] = value;
-    } else if (addr >= 0xF4000 && addr <= 0xF4FFF) {
+    } else if (addr >= 0xF4000 && addr <= 0xF57FF) {
       this.spriteBank[addr - 0xF4000] = value;
     } else if (addr >= 0xF6000 && addr <= 0xF607F) {
       this.oam[addr - 0xF6000] = value;

@@ -35,10 +35,10 @@ module deep16_i2s #(
   localparam int AW = $clog2(FIFO_DEPTH);
   localparam int LW = $clog2(FIFO_DEPTH + 1);
 
-  (* syn_ramstyle = "distributed_ram" *) logic [15:0] fifo [0:FIFO_DEPTH-1];
-  wire  [15:0] fifo_q = fifo[rd_ptr];
+  logic [15:0] fifo [0:FIFO_DEPTH-1];
   logic [AW-1:0] wr_ptr, rd_ptr;
   logic          full;
+  logic [15:0]   fifo_rdata;
 
   logic enable, irq_en, loop;
   logic underrun;
@@ -47,7 +47,7 @@ module deep16_i2s #(
   logic        bclk_r, lrclk_r, din_r;
   logic [4:0]  bit_cnt;      // 0..31
   logic [15:0] shift, sample_hold;
-  logic        enable_q;
+  logic        enable_q, left_pending;
 
   wire        bclk_half = (div_cnt <= 4'd4);
   wire        edge_fall = (div_cnt == 4'd9);
@@ -67,6 +67,10 @@ module deep16_i2s #(
   // ---- FIFO -------------------------------------------------------------
   always_ff @(posedge clk) begin
     if (we && addr == 4'h0 && !full) fifo[wr_ptr] <= wdata;
+  end
+
+  always_ff @(posedge clk) begin
+    if (pop) fifo_rdata <= fifo[rd_ptr];
   end
 
   always_ff @(posedge clk) begin
@@ -124,6 +128,7 @@ module deep16_i2s #(
       shift   <= 16'h0000;
       sample_hold <= 16'h0000;
       enable_q    <= 1'b0;
+      left_pending <= 1'b0;
     end else begin
       enable_q <= enable;
       if (!enable) begin
@@ -139,6 +144,12 @@ module deep16_i2s #(
         else if (edge_fall) div_cnt <= 4'd0;
         else                div_cnt <= div_cnt + 4'd1;
 
+        if (left_pending) begin
+          shift        <= fifo_rdata;
+          sample_hold  <= fifo_rdata;
+          left_pending <= 1'b0;
+        end
+
         if (edge_fall) begin
           din_r <= shift[15];
           if (left_start) begin
@@ -147,8 +158,7 @@ module deep16_i2s #(
               shift       <= 16'h0000;
               sample_hold <= 16'h0000;
             end else begin
-              shift       <= fifo_q;
-              sample_hold <= fifo_q;
+              left_pending <= 1'b1;   // fifo_rdata lands next cycle
             end
           end else if (right_start) begin
             lrclk_r <= 1'b1;

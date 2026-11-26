@@ -249,9 +249,9 @@ Measured with a 500,000-retired-instruction window after boot on the real D16MIN
 machine + behavioural PSRAM: the 2 KB cache ran at **5.092 CPI / 94.24 % hit**;
 the 4 KB cache at **4.616 CPI / 97.34 % hit**. That is **10.3 % fewer cycles**
 for the same instructions (1.103x throughput), with misses falling from 40,109
-to 18,558. A cold-boot run still reports `boot_done=1 boot_err=0`. On the current tile build (5-block tilemap, 4 KB cache): Logic 8,335/8,640
-(96 %), CLS 4,235/4,320 (98 %), registers 2,819/6,771, **BSRAM 23/26** (three
-free); the I2S FIFO is in SSRAM.
+to 18,558. A cold-boot run still reports `boot_done=1 boot_err=0`. On the current tile build (5-block tilemap, 4 KB cache, 24 sprite groups): Logic
+8,369/8,640 (97 %), CLS 4,239/4,320 (98 %), registers 2,821/6,771,
+**BSRAM 26/26** (six of them sprite).
 
 The hit path is three CPU cycles (lookup, compare, present). Presenting from the
 lookup cycle would make it two; that is the next cheap win if it still fits.

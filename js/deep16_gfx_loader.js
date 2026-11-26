@@ -97,7 +97,7 @@ class Deep16GfxLoader {
       write(0xF200A, ctrl5);
     }
 
-    // All 16 sprite groups are contiguous at 0xF4000..0xF4FFF; control 5 is
+    // All 24 sprite groups are contiguous at 0xF4000..0xF57FF; control 5 is
     // no longer needed (and is a compatibility no-op in the RTL).
     for (let i = 0; i < parsed.sprites.length; i++) write(0xF4000 + i, parsed.sprites[i]);
 

@@ -101,9 +101,9 @@ test('the loader writes tiles, sprites and palettes through the CPU windows', ()
   assert.equal(tileWrites[4096][1], parsed.tiles[4096], 'tile 128 starts page 1');
   assert.equal(tileWrites[TILE_WORDS - 1][1], parsed.tiles[TILE_WORDS - 1], 'tile 255 ends it');
 
-  // All 16 sprite groups land in the flat 0xF4000..0xF4FFF window; the legacy
+  // All 24 sprite groups land in the flat 0xF4000..0xF57FF window; the legacy
   // page register is not used at all.
-  const landed = engine.writes.filter(([a]) => a >= 0xF4000 && a <= 0xF4FFF);
+  const landed = engine.writes.filter(([a]) => a >= 0xF4000 && a <= 0xF57FF);
   assert.equal(landed.length, SPRITE_WORDS);
   for (const [addr, value] of landed) {
     assert.equal(value, parsed.sprites[addr - 0xF4000], `sprite offset 0x${(addr - 0xF4000).toString(16)}`);
@@ -143,6 +143,6 @@ test('buildAssetScript carries the counts and base', () => {
   assert.match(script, /const Deep16FlashAssets/);
   assert.match(script, /base: 0x300000/);
   assert.match(script, /tileWords: 8192/);
-  assert.match(script, /spriteWords: 4096/);
+  assert.match(script, /spriteWords: 6144/);
   assert.match(script, /paletteWords: 48/);
 });

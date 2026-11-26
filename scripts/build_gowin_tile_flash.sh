@@ -30,7 +30,7 @@ DYLD_FRAMEWORK_PATH="$GOWIN_EDA/lib" \
 # the bitstream, which would otherwise show the new menu over an old tile bank.
 STAMP="$ROOT/fpga/gowin/impl/pnr/deep16_board_tile_flash.assets.sha256"
 ( cd "$ROOT/artifacts/image" &&
-  shasum -a 256 tilefont.hex birdsprite.hex tilepal3.hex font8x15.hex > "$STAMP" )
+  shasum -a 256 tilefont.hex birdsprite_lo.hex birdsprite_hi.hex tilepal3.hex font8x15.hex > "$STAMP" )
 
 echo "tile configuration: fpga/gowin/impl/pnr/deep16_board_tile_flash.fs"
 echo "boot image:          artifacts/image/image.flash.bin (608 Kbit, config flash 0x100000)"

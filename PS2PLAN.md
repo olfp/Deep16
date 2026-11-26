@@ -92,7 +92,7 @@ ps2-auto
 - The manual `ps2-init` uses the same `ps2-enable`; it now takes ~2.5 s
   instead of ~20 s.
 
-Cost at boot: one 4 KB slice read (`ps2-load`) plus ~2.5 s of settled reset and
+Cost at boot: one 4 KB slice read (`ps2-load`) plus ~4 s of settled reset and
 enable, ahead of `boot.msg`. It is the earliest place available today; the
 boot script itself cannot grow (the image has one word of slack before the
 frogger block at `0x4350`). Phase B removes the wait entirely by polling for
@@ -114,19 +114,25 @@ The block is:
 | BIOS 7 | `ps2-send`: byte in the caller's `R1`, answer in `R0` (1 = clocked, 0 = no keyboard) |
 | BIOS 8 | `ps2-init`: reset + enable, then drain both input queues |
 | `ps2_send` | start + 8 data bits LSB first + odd parity + stop; saves R5/R6 in BIOS cells |
-| `ps2_init` | reset with retries, wait for ACK/BAT, guard, `0xF4` ×4, flush |
+| `ps2_init` | 1.2 s settle, one reset, 0.8 s BAT guard, `0xF4` ×8, flush |
 | `ps2_wait_ticks` | waits N high-word cycle-counter ticks (`0xF006A`) |
 | `ps2_wait_frame` | waits up to N ticks for the `0xF0066` bit-7 toggle |
 
 `binit` runs as soon as the FPGA is configured, which can be before the
-keyboard has finished its own power-on test. The init therefore retries the
-reset while `ps2_send` reports no keyboard clock (four attempts, ~0.3 s
-apart), and the host request holds CLK low for 400 sender-loop iterations
-(>100 µs at 6.75 MHz, with margin). Once a reset is clocked it records the
-`0xF0066` bit-7 toggle and waits for ACK then BAT, with a 1 s cap each,
-followed by a 0.4 s guard before the four `0xF4`s (0.4 s cap each). A late
-keyboard is caught by a retry; a missing one makes the sender time out and the
-init returns to the console.
+keyboard has finished its own power-on test. The init therefore waits **1.2 s**
+first, sends one `0xFF` reset (which also provokes a fresh BAT on a keyboard
+that missed its own), waits another **0.8 s** for that BAT, and then sends
+**`0xF4` up to eight times**, 250 ms apart.
+
+The enable step does not wait for the ACK frame. Hardware showed that a
+keyboard can miss its BAT after a cold power cycle while a reset makes it work,
+and that the receiver can miss the ACK while the keyboard still enables and
+scans (make events arrive, but no `0xFA` is ever seen). Gating the enable on
+the ACK therefore left the keyboard dead after some power cycles. Eight blind
+enables cover the late and the missed-BAT cases; the host request still holds
+CLK low for 400 sender-loop iterations (>100 µs at 6.75 MHz, with margin).
+This was verified on the board: five cold power cycles in a row, keyboard
+working every time.
 
 Register safety: the sender saves the kernel's `R5` (`>IN`) and `R6` (`TIB`)
 and uses `R12` instead of the shared `SCR`; `ps2_init` saves its own `LR`

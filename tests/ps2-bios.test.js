@@ -6,8 +6,9 @@
 // segmented map and emulates the keyboard side of the wire: the host drives
 // CLK/DATA through control 6 (0x200C), the keyboard clocks 11 bits and flips
 // the receiver's frame toggle (0xF0066 bit 7) for every good frame. That is
-// enough to pin the reset/enable order, the ACK/BAT waits and the
-// no-keyboard timeout.
+// enough to pin the settle/reset/enable order and the no-keyboard timeout.
+// The init no longer gates the enable on the ACK frame: a real receiver can
+// miss it, while the keyboard still enables and scans.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -108,21 +109,22 @@ function run({ keyboard = true, erased = false, ignore = 0, maxSteps = 120_000_0
   return { sim, sent, steps, returned: false };
 }
 
-test('BDOS ps2-init sends reset, waits for ACK/BAT, then enables four times', () => {
+test('BDOS ps2-init sends one reset after the settle, then eight enables', () => {
   const r = run();
   assert.equal(r.returned, true, 'ps2-init returned');
-  assert.deepEqual(r.sent, [0xFF, 0xF4, 0xF4, 0xF4, 0xF4]);
+  assert.deepEqual(r.sent, [0xFF, 0xF4, 0xF4, 0xF4, 0xF4, 0xF4, 0xF4, 0xF4, 0xF4]);
   assert.equal(r.sim.segmentRegisters.ES, 0xF000, 'ES back to the I/O segment');
 });
 
-test('BDOS ps2-init retries a reset the keyboard does not clock', () => {
-  const r = run({ ignore: 2, maxSteps: 20_000_000 });
-  assert.equal(r.returned, true, 'the third reset was accepted');
-  assert.deepEqual(r.sent, [0xFF, 0xF4, 0xF4, 0xF4, 0xF4]);
+test('a reset the keyboard does not clock does not stop the enable retries', () => {
+  const r = run({ ignore: 1 });
+  assert.equal(r.returned, true, 'the init continues after a missed reset');
+  assert.deepEqual(r.sent, [0xF4, 0xF4, 0xF4, 0xF4, 0xF4, 0xF4, 0xF4, 0xF4],
+                   'the reset was missed, but every enable was clocked');
 });
 
 test('BDOS ps2-init returns when the keyboard never clocks', () => {
-  const r = run({ keyboard: false, maxSteps: 20_000_000 });
+  const r = run({ keyboard: false, maxSteps: 120_000_000 });
   assert.equal(r.returned, true, 'the sender timeouts let the console continue');
   assert.deepEqual(r.sent, [], 'nothing was clocked');
 });

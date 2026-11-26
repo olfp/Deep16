@@ -37,7 +37,7 @@ tile engine and to the PSRAM/Forth mirror at the same address.
 | `0xF200C` | control 6: per-row fine scroll `{en, row[4:0], fine[2:0]}`; row 31 sets the scroll window `{col[6:0], side}` |
 | `0xF200E` | control 7: raster line compare 0..359 |
 | `0xF3000`–`0xF3FFF` | tile bank, 256 tiles x 32 words; the 4 KiB window covers 128 tiles, control 5 b12 selects the page |
-| `0xF4000`–`0xF4FFF` | sprite bank, all 16 groups x 16 patterns x 16 words |
+| `0xF4000`–`0xF57FF` | sprite bank, all 24 groups x 16 patterns x 16 words |
 | `0xF6000`–`0xF607F` | OAM, 64 descriptors x two words (eight visible) |
 | `0xF6080`–`0xF627F` | 8 palette sets x 4 banks x 16 RGB332 entries |
 | `0xF6280`–`0xF62FF` | reserved |
@@ -475,11 +475,11 @@ Last checked-in synthesis of the current tile build:
 
 | Resource | Used | Available | Free |
 |---|---:|---:|---:|
-| CLS | **4,309** | 4,320 | **11** |
-| Logic | 7,410 | 8,640 | 1,230 |
-| Registers | 3,011 | 6,771 | 3,760 |
+| CLS | **4,239** | 4,320 | **81** |
+| Logic | **8,369** | 8,640 | 271 |
+| Registers | 2,821 | 6,771 | 3,950 |
 | BSRAM | **26** | 26 | **0** |
-| SSRAM | 190 | – | – |
+| SSRAM | 178 | – | – |
 
 ```text
 dvi_render 30.125 MHz
@@ -488,9 +488,9 @@ psram_clk  86.351 MHz
 TNS 0
 ```
 
-The 26-row wrap change is **not** in that measurement. It adds no registers or
-BSRAM, but the wider wrap comparison is combinational and could move CLS by a
-small amount; re-run `npm run synth:tile` before treating 11 free as current.
+This build includes the 26-row wrap, the 4 KB PSRAM cache, the five-block
+tilemap and the 24-group sprite bank (6,144 words in a 4,096 + 2,048 split).
+Re-run `npm run synth:tile` before treating 81 free CLS as current.
 The scroll helper and demo are raw assembly, not part of the FPGA bitstream, so
 they consume CPU time but no FPGA resources.
 
@@ -756,12 +756,12 @@ All sprite memory is word-addressed, written by the CPU like ordinary RAM.
 
 | Address | Words | What |
 |---|---|---|
-| `0xF4000`–`0xF4FFF` | 4,096 | sprite pattern bank, **all 16 groups** |
+| `0xF4000`–`0xF57FF` | 6,144 | sprite pattern bank, **all 24 groups** |
 | `0xF6000`–`0xF607F` | 128 | OAM: 64 descriptors x two words |
 | `0xF6080`–`0xF627F` | 512 | 8 palette sets x 4 banks x 16 entries |
 | `0xF200A` | 1 | control 5: scene select (palette set + OAM base) |
 
-The window at `0xF4000`–`0xF4FFF` covers **all 16 groups** (4,096 words): the
+The window at `0xF4000`–`0xF57FF` covers **all 24 groups** (6,144 words): the
 CPU writes `0xF4000 + group * 256 + ...` directly. Control 5 and the OAM group
 are both absolute, so no paging is involved. Control 5 is still accepted for
 old images (page 3 clamps to 0) but has no effect. OAM is a register file and
@@ -780,7 +780,7 @@ Two words per sprite, sprite 0 first:
 | | 11 | enable |
 | | 10 | negative x |
 | | 9:0 | x, left edge |
-| `w1` | 15:11 | group, absolute 0–15 (16–31 disables the sprite) |
+| `w1` | 15:11 | group, absolute 0–23 (24–31 disables the sprite) |
 | | 10 | free |
 | | 9:0 | y, top edge |
 
@@ -802,21 +802,21 @@ Two words per sprite, sprite 0 first:
 ### 7.3 The pattern bank and its pages
 
 A 32x32 sprite is 16 8x8 patterns of 16 words each, so one group is 256
-words. The bank holds 16 groups, and the OAM group is the flat index:
+words. The bank holds 24 groups, and the OAM group is the flat index:
 
 ```
-absolute group = OAM w1 bits 15:11     (0..15)
+absolute group = OAM w1 bits 15:11     (0..23)
 write offset   = 0xF4000 + group * 256
 ```
 
 The sprite window is flat: the CPU writes the group's own 256 words, and the
 OAM group selects the same index at render time. Control 5 (the old page
-register) is a no-op. The baked bank holds the red Flappy bird page in groups
-0–7 and zeros in 8–15; Flappy copies the selected colour page into groups 0–7
-when the game starts.
+register) is a no-op. The baked bank holds all three bird pages and the shared
+cloud (24 groups); Flappy still copies the selected colour page into groups
+0–7 when the game starts.
 
-The eight OAM slots can therefore each select any of the 16 groups: **8
-visible sprites out of 16 groups (256 patterns)**. More OAM slots would only add more
+The eight OAM slots can therefore each select any of the 24 groups: **8
+visible sprites out of 24 groups (384 patterns)**. More OAM slots would only add more
 simultaneous sprites, not a way to reach the extra art.
 
 Pattern addresses inside a group, for `row` and `col` in 0..31:
@@ -828,7 +828,7 @@ shift = (col % 4) * 4                   ; low nibble is the leftmost pixel
 ```
 
 `group` is the absolute bank group for baking and for a runtime write: the
-`0xF4000`–`0xF4FFF` window covers all 16 groups, so the same `group * 256`
+`0xF4000`–`0xF57FF` window covers all 24 groups, so the same `group * 256`
 offset applies. Control 5 is a legacy no-op and need not be written.
 
 Each word is four pixels. Empty pixels **must be 0** — that is the
@@ -836,13 +836,14 @@ transparent key.
 
 There are two ways to get art into the bank:
 
-* **Bake it into the bitstream.** `rtl/dvi/dvi_tile.sv` does
-  `$readmemh("birdsprite.hex", sprite)` at power-up, so 16 groups are already
-  there. `scripts/make_bird_sprite.mjs` builds that file (and
-  `scripts/make_image.mjs` writes it next to the boot image). This is how the
+* **Bake it into the bitstream.** `rtl/dvi/dvi_tile.sv` loads
+  `birdsprite_lo.hex` and `birdsprite_hi.hex` at power-up (the bank is two
+  arrays, 4,096 + 2,048 words), so all 24 groups are already there.
+  `scripts/make_bird_sprite.mjs` builds both files (and
+  `scripts/make_image.mjs` writes them next to the boot image). This is how the
   three bird pages and the shared cloud ship.
 * **Write it at runtime.** Store words at `0xF4000 + group * 256 + tile * 16 +
-  ...`; the window covers all 16 groups. A write changes the sprite on the next
+  ...`; the window covers all 24 groups. A write changes the sprite on the next
   composed line, so keep two groups as front/back buffers if you redraw
   animated art. The renderer uses the same absolute group in OAM.
 
@@ -932,7 +933,7 @@ frame.
 .equ SEG_OAM  -0x0A00        ; ES 0xF600 -> window 0xF6000 (OAM/palette)
 
 ; 1. (optional) load patterns into 0xF4000 + group*256 + ...
-;    the window covers all 16 groups; or use the baked art.
+;    the window covers all 24 groups; or use the baked art.
 
 ; 3. (optional) set sprite palette entry 2 (the body colour)
     LDI SEG_OAM
@@ -1015,7 +1016,7 @@ in control 5 belongs to the write, not to the OAM.
 | `rtl/dvi/README.md` | DVI builds, timing, resource use, control 6/7 |
 | `scripts/make_tile_font.mjs` | text pages, tile layout, palette file |
 | `scripts/make_art.mjs` | source art to 16-colour RGB332 art tiles |
-| `scripts/make_bird_sprite.mjs` | sprite patterns, 16 groups, `birdsprite.hex` |
+| `scripts/make_bird_sprite.mjs` | sprite patterns, 24 groups, `birdsprite_{lo,hi}.hex` |
 | `scripts/make_pacman_art.mjs` | the maze, dot/ghost/wall tiles, Pac-Man frames |
 | `asm/showcase/pacman_game.asm` | Pac-Man: tilemap maze, HUD, OAM sprite, ghost AI |
 | `asm/showcase/flappy_game.asm` | `sb_emit` (bird), `set_clouds`, `set_palette` |
