@@ -356,6 +356,52 @@ committed before their RTL counterpart is tested.
 
 ### Phase 2 — BDOS → `CS=0x4000`
 
+**What the source actually looks like.** BDOS is not one block. Its 30 handlers
+live in about fifteen `.org` islands, interleaved with Forth words and headers:
+
+* `0x2D4A`–`0x2F3F` — entry, jump table, fns 0–13, `spi_put`/`spi_get`,
+  `slice_read`;
+* `0x3FCD`–`0x417C` — fns 27–29 (`fcreate`/`fdelete`/`fsize`);
+* `0x4680`, `0x4780`, `0x47C0`, `0x4800`, `0x48E0`, `0x4900`, `0x4988`,
+  `0x49A0`, `0x49C3` — serial, SPI, palette/I2S/SIC/sample/gfx, fwrite;
+* `0x1F78` — `bdos_ps2_init`;
+* `0x464E` — `fw_restore` (fwrite), reached through a hard-coded
+  `LDI fw_restore - 0x4000` builder.
+
+Between those islands are Forth wrappers and headers that must stay in `CS=0`
+(`word_serialread`, `word_pal_bank`, `word_bslice`, `word_spi_ctrl`, the
+`h_*` catalog headers, fitdemo). The handlers also depend on kernel-side
+helpers: `slice_read`/`spi_put`/`spi_get` (shared with `word_bslice`),
+`fd_program`/`fd_cmd`/`fd_wait`/`fd_wren` at `0x0475` (shared with the flash
+words), and `bps2_send`/`bps2_wait_ticks` (shared with the PS/2 host code).
+Scratch is **CS-relative**: the 0x3FCD block alone has 31 `CS,` accesses, so
+moving a handler changes which cells it reads unless the cells move too or get
+mirrors. Two hard-coded `-0x4000` address builders (`fw_restore`,
+`fd_pg_part2`) need rebasing.
+
+**Split so each step is independently testable:**
+
+* **2a — enabler (done).** The linker now supports *segment-relative* chapters:
+  the source keeps its in-segment offsets (`.org 0x2D4A` → `PC=0x2D4A` at
+  `CS=0x4000`), and the linker lays that chapter at `(seg << 4) + offset` and
+  returns per-chapter images. `tests/linker.test.js` covers a relative chapter
+  at `CS=0x4000` and keeps the Phase 1 fingerprint. Next: a `bdos_seg` pool
+  entry (`0x4000`) in the kernel chapter and an ABI test that `JML R2` with
+  `R2=0x4000` enters the chapter and returns via `JML R10`.
+* **2b — the dictionary-blocking block.** Move `0x3FCD`–`0x417C`
+  (`fcreate`/`fdelete`/`fsize`) into the BDOS chapter with copies of
+  `slice_read`/`spi_put`/`spi_get` and the `bd_*` cells it touches, and point
+  the kernel jump table at three far trampolines. This is the range that keeps
+  `dict_free` from starting at `0x3FC4`; it is self-contained enough to land
+  first and gives the tests a real far-called handler.
+* **2c — the rest.** Move the entry, table and fns 0–13, then the gap handlers
+  (`0x4680`–`0x49FB`) and `0x1F78`, migrating scratch into the BDOS segment
+  with kernel mirrors for the cells the kernel writes directly. The flash
+  helpers are either duplicated in the BDOS chapter or reached through a
+  kernel shim; decide per helper, not globally.
+
+**Target bullets (2c finishes them):**
+
 * Extract the BDOS block from `asm/forth_nano.asm` into its own source;
   `.org` it at `0x40000` under a `BDOS_BASE` equ. Change `BDOS_JTABLE` entries
   to `handler - BDOS_BASE` and dispatch with `LDS R2,CS,R3` after establishing

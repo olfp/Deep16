@@ -30,7 +30,7 @@ class Deep16Linker {
   }
 
   link({ chapters = [], defines = {}, window = 0x6000, fill = 0xFFFF,
-         imports = {}, pool = null } = {}) {
+         imports = {}, pool = null, flatChapter = null } = {}) {
     if (!this.Assembler) throw new Error('Deep16Linker needs Deep16Assembler');
     const list = chapters.map((chapter) => ({ fill, ...chapter }));
     if (list.length === 0) throw new Error('a link needs at least one chapter');
@@ -66,16 +66,42 @@ class Deep16Linker {
     });
 
     const { memoryChanges, symbols, errors, success } = this.merge(resolved);
-    const words = new Uint16Array(window).fill(fill);
-    const outOfWindow = new Set();
-    const written = new Map();
-    for (const change of memoryChanges) {
-      written.set(change.address, 'chapter');
-      if (change.address >= 0 && change.address < window) {
-        words[change.address] = change.value & 0xFFFF;
-      } else {
-        outOfWindow.add(change.address);
+
+    // Per-chapter images. A relative chapter's assembler addresses are offsets
+    // inside its segment - the form the BDOS move needs, so `.org 0x2D4A`
+    // keeps PC=0x2D4A when the chapter runs at CS=0x4000. An absolute chapter's
+    // addresses are physical, as the flat kernel has always been.
+    const images = list.map((chapter, i) => {
+      const physicalBase = ((chapter.seg << 4) + chapter.base) >>> 0;
+      const image = new Uint16Array(0x10000).fill(chapter.fill);
+      const outside = new Set();
+      let wordCount = 0;
+      for (const change of resolved[i].result.memoryChanges) {
+        const offset = chapter.relative ? change.address : change.address - physicalBase;
+        if (offset < 0 || offset >= 0x10000) {
+          outside.add(chapter.relative ? physicalBase + change.address : change.address);
+          continue;
+        }
+        image[offset] = change.value & 0xFFFF;
+        wordCount++;
       }
+      return { chapter, physicalBase, image, outside, wordCount };
+    });
+
+    const flatIndex = flatChapter
+      ? images.findIndex((entry) => entry.chapter.id === flatChapter)
+      : 0;
+    if (flatIndex < 0) throw new Error(`flat chapter '${flatChapter}' is not in the link`);
+    const flat = images[flatIndex];
+    const words = new Uint16Array(window).fill(fill);
+    for (let i = 0; i < window && i < 0x10000; i++) words[i] = flat.image[i];
+    const outOfWindow = new Set(flat.outside);
+    const flatWritten = new Set();
+    for (const change of resolved[flatIndex].result.memoryChanges) {
+      const offset = flat.chapter.relative
+        ? change.address : change.address - flat.physicalBase;
+      flatWritten.add(offset);
+      if (offset < 0 || offset >= window) outOfWindow.add(flat.physicalBase + offset);
     }
 
     const poolWords = [];
@@ -86,43 +112,43 @@ class Deep16Linker {
         if (address < 0 || address >= window) {
           throw new Error(`pool word at 0x${address.toString(16)} is outside the ${window}-word image`);
         }
-        if (written.has(address)) {
+        if (flatWritten.has(address)) {
           throw new Error(`pool word at 0x${address.toString(16)} collides with chapter code`);
         }
-        written.set(address, 'pool');
+        flatWritten.add(address);
         words[address] = poolInfo.words[i];
+        flat.image[address] = poolInfo.words[i];
         poolWords.push({ address, value: poolInfo.words[i] });
       }
     }
 
-    const chapterInfo = list.map((chapter, i) => {
-      const physical = ((chapter.seg << 4) + chapter.base) >>> 0;
-      const wordCount = resolved[i].result.memoryChanges
-        .filter((c) => c.address >= physical && c.address < physical + 0x10000).length;
-      return {
-        id: chapter.id,
-        seg: chapter.seg,
-        base: chapter.base,
-        physical,
-        fill: chapter.fill,
-        sources: chapter.sources.map((s) => (typeof s === 'string' ? '<inline>' : (s.name || '<inline>'))),
-        wordCount,
-      };
-    });
+    const chapterInfo = images.map(({ chapter, physicalBase, wordCount }) => ({
+      id: chapter.id,
+      seg: chapter.seg,
+      base: chapter.base,
+      physical: physicalBase,
+      fill: chapter.fill,
+      relative: !!chapter.relative,
+      sources: chapter.sources.map((s) => (typeof s === 'string' ? '<inline>' : (s.name || '<inline>'))),
+      wordCount,
+    }));
 
+    // The flat view is the chapter the existing scatter and tests consume. For
+    // a single chapter it is the whole link, so Phase 1 stays identical.
+    const flatResult = resolved[flatIndex].result;
     const result = {
       success,
       errors,
-      memoryChanges,
-      symbols,
-      listing: resolved[resolved.length - 1].result.listing,
-      segmentMap: resolved[resolved.length - 1].result.segmentMap,
-      overlap: resolved[resolved.length - 1].result.overlap ?? [],
+      memoryChanges: flatResult.memoryChanges,
+      symbols: flatResult.symbols,
+      listing: flatResult.listing,
+      segmentMap: flatResult.segmentMap,
+      overlap: flatResult.overlap ?? [],
     };
     const flatView = {
       words,
       outOfWindow: [...outOfWindow].sort((a, b) => a - b),
-      memoryChanges,
+      memoryChanges: flatResult.memoryChanges,
       result,
       success,
       errors,
@@ -140,7 +166,17 @@ class Deep16Linker {
       },
       symbols: Object.keys(symbols).length,
     };
-    return { chapters: chapterInfo, symbols, flatView, manifest, pool: poolWords };
+    return {
+      chapters: images.map((entry, i) => ({
+        ...chapterInfo[i],
+        words: entry.image,
+        outOfWindow: [...entry.outside].sort((a, b) => a - b),
+      })),
+      symbols,
+      flatView,
+      manifest,
+      pool: poolWords,
+    };
   }
 
   // Assemble one chapter's sources. The optional prologue is only for importer
@@ -163,6 +199,7 @@ class Deep16Linker {
     const seen = new Map();
     let success = true;
     for (const { chapter, result } of resolved) {
+      const physicalBase = ((chapter.seg << 4) + chapter.base) >>> 0;
       if (!result.success) {
         success = false;
         for (const error of result.errors) {
@@ -170,14 +207,15 @@ class Deep16Linker {
         }
       }
       for (const change of result.memoryChanges) {
-        const previous = seen.get(change.address);
+        const address = chapter.relative ? physicalBase + change.address : change.address;
+        const previous = seen.get(address);
         if (previous) {
           success = false;
           errors.push(`chapters '${previous}' and '${chapter.id}' both write ` +
-                      `0x${change.address.toString(16)}`);
+                      `0x${address.toString(16)}`);
           continue;
         }
-        seen.set(change.address, chapter.id);
+        seen.set(address, chapter.id);
         memoryChanges.push(change);
       }
       Object.assign(symbols, result.symbols);
@@ -201,6 +239,9 @@ class Deep16Linker {
       }
       if (!Array.isArray(chapter.sources) || chapter.sources.length === 0) {
         throw new Error(`chapter '${chapter.id}' has no sources`);
+      }
+      if (chapter.relative !== undefined && typeof chapter.relative !== 'boolean') {
+        throw new Error(`chapter '${chapter.id}' has a non-boolean relative flag`);
       }
       const physical = ((chapter.seg << 4) + chapter.base) >>> 0;
       if (physical + 0xFFFF > 0xFFFFF) {

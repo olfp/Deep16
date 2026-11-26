@@ -71,8 +71,27 @@ test('an import is resolved from the placement pass', () => {
   });
   assert.equal(linked.flatView.success, true, linked.flatView.errors.join('; '));
   const ldiZero = assemble('LDI 0\n').memoryChanges[0].value;
-  assert.equal(linked.flatView.words[0x1000], ldiZero, 'B loaded A, whose value is 0');
+  assert.equal(linked.chapters[1].words[0], ldiZero, 'B loaded A, whose value is 0');
+  assert.equal(linked.chapters[1].physical, 0x1000);
   assert.equal(linked.symbols.B, 0x1000);
+});
+
+test('a relative chapter keeps its .org as the in-segment offset', () => {
+  const linked = linker().link({
+    chapters: [
+      Linker.flat({ sources: ['NOP\n'] }),
+      { id: 'bdos', seg: 0x4000, base: 0, relative: true,
+        sources: ['.org 0x10\nbdos_probe:\n  LSI R0, 1\n  JML R10\n'] },
+    ],
+    window: 0x20,
+  });
+  assert.equal(linked.flatView.success, true, linked.flatView.errors.join('; '));
+  const bdos = linked.chapters[1];
+  assert.equal(bdos.physical, 0x40000);
+  assert.equal(bdos.words[0x10], assemble('LSI R0, 1\n').memoryChanges[0].value);
+  assert.equal(bdos.words[0x11], assemble('JML R10\n').memoryChanges[0].value);
+  assert.equal(linked.flatView.words[0x10], 0xFFFF,
+               'the BDOS offset is not in the flat kernel image');
 });
 
 test('an unknown import is an error, not a silent zero', () => {
