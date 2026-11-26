@@ -119,6 +119,26 @@ export function placeBdos(mem) {
   return mem;
 }
 
+// The system chapter (phase 3): the ILL handler at CS=0x3000, offset 0x0600.
+let sysImageCache = null;
+export function sysBlockImage() {
+  if (sysImageCache) return sysImageCache;
+  const source = fs.readFileSync(path.join(ROOT, 'asm', 'ill_block.asm'), 'utf8');
+  const res = assemble(source, {
+    defines: { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1, D16D: 1 },
+  });
+  if (!res.success) throw new Error('ill_block.asm: ' + res.errors.join('; '));
+  sysImageCache = res;
+  return res;
+}
+
+export function placeSys(mem) {
+  for (const ch of sysBlockImage().memoryChanges) {
+    mem[0x30000 + ch.address] = ch.value & 0xFFFF;
+  }
+  return mem;
+}
+
 // Full flat memory image for the JS core.
 export function buildMemory(res, fill = 0xFFFF) {
   const mem = new Array(MEM_WORDS).fill(fill);
@@ -126,6 +146,11 @@ export function buildMemory(res, fill = 0xFFFF) {
   if (res.symbols && res.symbols.bdos_seg_cell) {
     for (const ch of bdosBlockImage().memoryChanges) {
       mem[0x40000 + ch.address] = ch.value & 0xFFFF;
+    }
+  }
+  if (res.symbols && res.symbols.ill_trampoline) {
+    for (const ch of sysBlockImage().memoryChanges) {
+      mem[0x30000 + ch.address] = ch.value & 0xFFFF;
     }
   }
   return mem;

@@ -40,7 +40,8 @@ function makeUi(tileBuild = 'd16d') {
   ui.consoleView = 'tiles';
   ui.tileBuild = tileBuild;
   ui.bdosSource = bdosSource();
-  ui.d16dSources = { softfloat, forthFloat, bdosBlock: bdosSource(), showcase, flappy, pacmanMap, pacmanGame, frogger };
+  ui.d16dSources = { softfloat, forthFloat, bdosBlock: bdosSource(),
+    illBlock: fs.readFileSync(path.join(ROOT, 'asm', 'ill_block.asm'), 'utf8'), showcase, flappy, pacmanMap, pacmanGame, frogger };
   ui.tileStepsPerTick = 6000;
   ui.tileFrame = 0;
   ui.tileVblank = false;

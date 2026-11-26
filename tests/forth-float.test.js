@@ -18,7 +18,8 @@ const kernel = fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8')
 const softfloat = fs.readFileSync(path.join(ROOT, 'asm', 'softfloat.asm'), 'utf8');
 const forthFloat = fs.readFileSync(path.join(ROOT, 'asm', 'forth_float.asm'), 'utf8');
 
-const image = Deep16D16DImage.buildNano({ kernel, softfloat, forthFloat, bdosBlock: bdosSource() });
+const image = Deep16D16DImage.buildNano({ kernel, softfloat, forthFloat, bdosBlock: bdosSource(),
+    illBlock: fs.readFileSync(path.join(ROOT, 'asm', 'ill_block.asm'), 'utf8') });
 assert.equal(image.fpu, true, 'the FPU library is included');
 assert.equal(image.fpuWords, true, 'the Forth words are included');
 assert.equal(image.symbols.h_fdot, 0x417D, 'the Forth headers start at 0x417D');
@@ -57,7 +58,7 @@ assert.ok(image.symbols.fpu_dot_end <= 0x7000, 'f. fits the image window');
 
 function boot() {
   const sim = new globalThis.Deep16Simulator();
-  Deep16D16DImage.scatterD16SEG(image.words, { bdos: image.bdos, memory: sim.memory });
+  Deep16D16DImage.scatterD16SEG(image.words, { bdos: image.bdos, sys: image.sys, memory: sim.memory });
   sim.d16nano = true;
   sim.running = true;
   // The flat copy is the one holding the headers and code.

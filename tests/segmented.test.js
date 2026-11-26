@@ -16,7 +16,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { assemble, loadBrowserScripts, MEM_WORDS, ROOT, placeBdos } from './helpers.js';
+import { assemble, loadBrowserScripts, MEM_WORDS, ROOT, placeBdos, placeSys, sysBlockImage } from './helpers.js';
 import { buildSlices, SCREEN_BASE, SLICE_WORDS } from '../scripts/make_slices.mjs';
 
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
@@ -49,6 +49,7 @@ function scattered() {
   for (let w = DS_LO; w <= DS_HI; w++) mem[(DS_SEG << 4) + w] = img(w);
   for (let w = BIOS_LO; w <= BIOS_HI; w++) mem[(BIOS_SEG << 4) + (w - BIOS_LO)] = img(w);
   placeBdos(mem);
+  placeSys(mem);
   return mem;
 }
 
@@ -1029,7 +1030,8 @@ test('the ILL handler runs from the BIOS copy and divtest passes', () => {
   // The D16D trap vector points at a trampoline that enters the BIOS copy of
   // the handler (CS=0x3000, offset 0x600); its DIV/DIV32 traps call the BIOS
   // division copies, not the kernel routines.
-  assert.equal(sym.ill_handler, 0x5000, 'the handler is still assembled at 0x5000');
+  assert.equal(sym.ill_handler, undefined, 'the flat ILL handler is gone under D16D');
+  assert.equal(sysBlockImage().symbols.ill_handler, 0x0600, 'the handler is in the system chapter');
   assert.ok(sym.ill_trampoline >= 0x4a00 && sym.ill_trampoline < 0x5000, 'trampoline in the BIOS gap');
   assert.ok(sym.bios_div16_call >= 0x5550 && sym.bios_div16_call < 0x5600, 'BIOS div16 copy');
   assert.match(line('divtest'), /divtest ok/, 'the relocated ILL DIV trap agrees with the software divide');

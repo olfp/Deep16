@@ -24,7 +24,7 @@ class Deep16D16DImage {
   // the ILL dispatch that calls it. forthFloat adds the Forth surface at
   // 0x417D and defines FPU_WORDS.
   static assembleNano({ kernel, softfloat = null, forthFloat = null, bdosBlock = null,
-                        defines = {} } = {}) {
+                        illBlock = null, defines = {} } = {}) {
     if (typeof Deep16Assembler !== 'function') throw new Error('Deep16Assembler is not loaded');
     if (typeof kernel !== 'string' || !kernel.trim()) throw new Error('nano image needs kernel source');
     if (softfloat !== null && (typeof softfloat !== 'string' || !softfloat.trim())) {
@@ -55,6 +55,13 @@ class Deep16D16DImage {
     if (typeof Deep16Linker !== 'function') throw new Error('Deep16Linker is not loaded');
 
     const chapters = [Deep16Linker.flat({ id: 'flat', sources })];
+    if (defs.D16D && typeof illBlock === 'string' && illBlock.trim()) {
+      // Phase 3: the ILL handler is a segment-relative system chapter at
+      // CS=0x3000, offset 0x0600 (plus its dispatch helpers). The flat copy
+      // is FILL under D16D; scatterD16SEG() places this at 0x30000 after the
+      // BIOS copy, so the trap entry still finds it at 0x0600.
+      chapters.push({ id: 'sys', seg: 0x3000, base: 0, relative: true, sources: [illBlock] });
+    }
     if (typeof bdosBlock === 'string' && bdosBlock.trim()) {
       // Phase 2c-0: the BDOS chapter is a segment-relative chapter. It does not
       // contribute to the flat kernel image; scatterD16SEG() places it at
@@ -75,11 +82,13 @@ class Deep16D16DImage {
     if (!result.success) throw new Error('kernel does not assemble: ' + result.errors.join('; '));
 
     const bdos = linked.chapters.find((c) => c.id === 'bdos') ?? null;
+    const sys = linked.chapters.find((c) => c.id === 'sys') ?? null;
     return {
       result,
       words: linked.flatView.words,
       outOfWindow: linked.flatView.outOfWindow,
       bdos: bdos ? { words: bdos.words, outOfWindow: bdos.outOfWindow } : null,
+      sys: sys ? { words: sys.words, outOfWindow: sys.outOfWindow } : null,
     };
   }
 
@@ -130,12 +139,13 @@ class Deep16D16DImage {
   // CONSOLE_UART output path, but reads input from the D16nano keyboard FIFO
   // instead of the serial UART.
   static buildNano({ kernel, softfloat = null, forthFloat = null, bdosBlock = null,
-                     defines = {} } = {}) {
+                     illBlock = null, defines = {} } = {}) {
     const image = this.assembleNano({
       kernel,
       softfloat,
       forthFloat,
       bdosBlock,
+      illBlock,
       defines: { CONSOLE_MIRROR: 1, CONSOLE_PS2: 1, ...defines },
     });
     const result = image.result;
@@ -143,6 +153,7 @@ class Deep16D16DImage {
       words: image.words,
       outOfWindow: image.outOfWindow,
       bdos: image.bdos,
+      sys: image.sys,
       collisions: [],
       dictFree: result.symbols.dict_free,
       biosEntry: result.symbols.bios_entry,
@@ -169,7 +180,7 @@ class Deep16D16DImage {
   //
   // Returns the writes as { address, value } records. If memory is supplied,
   // the writes are also applied to it.
-  static scatterD16SEG(words, { bootPtr = null, bdos = null, memory = null } = {}) {
+  static scatterD16SEG(words, { bootPtr = null, bdos = null, sys = null, memory = null } = {}) {
     if (!words || typeof words.length !== 'number') {
       throw new Error('D16SEG scatter needs an image word array');
     }
@@ -184,6 +195,14 @@ class Deep16D16DImage {
     }
     for (let offset = 0x4A00; offset <= last; offset++) {
       put(0x30000 + (offset - 0x4A00), words[offset]);
+    }
+
+    // Phase 3: the system chapter (ILL handler) is placed after the BIOS copy,
+    // which copied FILL over its old flat range. Its words are offsets.
+    if (sys && sys.words) {
+      for (let offset = 0; offset < sys.words.length; offset++) {
+        if (sys.words[offset] !== 0xFFFF) put(0x30000 + offset, sys.words[offset]);
+      }
     }
 
     // Phase 2c: the BDOS chapter is its own segment. Its words are offsets, so
@@ -207,7 +226,7 @@ class Deep16D16DImage {
   }
 
   static build({ kernel, softfloat = null, forthFloat = null, bdosBlock = null,
-                 showcase, flappy, flappyDefs,
+                 illBlock = null, showcase, flappy, flappyDefs,
                  pacmanMap, pacmanGame, frogger, defines = {}, bakePacman = false, packs = {},
                  layouts = null, layoutBase = 0x6a90 } = {}) {
     if (typeof kernel !== 'string' || !kernel.trim()) throw new Error('D16D image needs kernel source');
@@ -224,6 +243,7 @@ class Deep16D16DImage {
       softfloat,
       forthFloat,
       bdosBlock,
+      illBlock,
       defines: { D16D: 1, ...defines },
     });
     const kres = kernelImage.result;
@@ -314,6 +334,7 @@ class Deep16D16DImage {
       words,
       outOfWindow: [...outOfWindow].sort((a, b) => a - b),
       bdos: kernelImage.bdos,
+      sys: kernelImage.sys,
       collisions,
       dictFree: kres.symbols.dict_free,
       biosEntry: kres.symbols.bios_entry,

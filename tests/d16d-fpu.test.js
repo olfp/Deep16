@@ -23,6 +23,7 @@ const image = Deep16D16DImage.assembleNano({
   kernel: kernelSource,
   softfloat,
   bdosBlock: bdosSource(),
+  illBlock: fs.readFileSync(path.join(ROOT, 'asm', 'ill_block.asm'), 'utf8'),
   defines: { D16D: 1 },
 });
 const sym = image.result.symbols;
@@ -38,7 +39,7 @@ assert.notEqual(image.words[FEXP], 0xFFFF, 'fexp32 is in the image');
 
 function boot() {
   const sim = new globalThis.Deep16Simulator();
-  Deep16D16DImage.scatterD16SEG(image.words, { bdos: image.bdos, memory: sim.memory });
+  Deep16D16DImage.scatterD16SEG(image.words, { bdos: image.bdos, sys: image.sys, memory: sim.memory });
   // The vector is installed by the kernel boot. Install the same value here;
   // this test starts below the boot so it can run in a few hundred steps.
   sim.memory[0] = sym.ill_trampoline;
@@ -46,7 +47,9 @@ function boot() {
   // Prove the BIOS copy, not the flat copy, is what executes.
   assert.equal(sim.memory[BIOS_LIB], image.words[LIB], 'f_unpack copied to 0x30E00');
   assert.equal(sim.memory[BIOS_FEXP], image.words[FEXP], 'fexp32 copied to 0x31600');
-  assert.equal(sim.memory[BIOS_HANDLER], image.words[0x5000], 'the handler copied to 0x30600');
+  assert.equal(sim.memory[BIOS_HANDLER], image.sys.words[0x0600],
+               'the ILL handler is in the system chapter');
+  assert.equal(image.words[0x5000], 0xFFFF, 'the flat ILL range is FILL');
   for (let a = 0x5000; a < 0x7000; a++) sim.memory[a] = 0xFFFF;
 
   sim.d16nano = true;

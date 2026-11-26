@@ -469,32 +469,40 @@ mirrors. Two hard-coded `-0x4000` address builders (`fw_restore`,
 
 ### Phase 3 — ILL + FloatLib into the system segment
 
-* Move the ILL handler (`0x5000`) and `softfloat.asm` (`0x5800`, `0x6000`)
-  into the system chapter at `CS=0x3000`, next to BIOS. The ILL entry must
-  keep a `CS=0` stub: the trap forces `CS'=0` and vector 0 is a single 16-bit
-  PC word (`doc/Deep16-Arch.md:218`, installed at
-  `asm/forth_nano.asm:196-211`), so "vector 0 directly to the handler" is not
-  expressible. Shrink the `0x4D24` trampoline to a two-word far stub whose
-  `(seg, offset)` pair comes from the pool — the same shape as `swi_to_bios`
-  (`asm/forth_nano.asm:703`).
-* Route the five direct `i2f`/`f2i` call sites
-  (`asm/forth_float.asm:311,331,1114,1147,1201`) through a short far-call shim
-  in `CS=0`, or convert them to trap words. Replace `ill_fpu`'s PC-relative
-  return to `ill_restore_shared` with a far return. Both far targets come
-  from the pool (`LDC_FAR`); the system chapter carries its own small pool
-  for handler-local constants.
-* Keep the Forth float word surface, scanner, trampolines and power tables in
-  the kernel chapter but move them out of the old free gaps (`0x417D`,
-  `0x4330`, `0x48A9`, `0x6900`) into declared space — no more
+* **3a — ILL handler (done).** `asm/ill_block.asm` holds the handler, its
+  dispatch/get/put stubs and the `ill_save_sp`/`ill_flags` cells at their
+  system offsets (`0x0600`, `0x044C`, `0x0743`). The linker places it as a
+  `seg=0x3000` relative chapter; `scatterD16SEG(..., { sys })` writes it at
+  `0x30000` after the BIOS copy, so the `0x4D24` trampoline still enters
+  `CS=0x3000:0x0600`. Under D16D the flat `0x5000`–`0x519F` is FILL; the
+  non-D16D profiles keep the flat handler under `.ifndef`/`.else` for their
+  direct vector. `ill_fpu` is imported as the system offset `0x151B`;
+  `ill_pc_save_bios`/`bios_div16_call` keep their BIOS-copy offsets.
+  The browser builder, Node builder, UI, render harness and `buildMemory()`
+  all carry the sys chapter; `tests/d16d-fpu.test.js` asserts the handler is
+  in the system chapter and the flat ILL range is FILL.
+* **3b — FloatLib.** Move `softfloat.asm` (`0x5800`, `0x6000`) into the same
+  system chapter at offsets `0x0E00`/`0x1600` (the existing BIOS-copy
+  destinations), leaving flat `0x5800`–`0x6475` FILL. The library is
+  position-independent, so the `.org`s shift by `-0x4A00`; `ill_fpu` stays at
+  system `0x151B` and `ill_restore_shared` becomes `0x0728`.
+* **3c — the direct calls and the Forth surface.** Route the five direct
+  `i2f`/`f2i` call sites (`asm/forth_float.asm:311,331,1114,1147,1201`)
+  through a short far-call shim in `CS=0` or convert them to trap words;
+  replace `ill_fpu`'s PC-relative return to `ill_restore_shared` with a far
+  return. Keep the Forth float word surface, scanner, trampolines and power
+  tables in the kernel chapter but move them out of the old free gaps
+  (`0x417D`, `0x4330`, `0x48A9`, `0x6900`) into declared space — no more
   `FPU && BAKE_PACMAN` mutual exclusion.
-* **Acceptance:** `tests/d16d-fpu.test.js` now asserts the library exists
-  *only* at `CS=0x3000`, with flat `0x5800`–`0x6475` left as FILL; `s>f`,
-  `f>s`, `f+`, `fexp` and float literals all run; the `CS=0` entry stub still
-  exists and is a far jump whose target comes from the pool (no literal
-  `0x3000`).
-* **Files:** `asm/forth_nano.asm`, `asm/softfloat.asm`,
-  `asm/forth_float.asm`, `tests/d16d-fpu.test.js`, `tests/ill-fpu.test.js`,
-  `tests/forth-float.test.js`.
+* **Acceptance (3a):** `tests/d16d-fpu.test.js` asserts the ILL handler is in
+  the system chapter and flat `0x5000`–`0x519F` is FILL; `divtest`, the FPU
+  traps, `fexp`/`flog` and the Forth float suite pass. **Acceptance (3b/3c):**
+  the library exists *only* at `CS=0x3000`, with flat `0x5800`–`0x6475` FILL;
+  `s>f`, `f>s`, `f+`, `fexp` and float literals all run; the `CS=0` entry stub
+  remains a far jump, never a literal handler address.
+* **Files:** `asm/forth_nano.asm`, new `asm/ill_block.asm`,
+  `asm/softfloat.asm`, `asm/forth_float.asm`, the linker/builders,
+  `tests/d16d-fpu.test.js`, `tests/ill-fpu.test.js`, `tests/forth-float.test.js`.
 
 ### Phase 4a — retune the loader windows (format 1, no header change)
 

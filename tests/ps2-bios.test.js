@@ -13,7 +13,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { assemble, loadBrowserScripts, MEM_WORDS, ROOT, bdosBlockImage } from './helpers.js';
+import { assemble, loadBrowserScripts, MEM_WORDS, ROOT, bdosBlockImage, placeSys } from './helpers.js';
 
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
 
@@ -31,6 +31,7 @@ function machine() {
   for (let w = 0x3000; w <= 0x57dc; w++) mem[(DS << 4) + w] = mem[w];
   for (let w = 0x4a00; w <= 0x57ff; w++) mem[(BIOS << 4) + (w - 0x4a00)] = mem[w];
   for (const c of bdosBlockImage().memoryChanges) mem[0x40000 + c.address] = c.value & 0xFFFF;
+  placeSys(mem);
   mem[HALT] = 0xFFFF;                   // the BDOS return lands here and halts
   mem[2] = kernel.symbols.swi_to_bios;  // SWI vector, physical 0/2 in CS=0
 

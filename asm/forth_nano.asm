@@ -18413,6 +18413,9 @@ bios_unknown:
 ; The opcode is at [interrupted PC - 1]. A table of small get/put stubs maps a
 ; register number to the SMV/direct access, so no register-indexed addressing
 ; is needed.
+.ifdef D16D
+.equ ill_restore_shared, 0x5128
+.else
 .org 0x5000
 .code
 ill_handler:
@@ -19084,6 +19087,7 @@ ill_flags:
 ; re-runs the instruction the IRQ interrupted.  R0..R3 are the handler's
 ; shadow scratch; SWI/ILL runs with I=0, so an IRQ never nests on them.
 
+.endif
 .org 0x51A0
 .code
 irq_handler:

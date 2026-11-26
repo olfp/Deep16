@@ -36,6 +36,7 @@ function makeSimulator() {
   const image = Deep16D16DImage.buildNano({
     kernel,
     bdosBlock: bdosSource(),
+    illBlock: fs.readFileSync(path.join(ROOT, 'asm', 'ill_block.asm'), 'utf8'),
     defines: { CONSOLE_MIRROR: 1, CONSOLE_PS2: 1 },
   });
 
@@ -43,6 +44,7 @@ function makeSimulator() {
   Deep16D16DImage.scatterD16SEG(image.words, {
     bootPtr: null,
     bdos: image.bdos,
+    sys: image.sys,
     memory: sim.memory,
   });
 

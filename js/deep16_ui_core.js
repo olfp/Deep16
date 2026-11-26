@@ -435,6 +435,7 @@ class DeepWebUI {
           // the board.
           bootPtr: null,
           bdos: image.bdos,
+          sys: image.sys,
           memory: this.simulator.memory,
         });
         return {
@@ -470,6 +471,7 @@ class DeepWebUI {
           softfloat: this.d16dSources.softfloat,
           forthFloat: this.d16dSources.forthFloat,
           bdosBlock: this.d16dSources.bdosBlock || this.bdosSource || null,
+          illBlock: this.d16dSources.illBlock || null,
           showcase: this.d16dSources.showcase,
           flappy: this.d16dSources.flappy,
           pacmanMap: this.d16dSources.pacmanMap,
@@ -482,6 +484,7 @@ class DeepWebUI {
           // the board.
           bootPtr: null,
           bdos: image.bdos,
+          sys: image.sys,
           memory: this.simulator.memory,
         });
         return {
@@ -3975,21 +3978,23 @@ class DeepWebUI {
 
             if (this.tileBuild === 'd16d') {
                 try {
-                    const [sf, ff, bd, sc, fl, pm, pg, fg] = await Promise.all([
+                    const [sf, ff, bd, il, sc, fl, pm, pg, fg] = await Promise.all([
                         fetch('asm/softfloat.asm', { cache: 'no-store' }),
                         fetch('asm/forth_float.asm', { cache: 'no-store' }),
                         fetch('asm/bdos_block.asm', { cache: 'no-store' }),
+                        fetch('asm/ill_block.asm', { cache: 'no-store' }),
                         fetch('asm/showcase/showcase.asm', { cache: 'no-store' }),
                         fetch('asm/showcase/flappy_game.asm', { cache: 'no-store' }),
                         fetch('asm/showcase/pacman_map.asm', { cache: 'no-store' }),
                         fetch('asm/showcase/pacman_game.asm', { cache: 'no-store' }),
                         fetch('asm/showcase/frogger_demo.asm', { cache: 'no-store' }),
                     ]);
-                    if (!sf.ok || !ff.ok || !bd.ok || !sc.ok || !fl.ok || !pm.ok || !pg.ok || !fg.ok) throw new Error('showcase sources not found');
+                    if (!sf.ok || !ff.ok || !bd.ok || !il.ok || !sc.ok || !fl.ok || !pm.ok || !pg.ok || !fg.ok) throw new Error('showcase sources not found');
                     this.d16dSources = {
                         softfloat: await sf.text(),
                         forthFloat: await ff.text(),
                         bdosBlock: await bd.text(),
+                        illBlock: await il.text(),
                         showcase: await sc.text(),
                         flappy: await fl.text(),
                         pacmanMap: await pm.text(),

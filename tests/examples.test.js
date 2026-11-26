@@ -31,6 +31,9 @@ const LEGACY = new Set([
   // The CS=0x4000 BDOS chapter: build-support source, not a standalone
   // example. tests/bdos.test.js and tests/editor.test.js place it at 0x40000.
   'bdos_block.asm',
+  // The CS=0x3000 system chapter: build-support source, not a standalone
+  // example. tests/segmented.test.js and tests/d16d-fpu.test.js place it.
+  'ill_block.asm',
 ]);
 
 const EXAMPLES = fs.readdirSync(ASM_DIR)

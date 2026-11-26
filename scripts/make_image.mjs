@@ -112,6 +112,7 @@ if (process.env.BOOT_DIAG) DEFINES.BOOT_DIAG = 1;     // boot diagnostic build
 export const SOFTFLOAT_PATH = path.join(ROOT, 'asm', 'softfloat.asm');
 export const FORTH_FLOAT_PATH = path.join(ROOT, 'asm', 'forth_float.asm');
 export const BDOS_PATH = path.join(ROOT, 'asm', 'bdos_block.asm');
+export const ILL_PATH = path.join(ROOT, 'asm', 'ill_block.asm');
 
 export function buildImage() {
   if (D16D && !D16SEG) {
@@ -135,6 +136,12 @@ export function buildImage() {
   const sources = FPU ? [source, library, forthFloat] : [source];
   const bdosBlock = NANO ? fs.readFileSync(BDOS_PATH, 'utf8') : null;
   const chapters = [Deep16Linker.flat({ id: 'flat', sources })];
+  if (D16D) {
+    // Phase 3: the ILL handler lives in the system chapter at CS=0x3000,
+    // offset 0x0600. The flat copy is FILL; the simulator scatter places it.
+    chapters.push({ id: 'sys', seg: 0x3000, base: 0, relative: true,
+                    sources: [fs.readFileSync(ILL_PATH, 'utf8')] });
+  }
   if (bdosBlock) {
     // Phase 2c-0: the BDOS chapter is segment-relative and does not enter the
     // flat image. The board loader cannot carry it until phase 4a; the
@@ -154,6 +161,7 @@ export function buildImage() {
   const words = linked.flatView.words;
   const outOfWindow = new Set(linked.flatView.outOfWindow);
   const bdos = linked.chapters.find((c) => c.id === 'bdos') ?? null;
+  const sys = linked.chapters.find((c) => c.id === 'sys') ?? null;
 
   const sym = res.symbols;
   if (FPU) {
@@ -293,6 +301,7 @@ export function buildImage() {
     dictFree: sym.dict_free, biosEntry: sym.bios_entry, biosWords, build,
     fpu: FPU, fpuWords: FPU, showcase, pacman,
     bdos: bdos ? { words: bdos.words, outOfWindow: bdos.outOfWindow } : null,
+    sys: sys ? { words: sys.words, outOfWindow: sys.outOfWindow } : null,
     layouts: layouts ? { base: PS2_LAYOUT_BASE, words: LAYOUT_WORDS,
                          count: LAYOUT_COUNT } : null,
   };
