@@ -59,6 +59,7 @@ function readSources() {
     kernel: fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8'),
     softfloat: fs.readFileSync(path.join(ROOT, 'asm', 'softfloat.asm'), 'utf8'),
     forthFloat: fs.readFileSync(path.join(ROOT, 'asm', 'forth_float.asm'), 'utf8'),
+    bdosBlock: fs.readFileSync(path.join(ROOT, 'asm', 'bdos_block.asm'), 'utf8'),
     showcase: fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'showcase.asm'), 'utf8'),
     flappy: fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'flappy_game.asm'), 'utf8'),
     flappyDefs: fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'flappy_defs.asm'), 'utf8'),
@@ -77,6 +78,7 @@ function boot(scene) {
     kernel: src.kernel,
     softfloat: src.softfloat,
     forthFloat: src.forthFloat,
+    bdosBlock: src.bdosBlock,
     // The console scene boots the flat nano kernel, not the menu.
     showcase: src.showcase,
     flappy: src.flappy,
@@ -93,6 +95,11 @@ function boot(scene) {
 
   const sim = new Simulator();
   sim.loadProgram(image.words);
+  if (image.bdos) {
+    for (let i = 0; i < image.bdos.words.length; i++) {
+      if (image.bdos.words[i] !== 0xFFFF) sim.memory[0x40000 + i] = image.bdos.words[i];
+    }
+  }
   sim.d16nano = true;
   const engine = new Engine();
   Loader.load(engine, sim, Assets);

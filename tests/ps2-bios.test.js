@@ -13,7 +13,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { assemble, loadBrowserScripts, MEM_WORDS, ROOT } from './helpers.js';
+import { assemble, loadBrowserScripts, MEM_WORDS, ROOT, bdosBlockImage } from './helpers.js';
 
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
 
@@ -30,6 +30,7 @@ function machine() {
   for (const c of kernel.memoryChanges) if (c.address < 0x6000) mem[c.address] = c.value & 0xFFFF;
   for (let w = 0x3000; w <= 0x57dc; w++) mem[(DS << 4) + w] = mem[w];
   for (let w = 0x4a00; w <= 0x57ff; w++) mem[(BIOS << 4) + (w - 0x4a00)] = mem[w];
+  for (const c of bdosBlockImage().memoryChanges) mem[0x40000 + c.address] = c.value & 0xFFFF;
   mem[HALT] = 0xFFFF;                   // the BDOS return lands here and halts
   mem[2] = kernel.symbols.swi_to_bios;  // SWI vector, physical 0/2 in CS=0
 
@@ -39,14 +40,14 @@ function machine() {
   sim.cycleCount = 0;
   sim.memory[STATUS] = 0x0060;          // CLK/DATA high, toggle 0
   sim.memory[CTRL] = 0;
-  sim.segmentRegisters.CS = 0;
+  sim.segmentRegisters.CS = 0x4000;
   sim.segmentRegisters.DS = DS;
   sim.segmentRegisters.SS = 0x2000;
   sim.segmentRegisters.ES = 0xF000;
   sim.registers[0] = 9;                 // BDOS function 9: ps2-init
   sim.registers[10] = 0;                // return CS = kernel
   sim.registers[11] = HALT;             // return PC
-  sim.registers[15] = kernel.symbols.bdos_entry;
+  sim.registers[15] = 0x2D4A;           // bdos_entry offset in the chapter
   sim.psw = 0;
   sim.running = true;
   return sim;

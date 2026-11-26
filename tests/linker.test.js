@@ -153,10 +153,10 @@ process.env.D16D = '1';
 process.env.D16SEG = '1';
 const { buildImage, crc16 } = await import('../scripts/make_image.mjs');
 
-test('the Phase 2b image keeps the linker output stable', () => {
+test('the Phase 2c image keeps the linker output stable', () => {
   const img = buildImage();
-  assert.equal(img.build, '161181bd81d079f3', 'build id changed');
-  assert.equal(crc16(img.words), 0xe56b, 'image bytes changed');
+  assert.equal(img.build, '522a68972bf63c5b', 'build id changed');
+  assert.equal(crc16(img.words), 0x4f58, 'image bytes changed');
   assert.equal(img.words.length, 28672);
   assert.equal(img.biosWords, 8848);
 });

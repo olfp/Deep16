@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
-import { loadBrowserScripts, ROOT } from './helpers.js';
+import { loadBrowserScripts, ROOT, bdosSource } from './helpers.js';
 
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_linker.js',
                    'js/deep16_simulator.js', 'js/deep16_d16d_image.js');
@@ -22,6 +22,7 @@ const softfloat = fs.readFileSync(path.join(ROOT, 'asm', 'softfloat.asm'), 'utf8
 const image = Deep16D16DImage.assembleNano({
   kernel: kernelSource,
   softfloat,
+  bdosBlock: bdosSource(),
   defines: { D16D: 1 },
 });
 const sym = image.result.symbols;
@@ -37,7 +38,7 @@ assert.notEqual(image.words[FEXP], 0xFFFF, 'fexp32 is in the image');
 
 function boot() {
   const sim = new globalThis.Deep16Simulator();
-  Deep16D16DImage.scatterD16SEG(image.words, { memory: sim.memory });
+  Deep16D16DImage.scatterD16SEG(image.words, { bdos: image.bdos, memory: sim.memory });
   // The vector is installed by the kernel boot. Install the same value here;
   // this test starts below the boot so it can run in a few hundred steps.
   sim.memory[0] = sym.ill_trampoline;

@@ -53,13 +53,10 @@ export const BDOS_ENTRY = 0x2D4A;
 const DIR_SEG = 0x8000;
 const slices = buildSlices();
 
-test('the BDOS entry is the first word of the free kernel block', () => {
-  assert.equal(kernel.symbols.bdos_entry, BDOS_ENTRY);
-  // The kernel code must end before it, or the two blocks would overlap.
-  const last = Math.max(...Object.entries(kernel.symbols)
-    .filter(([name, v]) => typeof v === 'number' && v < BDOS_ENTRY && name !== 'bdos_entry')
-    .map(([, v]) => v));
-  assert.ok(last < BDOS_ENTRY, `kernel code reaches 0x${last.toString(16)}`);
+test('the BDOS entry lives in the CS=0x4000 chapter', () => {
+  assert.equal(bdosBlock.symbols.bdos_entry, BDOS_ENTRY);
+  assert.equal(kernel.symbols.bdos_entry, undefined, 'the entry left the flat kernel');
+  assert.equal(kernel.symbols.bdos_call, 0x3FE2, 'the shared far entry is in the kernel');
 });
 
 // LDI carries a 15-bit field sign-extended from bit 14, so it cannot spell
@@ -89,7 +86,9 @@ ${loadImm(arg)}
         MOV R11, R0           ; return PC = 0x0200
         LDI 0x2D4A
         MOV R3, R0            ; jump PC
-        LSI R2, 0             ; jump CS = 0
+        LDI 0x2000
+        SL R0, 1
+        MOV R2, R0            ; jump CS = 0x4000
         MOV R1, R9
         MOV R0, R8
         JML R2
@@ -224,7 +223,9 @@ test('a second load starts at offset 0 in its own segment', () => {
         MOV R11, R0
         LDI 0x2D4A
         MOV R3, R0
-        LSI R2, 0
+        LDI 0x2000
+        SL R0, 1
+        MOV R2, R0
         MOV R1, R9
         MOV R0, R8
         JML R2
@@ -239,7 +240,9 @@ test('a second load starts at offset 0 in its own segment', () => {
         MOV R11, R0
         LDI 0x2D4A
         MOV R3, R0
-        LSI R2, 0
+        LDI 0x2000
+        SL R0, 1
+        MOV R2, R0
         MOV R1, R9
         MOV R0, R8
         JML R2
@@ -433,7 +436,9 @@ test('functions 12/13 set the SPI bus and transfer a byte', () => {
         MOV R11, R0
         LDI 0x2D4A
         MOV R3, R0
-        LSI R2, 0
+        LDI 0x2000
+        SL R0, 1
+        MOV R2, R0
         LSI R1, 2              ; control: CS1 asserted
         LSI R4, 0              ; divider
         LSI R0, 12
@@ -450,7 +455,9 @@ test('functions 12/13 set the SPI bus and transfer a byte', () => {
         MOV R11, R0
         LDI 0x2D4A
         MOV R3, R0
-        LSI R2, 0
+        LDI 0x2000
+        SL R0, 1
+        MOV R2, R0
         LSI R0, 13
         JML R2
         NOP
@@ -463,15 +470,17 @@ test('functions 12/13 set the SPI bus and transfer a byte', () => {
         MOV R1, R0
         LSI R2, 0
         MOV R10, R2
-        LDI 0x0130
+        LDI 0x0140
         MOV R11, R0
         LDI 0x2D4A
         MOV R3, R0
-        LSI R2, 0
+        LDI 0x2000
+        SL R0, 1
+        MOV R2, R0
         LSI R0, 13
         JML R2
         NOP
-        .org 0x0130
+        .org 0x0140
         MOV R2, R9
         ST R0, R2, 0
         HALT

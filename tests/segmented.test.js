@@ -16,7 +16,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { assemble, loadBrowserScripts, MEM_WORDS, ROOT } from './helpers.js';
+import { assemble, loadBrowserScripts, MEM_WORDS, ROOT, placeBdos } from './helpers.js';
 import { buildSlices, SCREEN_BASE, SLICE_WORDS } from '../scripts/make_slices.mjs';
 
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
@@ -48,6 +48,7 @@ function scattered() {
   const img = (a) => mem[a];
   for (let w = DS_LO; w <= DS_HI; w++) mem[(DS_SEG << 4) + w] = img(w);
   for (let w = BIOS_LO; w <= BIOS_HI; w++) mem[(BIOS_SEG << 4) + (w - BIOS_LO)] = img(w);
+  placeBdos(mem);
   return mem;
 }
 

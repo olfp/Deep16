@@ -11,7 +11,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
-import { loadBrowserScripts, ROOT } from './helpers.js';
+import { loadBrowserScripts, ROOT, bdosSource } from './helpers.js';
 import { buildSlices, SCREEN_BASE } from '../scripts/make_slices.mjs';
 
 const DS_SEG = 0x1000;
@@ -71,6 +71,7 @@ export function bootNative() {
   // at 0x417D, with the ILL trap wired to the BIOS copy of the library.
   const image = Deep16D16DImage.assembleNano({
     kernel, softfloat, forthFloat,
+    bdosBlock: bdosSource(),
     defines: { D16D: 1, CONSOLE_MIRROR: 1 },
   });
   const sym = image.result.symbols;
@@ -79,7 +80,7 @@ export function bootNative() {
   const sim = new globalThis.Deep16Simulator();
   // The same three copies the RTL flash loader makes: the flat image, the
   // kernel data in DS=0x1000 and the BIOS code in CS=0x3000.
-  Deep16D16DImage.scatterD16SEG(image.words, { memory: sim.memory });
+  Deep16D16DImage.scatterD16SEG(image.words, { bdos: image.bdos, memory: sim.memory });
   sim.spiFlash.mem.set(slices.bytes, SCREEN_BASE);
   sim.d16nano = true;
   sim.segmentRegisters.CS = 0xffff;

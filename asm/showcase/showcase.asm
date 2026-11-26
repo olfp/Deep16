@@ -551,9 +551,11 @@ menu_r6:
 ; =====================================================================
 ; BDOS bridge: 0xA00 (the game block's old home)
 ;
-; BDOS lives at CS=0, 0x2D4A and returns through R10:R11. The menu runs in the
-; BIOS segment, so the bridge reads CS for the return segment and keeps its
-; own return in LR, which BDOS does not touch.
+; BDOS runs at CS=0x4000, 0x2D4A and returns through R10:R11. The menu runs in
+; the BIOS segment, so the bridge reads CS for the return segment and keeps its
+; own return in LR, which BDOS does not touch. The kernel's shared bdos_call
+; stub at 0x3FE2 performs the CS=0x4000/PC=0x2D4A switch; it reads the function
+; from R7.
 ; =====================================================================
 .org 0x0A00
 menu_bdos:
@@ -562,10 +564,10 @@ menu_bdos:
     MOV R10, R3               ; return to the menu's CS ...
     LDI menu_bdos_back
     MOV R11, R0               ; ... at the instruction after the jump
-    LSI R2, 0                 ; JML pair: CS = 0 ...
-    LDI 0x2D4A
-    MOV R3, R0                ; ... and PC = the BDOS entry
-    MOV R0, R9                ; the function, untouched
+    MOV R7, R9                ; the far-entry stub reads R7
+    LSI R2, 0                 ; JML pair: CS = 0 (the kernel stub)
+    LDI 0x3FE2                ; bdos_call: sets CS=0x4000, PC=0x2D4A
+    MOV R3, R0
     JML R2
     NOP
 menu_bdos_back:

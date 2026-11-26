@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
-import { ROOT, readTileText } from './helpers.js';
+import { ROOT, readTileText, bdosSource } from './helpers.js';
 
 for (const file of [
   'js/deep16_assembler.js',
@@ -35,12 +35,14 @@ function makeSimulator() {
   const kernel = fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8');
   const image = Deep16D16DImage.buildNano({
     kernel,
+    bdosBlock: bdosSource(),
     defines: { CONSOLE_MIRROR: 1, CONSOLE_PS2: 1 },
   });
 
   const sim = new Deep16Simulator();
   Deep16D16DImage.scatterD16SEG(image.words, {
     bootPtr: null,
+    bdos: image.bdos,
     memory: sim.memory,
   });
 

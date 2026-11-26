@@ -254,12 +254,33 @@ forth_start:
     LSI R10, 0               ; return CS = the kernel
     LDI ps2_init_back
     MOV R11, R0              ; return PC
-    LSI R2, 0                ; BDOS runs at CS=0 ...
-    LDI bdos_entry
-    MOV R3, R0               ; ... and entry 0x2D4A
+    .ifdef D16NANO
+
     LDI 9                    ; function 9: ps2-init
-    JML R2
+
+    MOV R7, R0
+
+    LDI bdos_call
+
+    MOV PC, R0
+
     NOP
+
+    .else
+
+    LSI R2, 0
+
+    LDI bdos_entry
+
+    MOV R3, R0
+
+    LDI 9                    ; function 9: ps2-init
+
+    JML R2
+
+    NOP
+
+    .endif
 ps2_init_back:
     ; BDOS may clobber R2..R9. SCR (R8) is the tile console's cursor and the
     ; menu/banner expect it homed; R9 is its extra-segment twin under ER=8.
@@ -1556,6 +1577,9 @@ interpret_next:
 ;
 ; The scratch cells live at 0x2F40 so the code below runs to 0x2F3F.
 ; =============================================
+
+.ifndef D16NANO
+; ---- the flat (legacy/D16SIM) BDOS entry, kept for non-nano builds ----
 .org 0x2D4A
 ; Function codes are unsigned, so a code at or above BDOS_FN_COUNT is
 ; unknown. The table is absolute addresses: BDOS runs with CS=0, so a handler
@@ -1617,9 +1641,9 @@ BDOS_JTABLE:
     .word bdos_gfx_write
     .word bdos_gfx_copy
 .ifdef D16NANO
-    .word bdos_fcreate_far
-    .word bdos_fdelete_far
-    .word bdos_fsize_far
+    .word bdos_fcreate
+    .word bdos_fdelete
+    .word bdos_fsize
 .endif
 
 bdos_unknown:
@@ -1651,9 +1675,11 @@ bdos_fwrite_stub:
     NOP
 
 
-; ---- SPI byte helpers -------------------------------------------------
-; ---- SPI byte helpers -------------------------------------------------
-; spi_put: send R3, return through R9.
+.endif
+
+.org 0x2D89
+.code
+; ---- SPI/slice helpers kept in CS=0 for the kernel flash and PS/2 code ----
 spi_put:
     LDI 0x84
     MOV R2, R0
@@ -1798,6 +1824,12 @@ sl_b2:
     MOV PC, R12
     NOP
 
+; ---- function 1: read the directory into segment 0x8000 ---------------
+; Returns R0 = 0, R1 = 0x8000. Entries start at offset 8, eight cells each.
+
+.ifndef D16NANO
+.org 0x2E05
+; ---- the flat BDOS fns 1..7 (non-nano builds) -------------------------
 ; ---- function 1: read the directory into segment 0x8000 ---------------
 ; Returns R0 = 0, R1 = 0x8000. Entries start at offset 8, eight cells each.
 bdos_dir:
@@ -2128,9 +2160,11 @@ ld_bad:
     JML R10
     NOP
 
-; A byte transfer that never completes aborts from inside the helper, so this
-; path must not rely on the callers' return registers. DS is 0xF000 here and
-; R10/R11 are still the caller's pair.
+.endif
+
+.org 0x2F2A
+.code
+; ---- SPI abort path kept in CS=0 (kernel flash helpers use it) ----
 bdos_abort:
     LDI 0x80
     MOV R2, R0
@@ -4370,6 +4404,17 @@ bdos_fsize_far:
     LDI 0x011F
     OR R0, 14
     MOV R3, R0
+    JML R2
+    NOP
+; Phase 2c-1: every kernel caller enters the chapter at 0x2D4A with CS=0x4000.
+; The function is in R7 (copied from R0 at the call site); R1/R4 and R10:R11
+; are untouched.
+bdos_call:
+    LDI bdos_seg_cell
+    LDS R2, CS, R0
+    LDI 0x2D4A
+    MOV R3, R0
+    MOV R0, R7
     JML R2
     NOP
 .endif
@@ -19723,12 +19768,33 @@ word_serialread:
     LDI sread_ret / 2         ; sread_ret is above LDI's 15-bit range
     SL R0, 1
     MOV R11, R0              ; return PC
-    LSI R2, 0
-    LDI bdos_entry
-    MOV R3, R0
+    .ifdef D16NANO
+
     LSI R0, 10
-    JML R2
+
+    MOV R7, R0
+
+    LDI bdos_call
+
+    MOV PC, R0
+
     NOP
+
+    .else
+
+    LSI R2, 0
+
+    LDI bdos_entry
+
+    MOV R3, R0
+
+    LSI R0, 10
+
+    JML R2
+
+    NOP
+
+    .endif
 sread_ret:
     SUB SP, 1
     ST R0, SP, 0             ; the BDOS count
@@ -20092,12 +20158,33 @@ word_bslice:
     LDI bslice_ret / 2        ; bslice_ret is above LDI's signed 15-bit range
     SL R0, 1
     MOV R11, R0
-    LSI R2, 0
-    LDI bdos_entry
-    MOV R3, R0
+    .ifdef D16NANO
+
     LSI R0, 11               ; function 11: read-slice
-    JML R2
+
+    MOV R7, R0
+
+    LDI bdos_call
+
+    MOV PC, R0
+
     NOP
+
+    .else
+
+    LSI R2, 0
+
+    LDI bdos_entry
+
+    MOV R3, R0
+
+    LSI R0, 11               ; function 11: read-slice
+
+    JML R2
+
+    NOP
+
+    .endif
 bslice_ret:
     LDI bslice_r5
     MOV R2, R0
@@ -20157,12 +20244,33 @@ bdos_word_common:
     LSI R10, 0
     LDI bdos_word_ret
     MOV R11, R0
-    LSI R2, 0
-    LDI bdos_entry
-    MOV R3, R0
+    .ifdef D16NANO
+
     MOV R0, R7
-    JML R2
+
+    MOV R7, R0
+
+    LDI bdos_call
+
+    MOV PC, R0
+
     NOP
+
+    .else
+
+    LSI R2, 0
+
+    LDI bdos_entry
+
+    MOV R3, R0
+
+    MOV R0, R7
+
+    JML R2
+
+    NOP
+
+    .endif
 bdos_word_ret:
     ; R8 is the extra-segment base while the interpreter runs with ER=8, so
     ; park the result in R4 (the handlers are done with it), not R8/R9.
@@ -20583,12 +20691,33 @@ word_spi_ctrl:
     LDI spi_ctrl_ret / 2      ; above LDI's signed 15-bit range
     SL R0, 1
     MOV R11, R0
-    LSI R2, 0
-    LDI bdos_entry
-    MOV R3, R0
+    .ifdef D16NANO
+
     LSI R0, 12
-    JML R2
+
+    MOV R7, R0
+
+    LDI bdos_call
+
+    MOV PC, R0
+
     NOP
+
+    .else
+
+    LSI R2, 0
+
+    LDI bdos_entry
+
+    MOV R3, R0
+
+    LSI R0, 12
+
+    JML R2
+
+    NOP
+
+    .endif
     NOP
 spi_ctrl_ret:
     LDI spi_r5
@@ -20612,12 +20741,33 @@ word_spi_xfer:
     LDI spi_xfer_ret / 2
     SL R0, 1
     MOV R11, R0
-    LSI R2, 0
-    LDI bdos_entry
-    MOV R3, R0
+    .ifdef D16NANO
+
     LSI R0, 13
-    JML R2
+
+    MOV R7, R0
+
+    LDI bdos_call
+
+    MOV PC, R0
+
     NOP
+
+    .else
+
+    LSI R2, 0
+
+    LDI bdos_entry
+
+    MOV R3, R0
+
+    LSI R0, 13
+
+    JML R2
+
+    NOP
+
+    .endif
     NOP
 spi_xfer_ret:
     SUB SP, 1

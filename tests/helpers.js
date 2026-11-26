@@ -93,10 +93,41 @@ export function optimize(source, options = {}) {
   return new Deep16Optimizer().optimize(source, options);
 }
 
+export function bdosSource() {
+  return fs.readFileSync(path.join(ROOT, 'asm', 'bdos_block.asm'), 'utf8');
+}
+
+// The BDOS chapter (phase 2c) is a separate segment image. Booting the kernel
+// now enters CS=0x4000, so the JS harnesses place it at 0x40000 like the
+// scatter does. Assemble once and cache; the chapter's addresses are offsets.
+let bdosImageCache = null;
+export function bdosBlockImage() {
+  if (bdosImageCache) return bdosImageCache;
+  const source = fs.readFileSync(path.join(ROOT, 'asm', 'bdos_block.asm'), 'utf8');
+  const res = assemble(source, {
+    defines: { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1, D16D: 1 },
+  });
+  if (!res.success) throw new Error('bdos_block.asm: ' + res.errors.join('; '));
+  bdosImageCache = res;
+  return res;
+}
+
+export function placeBdos(mem) {
+  for (const ch of bdosBlockImage().memoryChanges) {
+    mem[0x40000 + ch.address] = ch.value & 0xFFFF;
+  }
+  return mem;
+}
+
 // Full flat memory image for the JS core.
 export function buildMemory(res, fill = 0xFFFF) {
   const mem = new Array(MEM_WORDS).fill(fill);
   for (const ch of res.memoryChanges) mem[ch.address] = ch.value & 0xFFFF;
+  if (res.symbols && res.symbols.bdos_seg_cell) {
+    for (const ch of bdosBlockImage().memoryChanges) {
+      mem[0x40000 + ch.address] = ch.value & 0xFFFF;
+    }
+  }
   return mem;
 }
 

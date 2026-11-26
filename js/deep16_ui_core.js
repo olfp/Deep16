@@ -427,12 +427,14 @@ class DeepWebUI {
         if (typeof Deep16D16DImage !== 'function') throw new Error('nano image builder is not loaded');
         const image = Deep16D16DImage.buildNano({
           kernel: kernelSource,
+          bdosBlock: this.bdosSource || null,
           defines: this.assembleDefines(),
         });
         Deep16D16DImage.scatterD16SEG(image.words, {
           // Keep the baked boot script enabled so essentials/edit load like
           // the board.
           bootPtr: null,
+          bdos: image.bdos,
           memory: this.simulator.memory,
         });
         return {
@@ -467,6 +469,7 @@ class DeepWebUI {
           kernel: kernelSource,
           softfloat: this.d16dSources.softfloat,
           forthFloat: this.d16dSources.forthFloat,
+          bdosBlock: this.d16dSources.bdosBlock || this.bdosSource || null,
           showcase: this.d16dSources.showcase,
           flappy: this.d16dSources.flappy,
           pacmanMap: this.d16dSources.pacmanMap,
@@ -478,6 +481,7 @@ class DeepWebUI {
           // Keep the baked boot script enabled so essentials/edit load like
           // the board.
           bootPtr: null,
+          bdos: image.bdos,
           memory: this.simulator.memory,
         });
         return {
@@ -3957,27 +3961,42 @@ class DeepWebUI {
             this.lastAssembledSource = null;
             this.lastAssembledBuild = null;
 
+            if (this.tileBuild === 'nano') {
+                // The nano console and the D16D menu both call the BDOS chapter
+                // at CS=0x4000. The page fetches it once and hands it to the
+                // builder; the scatter places it at 0x40000.
+                try {
+                    const bd = await fetch('asm/bdos_block.asm', { cache: 'no-store' });
+                    if (bd.ok) this.bdosSource = await bd.text();
+                } catch (error) {
+                    this.addTranscriptEntry(`BDOS source failed: ${error.message}`, 'error');
+                }
+            }
+
             if (this.tileBuild === 'd16d') {
                 try {
-                    const [sf, ff, sc, fl, pm, pg, fg] = await Promise.all([
+                    const [sf, ff, bd, sc, fl, pm, pg, fg] = await Promise.all([
                         fetch('asm/softfloat.asm', { cache: 'no-store' }),
                         fetch('asm/forth_float.asm', { cache: 'no-store' }),
+                        fetch('asm/bdos_block.asm', { cache: 'no-store' }),
                         fetch('asm/showcase/showcase.asm', { cache: 'no-store' }),
                         fetch('asm/showcase/flappy_game.asm', { cache: 'no-store' }),
                         fetch('asm/showcase/pacman_map.asm', { cache: 'no-store' }),
                         fetch('asm/showcase/pacman_game.asm', { cache: 'no-store' }),
                         fetch('asm/showcase/frogger_demo.asm', { cache: 'no-store' }),
                     ]);
-                    if (!sf.ok || !ff.ok || !sc.ok || !fl.ok || !pm.ok || !pg.ok || !fg.ok) throw new Error('showcase sources not found');
+                    if (!sf.ok || !ff.ok || !bd.ok || !sc.ok || !fl.ok || !pm.ok || !pg.ok || !fg.ok) throw new Error('showcase sources not found');
                     this.d16dSources = {
                         softfloat: await sf.text(),
                         forthFloat: await ff.text(),
+                        bdosBlock: await bd.text(),
                         showcase: await sc.text(),
                         flappy: await fl.text(),
                         pacmanMap: await pm.text(),
                         pacmanGame: await pg.text(),
                         frogger: await fg.text(),
                     };
+                    this.bdosSource = this.d16dSources.bdosBlock;
                 } catch (error) {
                     this.addTranscriptEntry(`D16D sources failed: ${error.message}`, 'error');
                 }

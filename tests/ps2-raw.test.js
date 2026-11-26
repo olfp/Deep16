@@ -7,7 +7,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { assemble, loadBrowserScripts, MEM_WORDS, ROOT } from './helpers.js';
+import { assemble, loadBrowserScripts, MEM_WORDS, ROOT, placeBdos } from './helpers.js';
 import { buildSlices, SCREEN_BASE } from '../scripts/make_slices.mjs';
 import { layoutWords, makeEvent, PS2_LAYOUT_BASE } from '../scripts/make_ps2map.mjs';
 
@@ -29,6 +29,7 @@ function boot() {
   for (let i = 0; i < tables.length; i++) mem[PS2_LAYOUT_BASE + i] = tables[i];
   for (let w = 0x3000; w <= 0x57dc; w++) mem[(DS_SEG << 4) + w] = mem[w];
   for (let w = 0x4a00; w <= 0x6fff; w++) mem[(BIOS_SEG << 4) + (w - 0x4a00)] = mem[w];
+  placeBdos(mem);
   mem[(DS_SEG << 4) + sym.boot_ptr] = 0;       // no baked script: straight to the prompt
   mem[(DS_SEG << 4) + sym.ps2_layout] = 0;     // DE
 

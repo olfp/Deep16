@@ -23,7 +23,8 @@ class Deep16D16DImage {
   // supplied it is appended, at its own .org 0x5800, and FPU_KERNEL turns on
   // the ILL dispatch that calls it. forthFloat adds the Forth surface at
   // 0x417D and defines FPU_WORDS.
-  static assembleNano({ kernel, softfloat = null, forthFloat = null, defines = {} } = {}) {
+  static assembleNano({ kernel, softfloat = null, forthFloat = null, bdosBlock = null,
+                        defines = {} } = {}) {
     if (typeof Deep16Assembler !== 'function') throw new Error('Deep16Assembler is not loaded');
     if (typeof kernel !== 'string' || !kernel.trim()) throw new Error('nano image needs kernel source');
     if (softfloat !== null && (typeof softfloat !== 'string' || !softfloat.trim())) {
@@ -53,18 +54,33 @@ class Deep16D16DImage {
     }
     if (typeof Deep16Linker !== 'function') throw new Error('Deep16Linker is not loaded');
 
+    const chapters = [Deep16Linker.flat({ id: 'flat', sources })];
+    if (typeof bdosBlock === 'string' && bdosBlock.trim()) {
+      // Phase 2c-0: the BDOS chapter is a segment-relative chapter. It does not
+      // contribute to the flat kernel image; scatterD16SEG() places it at
+      // 0x40000. The entry move itself is 2c-1.
+      chapters.push({ id: 'bdos', seg: 0x4000, base: 0, relative: true, sources: [bdosBlock] });
+    }
+
     // The FPU image carries fexp32/flog32 at 0x6000, so it needs 0x7000 words.
     const WINDOW = softfloat !== null ? 0x7000 : 0x6000;
     const linked = new Deep16Linker(Deep16Assembler).link({
-      chapters: [Deep16Linker.flat({ id: 'flat', sources })],
+      chapters,
       defines: defs,
       window: WINDOW,
       fill: 0xFFFF,
+      flatChapter: 'flat',
     });
     const result = linked.flatView.result;
     if (!result.success) throw new Error('kernel does not assemble: ' + result.errors.join('; '));
 
-    return { result, words: linked.flatView.words, outOfWindow: linked.flatView.outOfWindow };
+    const bdos = linked.chapters.find((c) => c.id === 'bdos') ?? null;
+    return {
+      result,
+      words: linked.flatView.words,
+      outOfWindow: linked.flatView.outOfWindow,
+      bdos: bdos ? { words: bdos.words, outOfWindow: bdos.outOfWindow } : null,
+    };
   }
 
   // The image invariants every scattered copy relies on. The Node builder has
@@ -113,17 +129,20 @@ class Deep16D16DImage {
   // The generic D16nano console used by the IDE. CONSOLE_PS2 keeps the
   // CONSOLE_UART output path, but reads input from the D16nano keyboard FIFO
   // instead of the serial UART.
-  static buildNano({ kernel, softfloat = null, forthFloat = null, defines = {} } = {}) {
+  static buildNano({ kernel, softfloat = null, forthFloat = null, bdosBlock = null,
+                     defines = {} } = {}) {
     const image = this.assembleNano({
       kernel,
       softfloat,
       forthFloat,
+      bdosBlock,
       defines: { CONSOLE_MIRROR: 1, CONSOLE_PS2: 1, ...defines },
     });
     const result = image.result;
     const img = {
       words: image.words,
       outOfWindow: image.outOfWindow,
+      bdos: image.bdos,
       collisions: [],
       dictFree: result.symbols.dict_free,
       biosEntry: result.symbols.bios_entry,
@@ -150,7 +169,7 @@ class Deep16D16DImage {
   //
   // Returns the writes as { address, value } records. If memory is supplied,
   // the writes are also applied to it.
-  static scatterD16SEG(words, { bootPtr = null, memory = null } = {}) {
+  static scatterD16SEG(words, { bootPtr = null, bdos = null, memory = null } = {}) {
     if (!words || typeof words.length !== 'number') {
       throw new Error('D16SEG scatter needs an image word array');
     }
@@ -167,6 +186,14 @@ class Deep16D16DImage {
       put(0x30000 + (offset - 0x4A00), words[offset]);
     }
 
+    // Phase 2c: the BDOS chapter is its own segment. Its words are offsets, so
+    // the destination is 0x40000 + offset. FILL words are already erased memory.
+    if (bdos && bdos.words) {
+      for (let offset = 0; offset < bdos.words.length; offset++) {
+        if (bdos.words[offset] !== 0xFFFF) put(0x40000 + offset, bdos.words[offset]);
+      }
+    }
+
     if (bootPtr !== null && bootPtr !== undefined) {
       put(bootPtr, 0);
       put(0x10000 + bootPtr, 0);
@@ -179,7 +206,8 @@ class Deep16D16DImage {
     return changes;
   }
 
-  static build({ kernel, softfloat = null, forthFloat = null, showcase, flappy, flappyDefs,
+  static build({ kernel, softfloat = null, forthFloat = null, bdosBlock = null,
+                 showcase, flappy, flappyDefs,
                  pacmanMap, pacmanGame, frogger, defines = {}, bakePacman = false, packs = {},
                  layouts = null, layoutBase = 0x6a90 } = {}) {
     if (typeof kernel !== 'string' || !kernel.trim()) throw new Error('D16D image needs kernel source');
@@ -195,6 +223,7 @@ class Deep16D16DImage {
       kernel,
       softfloat,
       forthFloat,
+      bdosBlock,
       defines: { D16D: 1, ...defines },
     });
     const kres = kernelImage.result;
@@ -284,6 +313,7 @@ class Deep16D16DImage {
     const img = {
       words,
       outOfWindow: [...outOfWindow].sort((a, b) => a - b),
+      bdos: kernelImage.bdos,
       collisions,
       dictFree: kres.symbols.dict_free,
       biosEntry: kres.symbols.bios_entry,

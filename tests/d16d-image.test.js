@@ -23,6 +23,7 @@ const Deep16D16DImage = vm.runInThisContext('Deep16D16DImage');
 const kernel = fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8');
 const softfloat = fs.readFileSync(path.join(ROOT, 'asm', 'softfloat.asm'), 'utf8');
 const forthFloat = fs.readFileSync(path.join(ROOT, 'asm', 'forth_float.asm'), 'utf8');
+const bdosBlock = fs.readFileSync(path.join(ROOT, 'asm', 'bdos_block.asm'), 'utf8');
 const showcase = fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'showcase.asm'), 'utf8');
 const flappy = fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'flappy_game.asm'), 'utf8');
 const flappyDefs = fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'flappy_defs.asm'), 'utf8');
@@ -31,7 +32,7 @@ const pacmanGame = fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'pacman_ga
 const frogger = fs.readFileSync(path.join(ROOT, 'asm', 'showcase', 'frogger_demo.asm'), 'utf8');
 
 const packs = { flappy: flappyArtPack(), pacman: pacmanArtPack(), frogger: froggerArtPack() };
-const sources = { kernel, softfloat, forthFloat, showcase, flappy, flappyDefs,
+const sources = { kernel, softfloat, forthFloat, bdosBlock, showcase, flappy, flappyDefs,
                   pacmanMap, pacmanGame, frogger, packs, layouts: layoutWords() };
 
 test('browser builder matches the Node D16D image word for word', () => {
@@ -39,6 +40,8 @@ test('browser builder matches the Node D16D image word for word', () => {
   const browser = Deep16D16DImage.build(sources);
   assert.deepEqual(Array.from(browser.words), Array.from(node.words));
   assert.deepEqual(browser.outOfWindow, node.outOfWindow);
+  assert.deepEqual(Array.from(browser.bdos.words), Array.from(node.bdos.words),
+                   'BDOS chapter matches');
   assert.equal(browser.dictFree, node.dictFree);
   assert.equal(browser.biosEntry, node.biosEntry);
   assert.deepEqual(
@@ -102,7 +105,10 @@ test('the image is code plus the showcase, not graphics', () => {
 test('the BIOS scatter carries the FPU library to segment 0x3000', () => {
   const image = Deep16D16DImage.build(sources);
   const memory = [];
-  Deep16D16DImage.scatterD16SEG(image.words, { memory });
+  Deep16D16DImage.scatterD16SEG(image.words, { bdos: image.bdos, memory });
+  assert.notEqual(image.bdos.words[0x2D4A], 0xFFFF, 'the BDOS entry is in the chapter');
+  assert.equal(memory[0x40000 + 0x2D4A], image.bdos.words[0x2D4A],
+               'the scatter placed the BDOS chapter at 0x40000');
   // 0x5800 - 0x4A00 = 0x0E00, and 0x30000 + 0x0E00 = 0x30E00.
   assert.equal(memory[0x30E00], image.words[0x5800], 'f_unpack reached the BIOS copy');
   // fexp32 sits at 0x6000: 0x6000 - 0x4A00 = 0x1600, so 0x31600.

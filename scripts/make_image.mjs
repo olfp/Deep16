@@ -111,6 +111,7 @@ if (process.env.BOOT_DIAG) DEFINES.BOOT_DIAG = 1;     // boot diagnostic build
 
 export const SOFTFLOAT_PATH = path.join(ROOT, 'asm', 'softfloat.asm');
 export const FORTH_FLOAT_PATH = path.join(ROOT, 'asm', 'forth_float.asm');
+export const BDOS_PATH = path.join(ROOT, 'asm', 'bdos_block.asm');
 
 export function buildImage() {
   if (D16D && !D16SEG) {
@@ -132,17 +133,27 @@ export function buildImage() {
   const library = FPU ? fs.readFileSync(SOFTFLOAT_PATH, 'utf8') : '';
   const forthFloat = FPU ? fs.readFileSync(FORTH_FLOAT_PATH, 'utf8') : '';
   const sources = FPU ? [source, library, forthFloat] : [source];
+  const bdosBlock = NANO ? fs.readFileSync(BDOS_PATH, 'utf8') : null;
+  const chapters = [Deep16Linker.flat({ id: 'flat', sources })];
+  if (bdosBlock) {
+    // Phase 2c-0: the BDOS chapter is segment-relative and does not enter the
+    // flat image. The board loader cannot carry it until phase 4a; the
+    // simulator's scatterD16SEG() places it at 0x40000.
+    chapters.push({ id: 'bdos', seg: 0x4000, base: 0, relative: true, sources: [bdosBlock] });
+  }
   const linked = new Deep16Linker(Deep16Assembler).link({
-    chapters: [Deep16Linker.flat({ id: 'flat', sources })],
+    chapters,
     defines: DEFINES,
     window: WINDOW,
     fill: FILL,
+    flatChapter: 'flat',
   });
   const res = linked.flatView.result;
   if (!res.success) throw new Error(`${SOURCE_LABEL} does not assemble: ` + res.errors.join('; '));
 
   const words = linked.flatView.words;
   const outOfWindow = new Set(linked.flatView.outOfWindow);
+  const bdos = linked.chapters.find((c) => c.id === 'bdos') ?? null;
 
   const sym = res.symbols;
   if (FPU) {
@@ -281,6 +292,7 @@ export function buildImage() {
     words, outOfWindow: [...outOfWindow].sort((a, b) => a - b), collisions,
     dictFree: sym.dict_free, biosEntry: sym.bios_entry, biosWords, build,
     fpu: FPU, fpuWords: FPU, showcase, pacman,
+    bdos: bdos ? { words: bdos.words, outOfWindow: bdos.outOfWindow } : null,
     layouts: layouts ? { base: PS2_LAYOUT_BASE, words: LAYOUT_WORDS,
                          count: LAYOUT_COUNT } : null,
   };

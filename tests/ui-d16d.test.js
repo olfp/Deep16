@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import path from 'node:path';
-import { ROOT, readTileText } from './helpers.js';
+import { ROOT, readTileText, bdosSource } from './helpers.js';
 
 globalThis.window = globalThis.window || {};
 globalThis.document = {
@@ -39,7 +39,8 @@ function makeUi(tileBuild = 'd16d') {
   ui.simulator = new Deep16Simulator();
   ui.consoleView = 'tiles';
   ui.tileBuild = tileBuild;
-  ui.d16dSources = { softfloat, forthFloat, showcase, flappy, pacmanMap, pacmanGame, frogger };
+  ui.bdosSource = bdosSource();
+  ui.d16dSources = { softfloat, forthFloat, bdosBlock: bdosSource(), showcase, flappy, pacmanMap, pacmanGame, frogger };
   ui.tileStepsPerTick = 6000;
   ui.tileFrame = 0;
   ui.tileVblank = false;
