@@ -277,17 +277,18 @@ Every phase ends with `npm test` green and a byte-identical legacy image where
 stated. Rollback is `git revert` of that phase; no format changes are
 committed before their RTL counterpart is tested.
 
-### Phase 0 — stop silent corruption (no layout change)
+### Phase 0 — stop silent corruption (and move the colliding blocks)
 
 * Add duplicate-label and overlapping-`.org` detection to
   `js/deep16_assembler.js`; return an explicit `overlap[]` (address, previous,
-  value, both source lines, and whether the value changed). An
-  `options.strictOverlap` makes a changed-value second write an assembly error.
-* Duplicate labels are **hard errors** now. The shipping sources had two, both
+  value, both source lines, and whether the value changed). A changed-value
+  second write is an assembly error by default; `strictOverlap: false` reports
+  without failing.
+* Duplicate labels are **hard errors**. The shipping sources had three, all
   renamed without moving a word: `bdos_fwrite` (the unimplemented stub) became
-  `bdos_fwrite_stub`, and the fwrite name cell became `bd_wr_name` so it no
-  longer collides with the fcreate/fdelete `bd_name`. The Pac-Man slice had a
-  second `pac_k_done`; the fall-through copy is now `pac_k_set_done`.
+  `bdos_fwrite_stub`, the fwrite name cell became `bd_wr_name` so it no longer
+  collides with the fcreate/fdelete `bd_name`, and Pac-Man's fall-through
+  `pac_k_done` became `pac_k_set_done`.
 * Replace last-write-wins **at the component level** with a build error: a
   baked Pac-Man block now claims only FILL words, as the showcase and PS/2
   layout table already did. A component write over live kernel code fails both
@@ -298,28 +299,30 @@ committed before their RTL counterpart is tested.
   reports the BIOS range and limit in its error.
 * Refresh stale `FPUEMUPLAN.md:499` (`0x2D2F` → `0x2D3F`; the trampolines moved
   to the slot the audit recorded, which also clears `waqr_scan`).
-* **Acceptance:** an intentional overlapping `.org` in a test fails assembly
-  (with `strictOverlap`); `D16NANO=1 D16SEG=1 node scripts/make_image.mjs`
-  still reports the known `BIOS block 0x4a00..0x5fd6 (5591 words) overruns the
-  stacks at 0x5800` error; `npm test` green.
+* **Pre-Phase-1 layout pass.** Detection found 17 changed-value double writes
+  in the shipping `D16D+FPU` kernel. They were block-into-neighbour collisions,
+  not deliberate overlays, and each was moved inside an existing free run:
+
+  | Block | Old | New | Collision removed |
+  |---|---|---|---|
+  | `bdos_word_call` + wrappers | `0x18C3` | `0x1FC2` (before `post_next`) | `word_esstore` tail at `0x18C3`–`0x18C7` |
+  | fitdemo code/data | `0x4480` | `0x447F` | `h_pal_bank` at `0x4579` |
+  | `bios_f14`/`bios_f15` stubs | `0x4D00` | `0x5FD7` (softfloat gap) | D16D `bios_f6` gfx tail at `0x4D00`–`0x4D0A` |
+  | `sfx_table` | `0x576F` (flow) | `0x6863` (after `sf_parse`) | `bios_out_col`..`bios_gfx_r6` at `0x5790` |
+  | `ill_pc_save_bios` | `0x57D0` | `0x57DF` | `bios_f22` code at `0x57D0` |
+
+  All ten assembly units now have zero duplicate labels and zero overlaps:
+  D16D+FPU, nano FPU, nano no-FPU, UART flat, UART+`D16SEG`, the legacy kernel,
+  and the four showcase slices. `strictOverlap` is therefore the default with
+  no baseline or allowlist, and the builders no longer need one.
+* **Acceptance:** an overlapping `.org` with a different value fails assembly
+  with no options; `D16NANO=1 D16SEG=1 node scripts/make_image.mjs` still
+  reports the known `BIOS block 0x4a00..0x5fd6 (5591 words) overruns the
+  stacks at 0x5800` error; the shipping `D16D` image builds; `npm test` green.
 * **Files:** `js/deep16_assembler.js`, `scripts/make_image.mjs`,
-  `js/deep16_d16d_image.js`, `js/deep16_ui_core.js`, `tests/assembler.test.js`,
-  `asm/forth_nano.asm`, `asm/forth_float.asm`,
-  `asm/showcase/pacman_game.asm`, `FPUEMUPLAN.md`.
-
-**What detection found (and why the last step is scoped).** The shipping
-`D16D+FPU` kernel already double-writes 17 words. Turning every changed-value
-overlap into a hard error today would make the board image unbuildable, so the
-build keeps last-write-wins for these and a test pins them, failing on any new
-one. Each is a block that grew into its neighbour:
-
-| Address | First writer | Second writer | Removed by |
-|---|---|---|---|
-| `0x18c3`–`0x18c5` | `word_esstore` tail | `bdos_word_call` (`assembly` at `0x18C3`) | Phase 2 (BDOS moves) |
-| `0x4579` | fitdemo text terminator | `h_pal_bank` | Phase 3 (float/catalog space) |
-| `0x4d00`–`0x4d08` | D16D `bios_f6` gfx tail | `bios_f14/15` division stubs | Phase 3 (ILL/BIOS rework) |
-| `0x5792`–`0x5795` | `bios_tile_*` cells | `sfx_table` entries | Phase 3 (BIOS data moves) |
-| `0x57d0` | `bios_f22` code | `ill_pc_save_bios` | Phase 3 |
+  `js/deep16_d16d_image.js`, `js/deep16_ui_core.js`, `scripts/render_tile.mjs`,
+  `tests/assembler.test.js`, `tests/image.test.js`, `asm/forth_nano.asm`,
+  `asm/forth_float.asm`, `asm/showcase/pacman_game.asm`, `FPUEMUPLAN.md`.
 
 ### Phase 1 — linker scaffold, identical output
 
@@ -331,7 +334,7 @@ one. Each is a block that grew into its neighbour:
 * Route Node and browser builders through it; keep `flatView` as the output
   used by the existing scatter.
 * **Acceptance:** `image.hex`, `image.mi`, `image.flash.bin` and the manifest
-  are byte-for-byte identical to the pre-change build (hash comparison test);
+  are byte-for-byte identical to the Phase 0 build (hash comparison test);
   `tests/d16d-image.test.js` Node/browser parity still passes.
 * **Files:** new linker modules, `scripts/make_image.mjs`,
   `js/deep16_d16d_image.js`, `js/deep16_ui_core.js`, new `tests/linker.test.js`.

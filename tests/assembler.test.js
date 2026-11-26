@@ -364,18 +364,18 @@ test('a label defined twice is an error, not a silent re-point', () => {
 });
 
 test('a second write to one address is reported in overlap', () => {
-  const res = assemble('.org 0x10\n.word 0x1234\n.org 0x10\n.word 0x5678\n');
+  const res = assemble('.org 0x10\n.word 0x1234\n.org 0x10\n.word 0x5678\n',
+                       { strictOverlap: false });
   assert.equal(res.overlap.length, 1);
   assert.deepEqual(
     { address: res.overlap[0].address, previous: res.overlap[0].previous,
       value: res.overlap[0].value, changed: res.overlap[0].changed },
     { address: 0x10, previous: 0x1234, value: 0x5678, changed: true });
-  assert.equal(res.success, true, 'reporting an overlap is not fatal by default');
+  assert.equal(res.success, true, 'strictOverlap:false reports without failing');
 });
 
-test('strictOverlap turns an overlapping .org with a different value into an error', () => {
-  const res = assemble('.org 0x10\n.word 0x1234\n.org 0x10\n.word 0x5678\n',
-                       { strictOverlap: true });
+test('an overlapping .org with a different value is an error by default', () => {
+  const res = assemble('.org 0x10\n.word 0x1234\n.org 0x10\n.word 0x5678\n');
   assert.equal(res.success, false);
   assert.match(res.errors.join('; '), /written twice with different values/);
   assert.match(res.errors.join('; '), /0x10/);
@@ -388,11 +388,11 @@ test('strictOverlap still allows an identical second write', () => {
   assert.equal(res.overlap[0].changed, false);
 });
 
-// The shipping kernel already contains these deliberate/accidental overlays:
-// a block that grew into its neighbour. MEMFIXPLAN phases 2-5 move the blocks
-// that cause them. Pinning the set here means a new collision fails CI now,
-// and removing one is a visible edit to this list rather than a silent shrink.
-test('the D16D kernel has no duplicate labels and no new overlaps', () => {
+// The shipping kernel must stay collision-free now that the pre-Phase-1 layout
+// pass moved the five blocks that used to overlap (bdos_word_call, fitdemo,
+// bios_f14/15, sfx_table, ill_pc_save_bios). Any overlap here is a new
+// regression, not a baseline to grow.
+test('the D16D kernel has no duplicate labels and no overlaps', () => {
   const source = ['forth_nano.asm', 'softfloat.asm', 'forth_float.asm']
     .map((f) => fs.readFileSync(`${ROOT}/asm/${f}`, 'utf8')).join('\n');
   const res = assemble(source, {
@@ -400,11 +400,5 @@ test('the D16D kernel has no duplicate labels and no new overlaps', () => {
                FPU_KERNEL: 1, FPU_WORDS: 1 },
   });
   assert.equal(res.success, true, res.errors.join('; '));
-  assert.deepEqual(
-    res.overlap.filter((o) => o.changed).map((o) => o.address).sort((a, b) => a - b),
-    [0x18c3, 0x18c4, 0x18c5,
-     0x4579,
-     0x4d00, 0x4d01, 0x4d02, 0x4d03, 0x4d04, 0x4d06, 0x4d07, 0x4d08,
-     0x5792, 0x5793, 0x5794, 0x5795,
-     0x57d0]);
+  assert.deepEqual(res.overlap, [], 'the shipping kernel has no double writes');
 });

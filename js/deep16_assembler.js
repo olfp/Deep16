@@ -39,7 +39,7 @@ class Deep16Assembler {
                     previousLine: previous.line,
                     changed,
                 });
-                if (changed && options.strictOverlap) {
+                if (changed && options.strictOverlap !== false) {
                     errors.push(
                         `Address 0x${addr.toString(16)} written twice with different values ` +
                         `(0x${previous.value.toString(16)} at line ${previous.line}, ` +

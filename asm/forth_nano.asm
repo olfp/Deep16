@@ -20314,7 +20314,9 @@ h_fitdemo:
 ;
 ; The code and its data live in the free image gap below the BIOS.  Nothing in
 ; the dictionary moves, so the pinned catalog addresses stay valid.
-.org 0x4480
+; 0x447F, one word lower than the original 0x4480, so the final zero that
+; terminates fitdemo_text lands at 0x4578 and h_pal_bank keeps 0x4579.
+.org 0x447F
 .code
 word_fitdemo:
     ; R5 (>IN), R6 (TIB) and R8 (the console cursor) belong to the
@@ -20583,7 +20585,10 @@ bslice_psw:
 ; ============================================================
 ; Forth wrappers for BDOS 14..23 (palette, I2S, SIC, sound window)
 ; ============================================================
-.org 0x18C3
+; 0x1FC2 is the free run before post_next at 0x1FEC. This block used to sit at
+; 0x18C3 and overwrite the tail of word_esstore at 0x18C3..0x18C7; the memory
+; audit's Phase 0 flagged that as a live collision.
+.org 0x1FC2
 .code
 bdos_word_call:              ; write call: post = next
     LDI post_next
@@ -21979,7 +21984,11 @@ ill_trampoline:
 ; Forth's signed 16/16, signed 32/16 and exact unsigned 32/16. The handlers
 ; use a small reserved stack, set in bios_entry, because the routines save
 ; registers there.
-.org 0x4D00
+;
+; 0x5FD7 is the free run between softfloat's two flat blocks (0x5800..0x5FD6
+; and 0x6000..). At 0x4D00 these two stubs overwrote the D16D bios_f6 gfx
+; tail (0x4D00..0x4D0A); bios_f16 stays at 0x4D0C and does not touch it.
+.org 0x5FD7
 .code
 bios_f14:
     LDI bios_div16_call - BIOS_BASE
@@ -22664,6 +22673,10 @@ kbd_read_empty:
     NOP
 
 ; step, step-delta, amplitude, mode, alternate step
+; 0x6863 is the free run after the flat float parser (sf_parse ends at
+; 0x6862). At 0x576F the last entries ran into bios_out_col..bios_gfx_r6 at
+; 0x5790; the sound table and the console state cannot share those words.
+.org 0x6863
 sfx_table:
     .word 0x0000, 0x0080, 0x2000, 3, 0x0000   ; 1 flap: noise puff
     .word 0x0AAE, 0x0000, 0x2000, 1, 0x1005   ; 2 score: 880 -> 1320
@@ -22675,8 +22688,10 @@ sfx_table:
     .word 0x0557, 0x0010, 0x2000, 2, 0x0000   ; 8 rise: 440 -> 1100
 
 ; Saved registers and effect state, kept in the BIOS block so they cost the
-; kernel dictionary nothing (dict_free must stay 0x434F).
-.org 0x57D0
+; kernel dictionary nothing (dict_free must stay 0x434F). 0x57DF is after
+; ps2_save_r9 and outside the DS copy (which ends at 0x57DC); the ILL handler
+; reaches it with LDI ill_pc_save_bios - BIOS_BASE, so a CS-only cell is right.
+.org 0x57DF
 ill_pc_save_bios:
     .word 0
 
