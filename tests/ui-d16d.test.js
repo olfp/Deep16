@@ -13,7 +13,7 @@ globalThis.document = {
   getElementById() { return null; },
 };
 
-for (const f of ['js/deep16_assembler.js', 'js/deep16_simulator.js',
+for (const f of ['js/deep16_assembler.js', 'js/deep16_linker.js', 'js/deep16_simulator.js',
                  'js/deep16_d16d_image.js', 'js/deep16_ui_core.js']) {
   vm.runInThisContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), { filename: f });
 }

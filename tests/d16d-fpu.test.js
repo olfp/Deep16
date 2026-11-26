@@ -10,7 +10,8 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { loadBrowserScripts, ROOT } from './helpers.js';
 
-loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js', 'js/deep16_d16d_image.js');
+loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_linker.js',
+                   'js/deep16_simulator.js', 'js/deep16_d16d_image.js');
 const Deep16D16DImage = vm.runInThisContext('Deep16D16DImage');
 
 const kernelSource = fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8');

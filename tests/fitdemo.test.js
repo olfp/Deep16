@@ -11,6 +11,7 @@ import { ROOT, readTileText } from './helpers.js';
 
 for (const file of [
   'js/deep16_assembler.js',
+  'js/deep16_linker.js',
   'js/deep16_simulator.js',
   'js/deep16_d16d_image.js',
   'js/deep16_flash_assets.js',

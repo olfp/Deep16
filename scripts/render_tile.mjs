@@ -32,6 +32,7 @@ function loadModules() {
   globalThis.window = globalThis.window || {};
   const files = [
     'js/deep16_assembler.js',
+    'js/deep16_linker.js',
     'js/deep16_simulator.js',
     'js/deep16_flash_assets.js',
     'js/deep16_gfx_loader.js',

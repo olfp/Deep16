@@ -42,32 +42,29 @@ class Deep16D16DImage {
       D16SEG: 1,
       ...defines,
     };
-    let source = kernel;
+    const sources = [kernel];
     if (softfloat !== null) {
       defs.FPU_KERNEL = 1;
-      source = `${kernel}\n${softfloat}`;
+      sources.push(softfloat);
     }
     if (forthFloat !== null) {
       defs.FPU_WORDS = 1;
-      source = `${source}\n${forthFloat}`;
+      sources.push(forthFloat);
     }
-
-    const result = new Deep16Assembler().assemble(source, { defines: defs });
-    if (!result.success) throw new Error('kernel does not assemble: ' + result.errors.join('; '));
+    if (typeof Deep16Linker !== 'function') throw new Error('Deep16Linker is not loaded');
 
     // The FPU image carries fexp32/flog32 at 0x6000, so it needs 0x7000 words.
     const WINDOW = softfloat !== null ? 0x7000 : 0x6000;
-    const words = new Uint16Array(WINDOW).fill(0xFFFF);
-    const outOfWindow = new Set();
-    for (const change of result.memoryChanges) {
-      if (change.address >= 0 && change.address < WINDOW) {
-        words[change.address] = change.value & 0xFFFF;
-      } else {
-        outOfWindow.add(change.address);
-      }
-    }
+    const linked = new Deep16Linker(Deep16Assembler).link({
+      chapters: [Deep16Linker.flat({ id: 'flat', sources })],
+      defines: defs,
+      window: WINDOW,
+      fill: 0xFFFF,
+    });
+    const result = linked.flatView.result;
+    if (!result.success) throw new Error('kernel does not assemble: ' + result.errors.join('; '));
 
-    return { result, words, outOfWindow: [...outOfWindow].sort((a, b) => a - b) };
+    return { result, words: linked.flatView.words, outOfWindow: linked.flatView.outOfWindow };
   }
 
   // The image invariants every scattered copy relies on. The Node builder has

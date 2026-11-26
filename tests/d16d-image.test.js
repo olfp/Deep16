@@ -15,7 +15,7 @@ process.env.D16D = '1';
 process.env.D16SEG = '1';
 const { buildImage } = await import('../scripts/make_image.mjs');
 
-for (const f of ['js/deep16_assembler.js', 'js/deep16_d16d_image.js']) {
+for (const f of ['js/deep16_assembler.js', 'js/deep16_linker.js', 'js/deep16_d16d_image.js']) {
   vm.runInThisContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), { filename: f });
 }
 const Deep16D16DImage = vm.runInThisContext('Deep16D16DImage');

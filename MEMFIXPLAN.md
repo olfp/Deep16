@@ -108,17 +108,24 @@ for debugging/manifests.
 ### 3.2 Layout declaration
 
 ```js
-export const CHAPTERS_D16D = [
-  { id: 'kernel',  seg: 0x0000, base: 0x00000, sources: ['forth_nano.asm'],        fill: 0xFFFF },
-  { id: 'sys',     seg: 0x3000, base: 0x30000, sources: ['bios', 'ill', 'softfloat', 'forth_float'] },
-  { id: 'bdos',    seg: 0x4000, base: 0x40000, sources: ['bdos_block.asm'] },
-];
-export const IMPORTS = {
-  bdos:  ['bdos_entry', 'bdos_version', /* ... */],
-  sys:   ['ill_restore_shared', 'bios_div16_call', /* ... */],
-};
+linker.link({
+  chapters: [
+    { id: 'kernel', seg: 0x0000, base: 0x00000, sources: [{ name: 'forth_nano.asm', text }], fill: 0xFFFF },
+    { id: 'sys',    seg: 0x3000, base: 0x30000, sources: [{ name: 'bios', text }, /* ... */] },
+    { id: 'bdos',   seg: 0x4000, base: 0x40000, sources: [{ name: 'bdos_block.asm', text }] },
+  ],
+  imports: {
+    bdos: ['bdos_entry', 'bdos_version', /* ... */],
+    sys:  ['ill_restore_shared', 'bios_div16_call', /* ... */],
+  },
+  window: 0x7000,
+  fill: 0xFFFF,
+});
 ```
 
+The chapter list is a value passed to `link()`, not an ES export: the linker
+is a browser script loaded by `index.html` and the Node builders, so it has no
+module exports. `Deep16Linker.flat()` is the Phase 1 single-chapter shorthand.
 Each chapter has its own assembler instance (so label names cannot clash) and
 its own `.org`s rewritten to `base + offset`. `entry` / `trampoline` metadata
 is attached to the chapter, not hard-coded in the loader.
@@ -336,8 +343,16 @@ committed before their RTL counterpart is tested.
 * **Acceptance:** `image.hex`, `image.mi`, `image.flash.bin` and the manifest
   are byte-for-byte identical to the Phase 0 build (hash comparison test);
   `tests/d16d-image.test.js` Node/browser parity still passes.
+* **Implementation note:** `js/deep16_linker.js` is the browser-safe linker;
+  `scripts/link_image.mjs` prints/writes the chapter manifest;
+  `Deep16Linker.flat()` is the single-chapter layout the builders use.
+  `tests/linker.test.js` pins the Phase 0 build id (`8861a2f61fa02c4c`) and
+  image CRC (`0xbf4d`), so the routing cannot drift silently. The constant pool
+  (`constantPool`, `ldc`, `ldcFar`) and the import prologue are tested but
+  receive no entries, so the emitted pool is empty and no source changes.
 * **Files:** new linker modules, `scripts/make_image.mjs`,
-  `js/deep16_d16d_image.js`, `js/deep16_ui_core.js`, new `tests/linker.test.js`.
+  `js/deep16_d16d_image.js`, `js/deep16_ui_core.js`, new `tests/linker.test.js`,
+  `index.html` (script order), `tests/helpers.js` and the loader lists.
 
 ### Phase 2 — BDOS → `CS=0x4000`
 

@@ -59,8 +59,8 @@ export const EXPECTED = [
 ].join('\n');
 
 export function bootNative() {
-  loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js',
-                     'js/deep16_d16d_image.js');
+  loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_linker.js',
+                     'js/deep16_simulator.js', 'js/deep16_d16d_image.js');
   const Deep16D16DImage = vm.runInThisContext('Deep16D16DImage');
 
   const kernel = fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8');

@@ -91,6 +91,14 @@ function loadAssembler() {
   return vm.runInThisContext('Deep16Assembler');
 }
 
+function loadLinker() {
+  globalThis.window = globalThis.window || {};
+  try { return vm.runInThisContext('Deep16Linker'); } catch { /* not yet */ }
+  const file = path.join(ROOT, 'js', 'deep16_linker.js');
+  vm.runInThisContext(fs.readFileSync(file, 'utf8'), { filename: 'deep16_linker.js' });
+  return vm.runInThisContext('Deep16Linker');
+}
+
 // Assemble the kernel and lay it into the window. Returns the words plus the
 // facts the assertions and the manifest need.
 export const DEFINES = { CONSOLE_UART: 1 };
@@ -119,20 +127,22 @@ export function buildImage() {
     throw new Error('FPU=1 needs D16SEG=1 (the 0x5800 return stack would collide with the library)');
   }
   const Deep16Assembler = loadAssembler();
+  const Deep16Linker = loadLinker();
   const source = fs.readFileSync(SOURCE_PATH, 'utf8');
   const library = FPU ? fs.readFileSync(SOFTFLOAT_PATH, 'utf8') : '';
   const forthFloat = FPU ? fs.readFileSync(FORTH_FLOAT_PATH, 'utf8') : '';
-  const res = new Deep16Assembler().assemble(
-    FPU ? `${source}\n${library}\n${forthFloat}` : source,
-    { defines: DEFINES });
+  const sources = FPU ? [source, library, forthFloat] : [source];
+  const linked = new Deep16Linker(Deep16Assembler).link({
+    chapters: [Deep16Linker.flat({ id: 'flat', sources })],
+    defines: DEFINES,
+    window: WINDOW,
+    fill: FILL,
+  });
+  const res = linked.flatView.result;
   if (!res.success) throw new Error(`${SOURCE_LABEL} does not assemble: ` + res.errors.join('; '));
 
-  const words = new Uint16Array(WINDOW).fill(FILL);
-  const outOfWindow = new Set();
-  for (const c of res.memoryChanges) {
-    if (c.address < WINDOW) words[c.address] = c.value & 0xFFFF;
-    else outOfWindow.add(c.address);
-  }
+  const words = linked.flatView.words;
+  const outOfWindow = new Set(linked.flatView.outOfWindow);
 
   const sym = res.symbols;
   if (FPU) {
