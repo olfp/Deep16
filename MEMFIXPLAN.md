@@ -1,8 +1,8 @@
 # MEMFIXPLAN — clean up the memory map with chapters and a thin linker
 
-Status: **plan only**, 2026-11-26. Companion to `MEMLAYOUT.md` (audit) and
-`MEMMAP.md` (hardware/MMIO reference). Nothing in this file has been
-implemented yet.
+Status: **phases 0–3 implemented**, 2026-11-26; phase 4 (board loader) and
+phase 5 remain. Companion to `MEMLAYOUT.md` (audit) and
+`MEMMAP.md` (hardware/MMIO reference).
 
 ## 0. Goal, scope, non-goals
 
@@ -67,7 +67,7 @@ change rewrites pool words only; the instructions never change.
 
 | Segment | Physical | Chapters | Notes |
 |---|---|---|---|
-| `CS=0x0000` | `0x00000` | the **whole `CS=0` segment**: vectors `0..2`, kernel code `0x0100`–`0x2D49`, the Forth float surface (`0x417D`, `0x48A9`, `0x699C`), short far trampolines, the ILL entry stub and IRQ handler `0x51A0`, constant pool (§3.5) | entry stays at physical `0x00100` so PSRAM boot verification is unchanged; pool indices stay `< 0x4000` |
+| `CS=0x0000` | `0x00000` | the **whole `CS=0` segment**: vectors `0..2`, kernel code `0x0100`–`0x2D49`, the Forth float surface (`0x417D`, scanner `0x3FE9`, printer cells `0x67C8`, parser `0x6800`), short far trampolines, the ILL entry stub and IRQ handler `0x51A0`, constant pool (§3.5) | entry stays at physical `0x00100` so PSRAM boot verification is unchanged; pool indices stay `< 0x4000` |
 | `DS=0x1000` | `0x10000` | kernel data + boot script, return stack `0x2000`–`0x2FFF`, dictionary | no system code in this segment at all |
 | `SS=0x2000` | `0x20000` | data stack | unchanged |
 | **`CS=0x3000`** | `0x30000` | **BIOS + ILL handler + FloatLib + PS/2 tables + showcase menu** (~13 K words of 64 K) | one *system* chapter: ILL reaches BIOS division and FloatLib without far calls or duplicated code |
@@ -495,16 +495,21 @@ mirrors. Two hard-coded `-0x4000` address builders (`fw_restore`,
   `R10` flags. The stubs sit after the library and before the PS/2 decoder
   copy (`0x1F9C`). The call sites are gated so the non-D16D flat FPU build
   keeps the old PC-relative calls.
-* **3d — surface relocation (remaining).** The Forth float word surface
-  (`0x417D`, `0x4330`, `0x48A9`, `0x6900`, and the `f.` cells now at `0x67C8`)
-  still lives in the old free gaps; moving it into declared space and dropping
-  the `FPU && BAKE_PACMAN` exclusion is still open. `h_fexp` moved to `0x42EF`
-  because the shim call sites are two words larger.
+* **3d — scanner relocation (done).** The literal scanner and probe no longer
+  sit in the PACMAN gap (`0x4330`/`0x48A9`); they occupy the declared
+  `0x3FE9..0x40E7` run at the head of the freed BDOS slice. The float words
+  stay in `0x417D..0x42EF`, the transcendental headers/words at
+  `0x42EF..0x430F`, and the build/parse halves plus the `f.` cells in the
+  `0x6724..0x6862` tail. The `FPU && BAKE_PACMAN` exclusion remains, but for
+  size rather than overlap: the baked pacman block is 7,808 words
+  (`0x4330..0x61AF`) and cannot fit below the `0x4A00` BIOS in this map.
+  `tests/d16d-fpu.test.js` pins the scanner run, and
+  `scripts/make_image.mjs` rejects an out-of-run scanner.
 * **Acceptance:** the library exists *only* in the system chapter, flat
   `0x5800`–`0x6475` is FILL, and `s>f`, `f>s`, `f+`, `fexp` and float literals
   all run through the chapter (verified by `d16d-fpu`, `ps2-raw`,
   `native-lila` and the full suite). The `CS=0` ILL entry trampoline remains a
-  far jump. The surface relocation of 3d is the remaining item.
+  far jump. The scanner no longer touches the PACMAN gap.
 * **Files:** `asm/forth_nano.asm`, new `asm/ill_block.asm`,
   `asm/softfloat.asm`, `asm/forth_float.asm`, the linker/builders,
   `tests/d16d-fpu.test.js`, `tests/ill-fpu.test.js`, `tests/forth-float.test.js`.

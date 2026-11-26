@@ -126,8 +126,8 @@ export function buildImage() {
     throw new Error('the D16D image needs D16SEG=1 (the segmented kernel)');
   }
   if (FPU && BAKE_PACMAN) {
-    throw new Error('BAKE_PACMAN=1 is incompatible with the FPU float literal parser ' +
-                    '(the parser uses the 0x4330 pacman gap)');
+    throw new Error('BAKE_PACMAN=1 is incompatible with the FPU image ' +
+                    '(the 7,808-word pacman block does not fit under the 0x4A00 BIOS)');
   }
   if (FPU && !NANO) {
     throw new Error('FPU=1 needs D16NANO=1 (the FPU trap lives in the nano ILL handler)');
@@ -177,6 +177,14 @@ export function buildImage() {
 
   const sym = res.symbols;
   if (FPU) {
+    // Phase 3d: the literal scanner and probe live in the declared run at the
+    // head of the freed BDOS slice, not in the PACMAN gap.
+    if (sym.scan_float < 0x3FE9 || sym.scan_float_probe < 0x40B8 ||
+        sym.fpu_lit_probe_end > 0x417D) {
+      throw new Error('the float scanner is outside its declared run');
+    }
+  }
+  if (FPU) {
     // The Forth float words live in the free 0x417D gap. They must stop
     // before the BAKE_PACMAN block at 0x4330 and before the BIOS at 0x4A00.
     if (!(sym.fpu_words_base >= 0x417D && sym.fpu_words_end > sym.fpu_words_base)) {
@@ -193,9 +201,9 @@ export function buildImage() {
     if (sym.fpu_dot_end > WINDOW) {
       throw new Error(`f. ends at 0x${sym.fpu_dot_end.toString(16)}, over the window`);
     }
-    if (sym.fpu_lit_end > 0x4400) {
+    if (sym.fpu_lit_end > sym.fpu_words_base) {
       throw new Error(`the float literal scanner ends at 0x${sym.fpu_lit_end.toString(16)}, ` +
-                      'over the 0x4330..0x43FF gap');
+                      `over the float word run at 0x${sym.fpu_words_base.toString(16)}`);
     }
     if (sym.fpu_lit_parse_end > WINDOW) {
       throw new Error(`the float literal parser ends at 0x${sym.fpu_lit_parse_end.toString(16)}, ` +

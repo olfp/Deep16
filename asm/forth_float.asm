@@ -587,7 +587,9 @@ fpu_lit_cells_end:
 ; limited to nine digits for both the integer and fraction parts (extra digits are
 ; validated and ignored). Nothing is pushed or compiled until the whole token
 ; has validated; on any error >IN goes back to the token start.
-.org 0x4330
+; The scanner sits at the head of the freed BDOS slice (a declared free run
+; now that BDOS is its own chapter), not in the 0x4330 PACMAN gap.
+.org 0x3FE9
 scan_float:
     LDI 0x18E7
     MOV R11, R0
@@ -2059,7 +2061,7 @@ sf_commit_call:
     NOP
 fpu_lit_build_end:
 
-.org 0x48A9
+.org 0x40B8
 scan_float_probe:
     MOV R3, R6
     ADD R3, R5

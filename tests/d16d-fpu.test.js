@@ -22,6 +22,7 @@ const softfloat = fs.readFileSync(path.join(ROOT, 'asm', 'softfloat.asm'), 'utf8
 const image = Deep16D16DImage.assembleNano({
   kernel: kernelSource,
   softfloat,
+  forthFloat: fs.readFileSync(path.join(ROOT, 'asm', 'forth_float.asm'), 'utf8'),
   bdosBlock: bdosSource(),
   illBlock: fs.readFileSync(path.join(ROOT, 'asm', 'ill_block.asm'), 'utf8'),
   defines: { D16D: 1 },
@@ -194,4 +195,12 @@ test('FEXP and FLOG run from the BIOS copy on D16D', () => {
 
   const nan = run('FLOG', 0xBF80, 0x4000);
   assert.deepEqual([nan.f0High, nan.f0Low], [0x7FC0, 0], 'log(-1) -> NaN');
+});
+
+test('the float scanner sits in the declared FPU run, not the PACMAN gap', () => {
+  assert.equal(sym.scan_float, 0x3FE9, 'the literal scanner starts at the freed BDOS slice head');
+  assert.equal(sym.scan_float_probe, 0x40B8, 'the probe follows it');
+  assert.ok(sym.fpu_lit_probe_end <= 0x417D, 'scanner and probe stop before the float words');
+  assert.equal(image.words[0x4330], 0xFFFF, 'the PACMAN gap carries no FPU code');
+  assert.equal(image.words[0x48A9], 0xFFFF, 'the old probe slot is FILL');
 });

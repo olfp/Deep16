@@ -245,7 +245,8 @@ class Deep16D16DImage {
     if (typeof kernel !== 'string' || !kernel.trim()) throw new Error('D16D image needs kernel source');
     if (typeof showcase !== 'string') throw new Error('D16D image needs the showcase source');
     if (bakePacman && forthFloat !== null) {
-      throw new Error('bakePacman is incompatible with the float literal parser (0x4330 gap)');
+      throw new Error('bakePacman is incompatible with the FPU image ' +
+                      '(the 7,808-word pacman block does not fit under the 0x4A00 BIOS)');
     }
 
     // The board image carries the soft-float library so the D16D ILL handler

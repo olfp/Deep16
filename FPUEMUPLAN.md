@@ -380,15 +380,18 @@ the dispatch are position-independent: all internal calls and tail jumps use
 PC-relative deltas, so the library can live above `0x4000` where `LDI`
 sign-extends.
 
-Build recipe: assemble `asm/forth_nano.asm`, `asm/softfloat.asm` and
-`asm/forth_float.asm` with `CONSOLE_UART`, `D16NANO`, `FPU_KERNEL` and
-`FPU_WORDS` defined. The library places itself at `0x5800`; the Forth words
-place themselves at `0x417D`, and the float-literal scanner uses the free
-`0x4330` gap, the `0x42EC` parse slot, the `0x48A9` probe slot and the tail
-after `f.` for its build half. `scripts/make_image.mjs` does this whenever
-`D16D` is set (or `D16NANO=1 D16SEG=1 FPU=1` for a test image), and
-`js/deep16_d16d_image.js` appends the same sources when they are passed as
-`softfloat` and `forthFloat`.
+Build recipe: assemble `asm/forth_nano.asm` and `asm/forth_float.asm` with
+`CONSOLE_UART`, `D16NANO`, `D16SEG`, `D16D`, `FPU_KERNEL` and `FPU_WORDS`
+defined; the library is a separate `CS=0x3000` system chapter source
+(shifted to `0x0E00`/`0x1600`), and the Forth words place themselves at
+`0x417D`. The float-literal scanner and probe live in the declared run at the
+head of the freed BDOS slice (`0x3FE9..0x40E7`); the transcendental headers
+and words sit at `0x42EF..0x430F`, the build half and parse half in the
+`0x6724..0x6862` tail, and the `f.` cells at `0x67C8`.
+`scripts/make_image.mjs` does this whenever `D16D` is set (or
+`D16NANO=1 D16SEG=1 FPU=1` for a test image), and
+`js/deep16_d16d_image.js` applies the same split when the sources are passed
+as `softfloat` and `forthFloat`.
 
 D16D relocation: the flash loader now copies `0x4A00..0x6FFF`, not
 `0x4A00..0x57FF`. Flat `0x5800` therefore lands at physical `0x30E00`
@@ -485,23 +488,25 @@ BigInt nearest-even reference.
 
 ### 7.4 Forth surface
 
-`asm/forth_float.asm` is appended after the library when `FPU_WORDS` is
-defined. Its headers and main code live in the free `0x417D..0x42EB` gap, and
-its headers link the oldest float word to `h_segbase`; `forth_wl` names
+`asm/forth_float.asm` is appended after the kernel when `FPU_WORDS` is
+defined. Its headers and main code live in the declared `0x417D..0x42EF` run,
+and its headers link the oldest float word to `h_segbase`; `forth_wl` names
 `h_fdot`. The `f.` printer starts at `fpu_lib_end` (above the library at
-`0x6476`); its CS-relative scratch cells sit in the `0x67B8` tail, above the
-literal build and below the parser, so an `LDI` address reaches them without
+`0x6476`); its CS-relative scratch cells sit at `0x67C8`, above the literal
+build and below the parser, so an `LDI` address reaches them without
 sign-extending and they stay clear of the D16D `0x1F3C`/`0x1F40` cells.
 
 The float-literal scanner is split so it does not touch any D16D code block:
-the probe lives at `0x48A9` (below the BIOS/showcase), the scan/validate half
-uses `0x4330..0x43FF`, the parse half `0x42EC..0x432F`, the low trampolines
-`0x2D3F`, and the build half sits after `f.` in the tail. The scanner keeps
-its state in fifteen cells it allocates on the data stack, so it needs no
-fixed cell block, and it saves the caller's `R10` in the `0x18E7` cell. The
-BAKE_PACMAN block also starts at `0x4330`, so `FPU` and `BAKE_PACMAN` are
-mutually exclusive; the build says so instead of silently overwriting the
-scanner.
+the scanner and probe occupy the declared `0x3FE9..0x40E7` run at the head of
+the freed BDOS slice, the transcendental headers/words `0x42EF..0x430F`, the
+low trampolines `0x2D3F`, and the build/parse halves sit after `f.` in the
+`0x6724..0x6862` tail. The scanner keeps its state in fifteen cells it
+allocates on the data stack, so it needs no fixed cell block, and it saves the
+caller's `R10` in the `0x18E7` cell. The scanner no longer uses the `0x4330`
+PACMAN base. The `FPU`/`BAKE_PACMAN` guard remains for a different reason: the
+baked pacman block is 7,808 words (`0x4330..0x61AF`) and does not fit under the
+`0x4A00` BIOS in this map; the build reports that instead of overwriting the
+kernel.
 
 A float is two cells with the high half on top, like the kernel's double-cell
 words. `f+` reads B from `SP+0/1` and A from `SP+2/3`, puts them in

@@ -68,8 +68,9 @@ test('browser builder matches the Node D16D image word for word', () => {
   // The games are slices: the words above the FPU image stay empty.
   assert.equal(node.words[0x6FFF], 0xffff, 'frogger is not baked into the image');
   assert.equal(node.words[0x6FFE], 0xffff, 'flappy is not baked into the image');
-  assert.notEqual(node.words[0x4330], 0xffff, 'the literal parser is in the image');
-  assert.equal(browser.symbols.scan_float, 0x4330, 'the literal scanner starts at 0x4330');
+  assert.notEqual(node.words[0x3FE9], 0xffff, 'the literal scanner is in the image');
+  assert.equal(browser.symbols.scan_float, 0x3FE9, 'the literal scanner starts at 0x3FE9');
+  assert.equal(node.words[0x4330], 0xffff, 'the PACMAN gap carries no FPU code');
   // The block (code, map, tables and tile pack) now runs past the BIOS, so
   // the old flat-image bake path is only a slice loader on the board.
 });
