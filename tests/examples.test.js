@@ -28,6 +28,9 @@ const LEGACY = new Set([
   // exercise every routine and word.
   'softfloat.asm',
   'forth_float.asm',
+  // The CS=0x4000 BDOS chapter: build-support source, not a standalone
+  // example. tests/bdos.test.js and tests/editor.test.js place it at 0x40000.
+  'bdos_block.asm',
 ]);
 
 const EXAMPLES = fs.readdirSync(ASM_DIR)

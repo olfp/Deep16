@@ -41,6 +41,14 @@ const source = fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8')
 const kernel = assemble(source, { defines: { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1, D16D: 1 } });
 assert.equal(kernel.success, true, kernel.errors?.join('; '));
 
+// Phase 2b: fns 27..29 live in the BDOS chapter at CS=0x4000. The chapter is
+// assembled with its in-segment offsets and copied to 0x40000, exactly what
+// the JS scatter and (after phase 4a) the flash loader do.
+const bdosBlock = assemble(fs.readFileSync(path.join(ROOT, 'asm', 'bdos_block.asm'), 'utf8'),
+                           { defines: { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1, D16D: 1 } });
+assert.equal(bdosBlock.success, true, bdosBlock.errors?.join('; '));
+const BDOS_SEG = 0x4000;
+
 export const BDOS_ENTRY = 0x2D4A;
 const DIR_SEG = 0x8000;
 const slices = buildSlices();
@@ -91,6 +99,9 @@ ${loadImm(arg)}
   `);
   assert.equal(stub.success, true, stub.errors?.join('; '));
   const image = mem || buildMemory(kernel);
+  // The slice chapter is a separate segment; place it where the far
+  // trampolines point. Its addresses are offsets, hence BDOS_SEG << 4.
+  for (const c of bdosBlock.memoryChanges) image[(BDOS_SEG << 4) + c.address] = c.value & 0xFFFF;
   // BDOS now polls SPI through the BIOS SWIs; give it the segmented BIOS copy
   // and the SWI vector, like the board/flash loader does.
   for (let w = 0x4a00; w <= 0x57ff; w++) image[(0x3000 << 4) + (w - 0x4a00)] = image[w];
@@ -315,8 +326,18 @@ function flashWord(sim, off) {
   return sim.spiFlash.mem[off] | (sim.spiFlash.mem[off + 1] << 8);
 }
 
+test('the 27..29 slice is no longer in the flat image', () => {
+  // The old flat fcreate entry was 0x3FFC. The block now lives at CS=0x4000,
+  // so the flat image must have no word there (and the trampolines instead).
+  assert.equal(kernel.memoryChanges.find((c) => c.address === 0x3FFC), undefined,
+               'flat 0x3FFC must be FILL after the move');
+  assert.equal(kernel.symbols.bdos_fcreate, undefined, 'the handler label moved out');
+  assert.equal(kernel.symbols.bdos_fcreate_far, 0x3FCE);
+});
+
 test('function 27 (fcreate) writes a header and a directory entry', () => {
   const mem = buildMemory(kernel);
+  mem[0x3FFC] = 0xFFFF;                 // poison the old flat entry
   for (const [i, ch] of [...'newfile'].entries()) mem[0x0400 + i] = ch.charCodeAt(0);
   mem[0x0407] = 0;
   const { r0, r1, sim } = callBdos(27, 0x0400, { mem, arg4: 3 });

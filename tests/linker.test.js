@@ -145,18 +145,18 @@ test('a pool over live code is a collision', () => {
   }), /collides with chapter code/);
 });
 
-// The Phase 0 baseline. scripts/make_image.mjs now assembles through the
-// linker; if this changes, the linker altered the image (a bug in phase 1) or
-// a later phase deliberately moved the layout (update the pin then).
+// The Phase 2b baseline. scripts/make_image.mjs now assembles through the
+// linker; if this changes, the linker altered the image (a bug) or a later
+// phase deliberately moved the layout (update the pin then).
 process.env.D16NANO = '1';
 process.env.D16D = '1';
 process.env.D16SEG = '1';
 const { buildImage, crc16 } = await import('../scripts/make_image.mjs');
 
-test('the Phase 1 link keeps the Phase 0 image byte-identical', () => {
+test('the Phase 2b image keeps the linker output stable', () => {
   const img = buildImage();
-  assert.equal(img.build, '8861a2f61fa02c4c', 'build id changed');
-  assert.equal(crc16(img.words), 0xbf4d, 'image bytes changed');
+  assert.equal(img.build, '4a0b7dbcb451cfa5', 'build id changed');
+  assert.equal(crc16(img.words), 0x2fb2, 'image bytes changed');
   assert.equal(img.words.length, 28672);
   assert.equal(img.biosWords, 8848);
 });

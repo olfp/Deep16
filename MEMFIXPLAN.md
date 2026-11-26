@@ -388,12 +388,22 @@ mirrors. Two hard-coded `-0x4000` address builders (`fw_restore`,
   at `CS=0x4000` and keeps the Phase 1 fingerprint. Next: a `bdos_seg` pool
   entry (`0x4000`) in the kernel chapter and an ABI test that `JML R2` with
   `R2=0x4000` enters the chapter and returns via `JML R10`.
-* **2b — the dictionary-blocking block.** Move `0x3FCD`–`0x417C`
-  (`fcreate`/`fdelete`/`fsize`) into the BDOS chapter with copies of
-  `slice_read`/`spi_put`/`spi_get` and the `bd_*` cells it touches, and point
-  the kernel jump table at three far trampolines. This is the range that keeps
-  `dict_free` from starting at `0x3FC4`; it is self-contained enough to land
-  first and gives the tests a real far-called handler.
+* **2b — the dictionary-blocking block (done).** `asm/bdos_block.asm` holds the
+  `0x3FCD`–`0x417C` slice (`fd_pack` + `fcreate`/`fdelete`/`fsize`) plus copies
+  of `slice_read`/`spi_put`/`spi_get`, `bdos_abort`, `fw_restore`, the
+  config-flash drivers and the `bd_*` cells it touches. It assembles with its
+  original in-segment offsets and is placed at `CS=0x4000`. The kernel jump
+  table now points at `bdos_fcreate_far`/`bdos_fdelete_far`/`bdos_fsize_far`
+  at `0x3FCE`/`0x3FD4`/`0x3FDB`; the cell at `0x3FCD` holds `0x4000`. The old
+  flat range is FILL. The chapter's copied `fd_pack` mirrors the packed name
+  to `CS` for the fcreate/fdelete compare and writes the driver buffer to
+  `ES`, because the original relied on `CS=0`.
+  `tests/bdos.test.js` places the chapter at `0x40000`, asserts the flat
+  `0x3FFC` is gone and poisons it; `tests/editor.test.js` places the chapter
+  for the editor's save path.
+  **Intermediate state:** the flat image and `scatterD16SEG()` do not carry
+  the chapter yet, so fns 27..29 are simulator-tested only until Phase 4a.
+  Do not flash a board from this commit.
 * **2c — the rest.** Move the entry, table and fns 0–13, then the gap handlers
   (`0x4680`–`0x49FB`) and `0x1F78`, migrating scratch into the BDOS segment
   with kernel mirrors for the cells the kernel writes directly. The flash

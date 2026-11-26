@@ -14,6 +14,10 @@ loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
 const kernel = assemble(fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8'),
                         { defines: { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1, D16D: 1 } });
 assert.equal(kernel.success, true, kernel.errors?.join('; '));
+// Phase 2b: fns 27..29 live in the BDOS chapter at CS=0x4000.
+const bdosBlock = assemble(fs.readFileSync(path.join(ROOT, 'asm', 'bdos_block.asm'), 'utf8'),
+                           { defines: { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1, D16D: 1 } });
+assert.equal(bdosBlock.success, true, bdosBlock.errors?.join('; '));
 const editor = buildEditor();
 const slices = buildSlices();
 const hello = slices.manifest.objects.hello;
@@ -22,6 +26,7 @@ const DATA_SEG = 0x0900;
 
 function boot() {
   const mem = buildMemory(kernel);
+  for (const c of bdosBlock.memoryChanges) mem[0x40000 + c.address] = c.value & 0xFFFF;
   for (const [addr, value] of editor.words) mem[(ED_SEG << 4) + addr] = value;
   mem[0x0200] = 0xFFFF;                 // HALT: the far-call return
   const sim = new globalThis.Deep16Simulator();
