@@ -2860,7 +2860,7 @@ pac_k_set:
     LDI ST_PAC_WANT
     MOV R2, R0
     ST R3, R2, 0
-pac_k_done:
+pac_k_set_done:
     JMP LR
     NOP
 

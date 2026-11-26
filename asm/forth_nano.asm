@@ -1644,7 +1644,7 @@ bdos_fclose:
     NOP
 
 
-bdos_fwrite:
+bdos_fwrite_stub:
     LSI R0, -1
     LSI R1, 4
     JML R10
@@ -2332,7 +2332,7 @@ bd_wr_err:
     .word 0
 bd_slice:
     .word 0
-bd_name:
+bd_wr_name:
     .word 0
 bd_type:
     .word 0
@@ -19868,7 +19868,6 @@ irq_audio_ack:
     LSI R3, 4
     STS R3, ES, R2           ; W1C audio, after the level has fallen
     RETI
-    NOP
 
 ; ---- keyboard ring: irq_keyboard fills it, BIOS function 12 drains it ------
 ; 32 entries is twice the hardware FIFO. head == tail means empty; the ISR
@@ -20898,7 +20897,7 @@ fw_restore:
         MOV R3, R0
         STS R2, CS, R3
         MOV R2, R1
-        LDI bd_name
+        LDI bd_wr_name
         MOV R3, R0
         STS R2, CS, R3
         LDI 0x0FFF
@@ -20917,7 +20916,7 @@ fw_restore:
         MOV R3, R0
         LDS R4, CS, R3
         MVS DS, R4
-        LDI bd_name
+        LDI bd_wr_name
         MOV R2, R0
         LDS R1, CS, R2
         LDI bd_ent

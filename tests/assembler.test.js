@@ -353,3 +353,58 @@ test('LWI works inside an expression, like every other immediate', () => {
   // And it is refused through an expression too, not only as a literal.
   assert.equal(assemble('LWI 0x4000 + 0\n').success, false);
 });
+
+// ---- duplicate labels and overlapping .org (MEMFIXPLAN phase 0) ----------
+
+test('a label defined twice is an error, not a silent re-point', () => {
+  const res = assemble('start:\n  NOP\nstart:\n  NOP\n');
+  assert.equal(res.success, false);
+  assert.match(res.errors.join('; '), /Duplicate label 'start'/);
+  assert.match(res.errors.join('; '), /first defined at line 1/);
+});
+
+test('a second write to one address is reported in overlap', () => {
+  const res = assemble('.org 0x10\n.word 0x1234\n.org 0x10\n.word 0x5678\n');
+  assert.equal(res.overlap.length, 1);
+  assert.deepEqual(
+    { address: res.overlap[0].address, previous: res.overlap[0].previous,
+      value: res.overlap[0].value, changed: res.overlap[0].changed },
+    { address: 0x10, previous: 0x1234, value: 0x5678, changed: true });
+  assert.equal(res.success, true, 'reporting an overlap is not fatal by default');
+});
+
+test('strictOverlap turns an overlapping .org with a different value into an error', () => {
+  const res = assemble('.org 0x10\n.word 0x1234\n.org 0x10\n.word 0x5678\n',
+                       { strictOverlap: true });
+  assert.equal(res.success, false);
+  assert.match(res.errors.join('; '), /written twice with different values/);
+  assert.match(res.errors.join('; '), /0x10/);
+});
+
+test('strictOverlap still allows an identical second write', () => {
+  const res = assemble('.org 0x10\n.word 7\n.org 0x10\n.word 7\n', { strictOverlap: true });
+  assert.equal(res.success, true, res.errors.join('; '));
+  assert.equal(res.overlap.length, 1);
+  assert.equal(res.overlap[0].changed, false);
+});
+
+// The shipping kernel already contains these deliberate/accidental overlays:
+// a block that grew into its neighbour. MEMFIXPLAN phases 2-5 move the blocks
+// that cause them. Pinning the set here means a new collision fails CI now,
+// and removing one is a visible edit to this list rather than a silent shrink.
+test('the D16D kernel has no duplicate labels and no new overlaps', () => {
+  const source = ['forth_nano.asm', 'softfloat.asm', 'forth_float.asm']
+    .map((f) => fs.readFileSync(`${ROOT}/asm/${f}`, 'utf8')).join('\n');
+  const res = assemble(source, {
+    defines: { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1, D16D: 1,
+               FPU_KERNEL: 1, FPU_WORDS: 1 },
+  });
+  assert.equal(res.success, true, res.errors.join('; '));
+  assert.deepEqual(
+    res.overlap.filter((o) => o.changed).map((o) => o.address).sort((a, b) => a - b),
+    [0x18c3, 0x18c4, 0x18c5,
+     0x4579,
+     0x4d00, 0x4d01, 0x4d02, 0x4d03, 0x4d04, 0x4d06, 0x4d07, 0x4d08,
+     0x5792, 0x5793, 0x5794, 0x5795,
+     0x57d0]);
+});

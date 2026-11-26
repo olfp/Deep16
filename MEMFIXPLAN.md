@@ -279,17 +279,47 @@ committed before their RTL counterpart is tested.
 
 ### Phase 0 — stop silent corruption (no layout change)
 
-* Add duplicate-label and overlapping-`.org` errors to
-  `js/deep16_assembler.js`; add an explicit `overlap` field to the result.
-  Replace last-write-wins in `make_image.mjs:132-135` and
-  `deep16_d16d_image.js:62-68` with a build error.
-* Make the browser IDE call `checkImage` (it currently scatters without it).
-* Refresh stale `FPUEMUPLAN.md:499` (`0x2D2F` → `0x2D3F`).
-* **Acceptance:** an intentional overlapping `.org` in a test fails assembly;
-  `D16NANO=1 D16SEG=1 node scripts/make_image.mjs` still reports the known
-  `BIOS (5591 words) overruns the stacks` error, now with per-block detail.
+* Add duplicate-label and overlapping-`.org` detection to
+  `js/deep16_assembler.js`; return an explicit `overlap[]` (address, previous,
+  value, both source lines, and whether the value changed). An
+  `options.strictOverlap` makes a changed-value second write an assembly error.
+* Duplicate labels are **hard errors** now. The shipping sources had two, both
+  renamed without moving a word: `bdos_fwrite` (the unimplemented stub) became
+  `bdos_fwrite_stub`, and the fwrite name cell became `bd_wr_name` so it no
+  longer collides with the fcreate/fdelete `bd_name`. The Pac-Man slice had a
+  second `pac_k_done`; the fall-through copy is now `pac_k_set_done`.
+* Replace last-write-wins **at the component level** with a build error: a
+  baked Pac-Man block now claims only FILL words, as the showcase and PS/2
+  layout table already did. A component write over live kernel code fails both
+  the Node and browser builders.
+* Make the browser IDE validate before scattering: `Deep16D16DImage.checkImage`
+  now runs inside `buildNano()`/`build()` (bounds, `dict_free`, BIOS block,
+  out-of-window words, component collisions), and `scripts/make_image.mjs`
+  reports the BIOS range and limit in its error.
+* Refresh stale `FPUEMUPLAN.md:499` (`0x2D2F` → `0x2D3F`; the trampolines moved
+  to the slot the audit recorded, which also clears `waqr_scan`).
+* **Acceptance:** an intentional overlapping `.org` in a test fails assembly
+  (with `strictOverlap`); `D16NANO=1 D16SEG=1 node scripts/make_image.mjs`
+  still reports the known `BIOS block 0x4a00..0x5fd6 (5591 words) overruns the
+  stacks at 0x5800` error; `npm test` green.
 * **Files:** `js/deep16_assembler.js`, `scripts/make_image.mjs`,
-  `js/deep16_d16d_image.js`, `tests/assembler.test.js`, `FPUEMUPLAN.md`.
+  `js/deep16_d16d_image.js`, `js/deep16_ui_core.js`, `tests/assembler.test.js`,
+  `asm/forth_nano.asm`, `asm/forth_float.asm`,
+  `asm/showcase/pacman_game.asm`, `FPUEMUPLAN.md`.
+
+**What detection found (and why the last step is scoped).** The shipping
+`D16D+FPU` kernel already double-writes 17 words. Turning every changed-value
+overlap into a hard error today would make the board image unbuildable, so the
+build keeps last-write-wins for these and a test pins them, failing on any new
+one. Each is a block that grew into its neighbour:
+
+| Address | First writer | Second writer | Removed by |
+|---|---|---|---|
+| `0x18c3`–`0x18c5` | `word_esstore` tail | `bdos_word_call` (`assembly` at `0x18C3`) | Phase 2 (BDOS moves) |
+| `0x4579` | fitdemo text terminator | `h_pal_bank` | Phase 3 (float/catalog space) |
+| `0x4d00`–`0x4d08` | D16D `bios_f6` gfx tail | `bios_f14/15` division stubs | Phase 3 (ILL/BIOS rework) |
+| `0x5792`–`0x5795` | `bios_tile_*` cells | `sfx_table` entries | Phase 3 (BIOS data moves) |
+| `0x57d0` | `bios_f22` code | `ill_pc_save_bios` | Phase 3 |
 
 ### Phase 1 — linker scaffold, identical output
 

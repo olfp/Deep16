@@ -76,6 +76,7 @@ function boot(scene) {
     kernel: src.kernel,
     softfloat: src.softfloat,
     forthFloat: src.forthFloat,
+    // The console scene boots the flat nano kernel, not the menu.
     showcase: src.showcase,
     flappy: src.flappy,
     flappyDefs: src.flappyDefs,

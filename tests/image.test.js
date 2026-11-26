@@ -67,6 +67,14 @@ test('checkImage rejects a dictionary that reaches the stacks', () => {
   assert.throws(() => checkImage({ ...img, outOfWindow: [0xF8000] }), /outside the window/);
 });
 
+test('checkImage names the BIOS block range when it overruns the stacks', () => {
+  // One word past the return stack, whatever BIOS base this profile uses.
+  const words = STACK_BASE - img.biosEntry + 1;
+  const re = new RegExp(`BIOS block 0x${img.biosEntry.toString(16)}\\.\\.0x${STACK_BASE.toString(16)} ` +
+                        `\\(${words} words\\) overruns the stacks at 0x${STACK_BASE.toString(16)}`);
+  assert.throws(() => checkImage({ ...img, biosWords: words }), re);
+});
+
 test('the $readmemh form round-trips', () => {
   const parsed = imageHex(img).trim().split(/\s+/).map((h) => parseInt(h, 16));
   assert.equal(parsed.length, WINDOW);

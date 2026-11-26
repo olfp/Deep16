@@ -1632,7 +1632,7 @@ fd_sci_back:
 
 fpu_dot_end:
 
-.org 0x2D2F
+.org 0x2D3F
 sf_parse_tramp:
     MOV R11, PC
 sf_parse_tramp_l:

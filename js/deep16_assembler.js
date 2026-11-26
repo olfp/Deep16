@@ -19,11 +19,47 @@ class Deep16Assembler {
         let currentSegment = 'code';
         let address = 0;
 
+        // Every emitted word goes through emit() so that a second write to the
+        // same address is visible instead of silently last-write-wins. A .org
+        // that rewinds onto live words is exactly the collision the memory plan
+        // is about. Callers decide whether an overlap is fatal (strictOverlap);
+        // the full list is always returned in `overlap`.
+        const written = new Map();
+        const overlaps = [];
+        const emit = (addr, value, segment, line) => {
+            const word = value & 0xFFFF;
+            const previous = written.get(addr);
+            if (previous) {
+                const changed = previous.value !== word;
+                overlaps.push({
+                    address: addr,
+                    previous: previous.value,
+                    value: word,
+                    line,
+                    previousLine: previous.line,
+                    changed,
+                });
+                if (changed && options.strictOverlap) {
+                    errors.push(
+                        `Address 0x${addr.toString(16)} written twice with different values ` +
+                        `(0x${previous.value.toString(16)} at line ${previous.line}, ` +
+                        `0x${word.toString(16)} at line ${line})`);
+                }
+            }
+            written.set(addr, { value: word, line });
+            memoryChanges.push({ address: addr, value: word, segment, line });
+        };
+
         if (window.Deep16Debug) console.log('=== ASSEMBLER FIRST PASS ===');
         // Conditional assembly is resolved first: inactive branches become empty
         // lines, so both passes below (and their line numbers) see the source
         // the caller actually asked for.
         const lines = this.applyConditionals(source.split('\n'), options.defines, errors);
+        // A label written twice is always a mistake: the second .org silently
+        // re-points the name at new code while callers keep the old address in
+        // the same symbol table. Both passes would still "succeed", so catch it
+        // where the name is defined.
+        const labelDefs = new Map();
         
         // First pass: collect ALL labels and calculate addresses
         for (let i = 0; i < lines.length; i++) {
@@ -40,8 +76,19 @@ class Deep16Assembler {
                     currentSegment = 'data';
                 } else if (this.stripComment(line).trim().endsWith(':')) {
                     const label = this.stripComment(line).trim().slice(0, -1).trim();
+                    if (labelDefs.has(label)) {
+                        const first = labelDefs.get(label);
+                        // Report, but keep the historical last-wins symbol so a
+                        // duplicate never silently changes which address the
+                        // rest of the source sees before the build stops on the
+                        // error above. Renaming is the fix.
+                        errors.push(
+                            `Duplicate label '${label}' at line ${i + 1}; ` +
+                            `first defined at line ${first.line} (0x${first.address.toString(16)})`);
+                    }
                     this.labels[label] = address;
                     this.symbols[label] = address;
+                    if (!labelDefs.has(label)) labelDefs.set(label, { line: i + 1, address });
                     segmentMap.set(address, currentSegment);
                     if (window.Deep16Debug) console.log(`LABEL: ${label} at 0x${address.toString(16)}`);
                 } else if (line.startsWith('.word')) {
@@ -147,7 +194,7 @@ class Deep16Assembler {
                         const reps = Math.max(0, count);
                         const value = this.parseImmediate(valStr, false);
                         for (let r = 0; r < reps; r++) {
-                            memoryChanges.push({ address: address, value: value & 0xFFFF, segment: 'data' });
+                            emit(address, value, 'data', i + 1);
                             assemblyListing.push({ 
                                 address: address, 
                                 instruction: value,
@@ -166,7 +213,7 @@ class Deep16Assembler {
                     if (window.Deep16Debug) console.log(`TEXT (pass2): "${stringValue}" at 0x${address.toString(16)}`);
                     for (let j = 0; j < stringValue.length; j++) {
                         const charCode = stringValue.charCodeAt(j);
-                        memoryChanges.push({ address: address, value: charCode & 0xFFFF, segment: 'data' });
+                        emit(address, charCode, 'data', i + 1);
                         assemblyListing.push({ 
                             address: address, 
                             instruction: charCode,
@@ -176,7 +223,7 @@ class Deep16Assembler {
                         address++;
                     }
                     // Store null terminator
-                    memoryChanges.push({ address: address, value: 0, segment: 'data' });
+                    emit(address, 0, 'data', i + 1);
                     assemblyListing.push({ 
                         address: address, 
                         instruction: 0,
@@ -193,7 +240,7 @@ class Deep16Assembler {
                         const c1 = stringValue.charCodeAt(j) & 0xFF;
                         const c2 = (j + 1 < stringValue.length) ? (stringValue.charCodeAt(j + 1) & 0xFF) : 0;
                         const word = ((c1 << 8) | c2) & 0xFFFF;
-                        memoryChanges.push({ address: address, value: word, segment: 'data' });
+                        emit(address, word, 'data', i + 1);
                         assemblyListing.push({ 
                             address: address, 
                             instruction: word,
@@ -202,7 +249,7 @@ class Deep16Assembler {
                         });
                         address++;
                     }
-                    memoryChanges.push({ address: address, value: 0, segment: 'data' });
+                    emit(address, 0, 'data', i + 1);
                     assemblyListing.push({ 
                         address: address, 
                         instruction: 0,
@@ -229,7 +276,7 @@ class Deep16Assembler {
                 } else {
                     const instruction = this.encodeInstruction(line, address, i + 1);
                     if (instruction !== null) {
-                        memoryChanges.push({ address: address, value: instruction, segment: currentSegment });
+                        emit(address, instruction, currentSegment, i + 1);
                         assemblyListing.push({ 
                             address: address, 
                             instruction: instruction,
@@ -269,7 +316,8 @@ class Deep16Assembler {
             symbols: this.symbols,
             errors: errors,
             listing: assemblyListing,
-            segmentMap: segmentMap
+            segmentMap: segmentMap,
+            overlap: overlaps
         };
     }
 

@@ -250,8 +250,10 @@ export function buildImage() {
     if (BAKE_PACMAN) {
       for (const [addr, value] of pacman.words) {
         const pa = PACMAN_SEG_BASE + addr;
-        if (pa < WINDOW) words[pa] = value;
-        else outOfWindow.add(pa);
+        if (pa < WINDOW) {
+          if (words[pa] !== FILL) collisions.push(pa);
+          words[pa] = value;
+        } else outOfWindow.add(pa);
       }
     }
   }
@@ -285,8 +287,9 @@ export function checkImage(img) {
   // return stack lives at 0x2FF0. Its ceiling is the image window instead.
   const biosLimit = FPU ? WINDOW : STACK_BASE;
   if (img.biosEntry + img.biosWords > biosLimit) {
-    fail.push(`BIOS (${img.biosWords} words) overruns ` +
-              (FPU ? `the image window at 0x${biosLimit.toString(16)}` : 'the stacks'));
+    fail.push(`BIOS block 0x${img.biosEntry.toString(16)}..0x${(img.biosEntry + img.biosWords - 1).toString(16)} ` +
+              `(${img.biosWords} words) overruns ` +
+              (FPU ? `the image window at 0x${biosLimit.toString(16)}` : 'the stacks at 0x' + biosLimit.toString(16)));
   }
   // The only word outside the window is the kernel's echo cell, which the board
   // neither backs nor decodes (§6.4) - anything else means the kernel grew a
@@ -304,7 +307,7 @@ export function checkImage(img) {
   if (D16D && img.showcase) checkShowcase(img.showcase);
   const collisions = img.collisions ?? [];
   if (collisions.length) {
-    fail.push('showcase overwrites live kernel words at ' +
+    fail.push('component blocks overwrite live kernel words at ' +
               collisions.map((a) => '0x' + a.toString(16)).join(', '));
   }
   if (fail.length) throw new Error('boot image is not valid:\n  - ' + fail.join('\n  - '));

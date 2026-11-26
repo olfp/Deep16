@@ -496,7 +496,7 @@ sign-extending and they stay clear of the D16D `0x1F3C`/`0x1F40` cells.
 The float-literal scanner is split so it does not touch any D16D code block:
 the probe lives at `0x48A9` (below the BIOS/showcase), the scan/validate half
 uses `0x4330..0x43FF`, the parse half `0x42EC..0x432F`, the low trampolines
-`0x2D2F`, and the build half sits after `f.` in the tail. The scanner keeps
+`0x2D3F`, and the build half sits after `f.` in the tail. The scanner keeps
 its state in fifteen cells it allocates on the data stack, so it needs no
 fixed cell block, and it saves the caller's `R10` in the `0x18E7` cell. The
 BAKE_PACMAN block also starts at `0x4330`, so `FPU` and `BAKE_PACMAN` are

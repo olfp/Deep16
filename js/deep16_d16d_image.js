@@ -70,6 +70,49 @@ class Deep16D16DImage {
     return { result, words, outOfWindow: [...outOfWindow].sort((a, b) => a - b) };
   }
 
+  // The image invariants every scattered copy relies on. The Node builder has
+  // the same checks in scripts/make_image.mjs; the IDE used to scatter without
+  // consulting any of them, so a kernel that grew into the stacks still booted
+  // in the browser and failed only on the board. `window` is the image length,
+  // and D16SEG's return stack is a DS window, so the BIOS limit is the image
+  // window rather than flat 0x5800.
+  static checkImage(img) {
+    const fail = [];
+    const window = img.words.length;
+    if (!(img.dictFree < 0x5800)) {
+      fail.push(`dict_free 0x${img.dictFree.toString(16)} reaches the stacks (0x5800)`);
+    }
+    if (img.dictFree > img.biosEntry) {
+      fail.push(`dict_free 0x${img.dictFree.toString(16)} runs into the BIOS at 0x${img.biosEntry.toString(16)}`);
+    }
+    if (img.biosEntry !== 0x4A00) {
+      fail.push(`BIOS at 0x${img.biosEntry.toString(16)}, expected 0x4a00`);
+    }
+    if (img.biosEntry + img.biosWords > window) {
+      fail.push(`BIOS 0x${img.biosEntry.toString(16)}..0x${(img.biosEntry + img.biosWords - 1).toString(16)} ` +
+                `(${img.biosWords} words) overruns the image window at 0x${window.toString(16)}`);
+    }
+    const unexpected = (img.outOfWindow ?? []).filter((a) => a !== 0xF0064);
+    if (unexpected.length) {
+      fail.push('words outside the window: ' + unexpected.map((a) => '0x' + a.toString(16)).join(', '));
+    }
+    if ((img.collisions ?? []).length && img.segmented !== false) {
+      fail.push('blocks overwrite live kernel words at ' +
+                img.collisions.map((a) => '0x' + a.toString(16)).join(', '));
+    }
+    if (fail.length) throw new Error('image is not valid:\n  - ' + fail.join('\n  - '));
+    return true;
+  }
+
+  static biosWords(result) {
+    const entry = result.symbols.bios_entry;
+    let hi = 0;
+    for (const c of result.memoryChanges) {
+      if (c.address >= entry && c.address < 0x10000) hi = Math.max(hi, c.address);
+    }
+    return hi - entry + 1;
+  }
+
   // The generic D16nano console used by the IDE. CONSOLE_PS2 keeps the
   // CONSOLE_UART output path, but reads input from the D16nano keyboard FIFO
   // instead of the serial UART.
@@ -81,16 +124,19 @@ class Deep16D16DImage {
       defines: { CONSOLE_MIRROR: 1, CONSOLE_PS2: 1, ...defines },
     });
     const result = image.result;
-    return {
+    const img = {
       words: image.words,
       outOfWindow: image.outOfWindow,
       collisions: [],
       dictFree: result.symbols.dict_free,
       biosEntry: result.symbols.bios_entry,
+      biosWords: this.biosWords(result),
       fpu: softfloat !== null,
       fpuWords: forthFloat !== null,
       symbols: result.symbols,
     };
+    this.checkImage(img);
+    return img;
   }
 
   // Scatter a flat D16SEG image into the physical map used by the board and
@@ -202,8 +248,10 @@ class Deep16D16DImage {
           throw new Error(`pacman address out of range: 0x${change.address.toString(16)}`);
         }
         const pa = PACMAN_BASE + change.address;
-        if (pa < WINDOW) words[pa] = change.value & 0xFFFF;
-        else outOfWindow.add(pa);
+        if (pa < WINDOW) {
+          if (words[pa] !== 0xFFFF) collisions.push(pa);
+          words[pa] = change.value & 0xFFFF;
+        } else outOfWindow.add(pa);
       }
     }
 
@@ -236,14 +284,19 @@ class Deep16D16DImage {
       return { words: blockWords, seg, entry: 0, codeMax, max };
     })();
 
-    return {
+    const img = {
       words,
       outOfWindow: [...outOfWindow].sort((a, b) => a - b),
       collisions,
       dictFree: kres.symbols.dict_free,
       biosEntry: kres.symbols.bios_entry,
+      biosWords: Math.max(this.biosWords(kres),
+                         layouts ? layoutBase + layouts.length - kres.symbols.bios_entry : 0),
       fpu: softfloat !== null,
       fpuWords: forthFloat !== null,
+      // The flat D16SEG=0 render harness deliberately lays the menu over the
+      // flat BIOS at 0x4A00; only the segmented map has room for both.
+      segmented: defines.D16SEG !== 0,
       symbols: kres.symbols,
       showcase: { words: sres.memoryChanges.map((c) => [c.address, c.value & 0xFFFF]) },
       flappy: block(fres, 0x5000, packs.flappy, packs.flappySprites),
@@ -253,5 +306,7 @@ class Deep16D16DImage {
         return b && { ...b, codeEnd: pres.symbols.p_code_end };
       })(),
     };
+    this.checkImage(img);
+    return img;
   }
 }
