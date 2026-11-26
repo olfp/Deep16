@@ -58,15 +58,16 @@ workarounds (`js/deep16_assembler.js:1385-1397`, `asm/softfloat.asm:183`). A
 small index *is* always encodable, so code can do
 `LDI CONST_foo; LDS Rx, CS, R0` and read the real value from a
 linker-generated constant pool (§3.5). The kernel already uses precisely this
-idiom for the BDOS far-call pair (`asm/forth_nano.asm:20279-20287`) and for a
-CS-resident variable (`asm/forth_nano.asm:1665-1668`). With a pool, a layout
+idiom for the BDOS far-call pair (`bps2_done` reads its CS:PC pair with
+`LDS R10/R11, CS, R2`, `asm/forth_nano.asm:13048-13056`) and for the
+CS-resident `bd_poll` cell (`:1663-1672`, `:2164`). With a pool, a layout
 change rewrites pool words only; the instructions never change.
 
 ## 2. Target map
 
 | Segment | Physical | Chapters | Notes |
 |---|---|---|---|
-| `CS=0x0000` | `0x00000` | vectors `0..2`, kernel code `0x0100`–`0x2D49`, short far trampolines, IRQ handler `0x51A0`, constant pool (§3.5) | entry stays at physical `0x00100` so PSRAM boot verification is unchanged; pool indices stay `< 0x4000` |
+| `CS=0x0000` | `0x00000` | the **whole `CS=0` segment**: vectors `0..2`, kernel code `0x0100`–`0x2D49`, the Forth float surface (`0x417D`, `0x48A9`, `0x699C`), short far trampolines, the ILL entry stub and IRQ handler `0x51A0`, constant pool (§3.5) | entry stays at physical `0x00100` so PSRAM boot verification is unchanged; pool indices stay `< 0x4000` |
 | `DS=0x1000` | `0x10000` | kernel data + boot script, return stack `0x2000`–`0x2FFF`, dictionary | no system code in this segment at all |
 | `SS=0x2000` | `0x20000` | data stack | unchanged |
 | **`CS=0x3000`** | `0x30000` | **BIOS + ILL handler + FloatLib + PS/2 tables + showcase menu** (~13 K words of 64 K) | one *system* chapter: ILL reaches BIOS division and FloatLib without far calls or duplicated code |
@@ -74,6 +75,15 @@ change rewrites pool words only; the instructions never change.
 | `ES=0xF000` | `0xF0000` | MMIO, echo cell, boot ROM | unchanged |
 | `CS=0xE000` | `0xE0000` | sound window | unchanged |
 | reserved | `0x50000`, `0x6000`, `0x70000`, `0x80000` | Flappy / Frogger / Pole / BDOS dir | runtime slices — do not use for chapters |
+
+A chapter is a **destination range in one segment**, not a source range in the
+flat image. The kernel chapter is therefore the entire `CS=0` segment
+(`0x00000`–`0x0FFFF`): everything left in `CS=0` after Phases 2–3 belongs to it,
+including the sparse float surface and free gaps. Spelling it out this way
+keeps the §3.3 "every word falls in exactly one chapter" rule trivial instead
+of fragile, and lets the linker treat unwritten words as owned-but-FILL rather
+than as an overlap. The other chapters are `DS=0x1000` (the mirror of the
+kernel-data range), `CS=0x3000` (system) and `CS=0x4000` (BDOS).
 
 Why two new segments and not one per component:
 
@@ -131,8 +141,16 @@ is attached to the chapter, not hard-coded in the loader.
 4. **Validate.** Chapter ranges do not overlap; each fits in 64 K words;
    vectors are in the kernel chapter; far targets are inside their chapter;
    `dict_free < dictionary base` and dictionary top `<= 0xFFEF`. Pool indices
-   are unique and `<= 0x3FFF`, and the pool lives in a fixed code segment;
-   no instruction contains a relocated absolute address.
+   are unique and `<= 0x3FFF`, and the pool lives in a fixed code segment.
+   The linker rejects a relocated absolute address in **every** form, not just
+   `LDI`: any `LDI <symbol>` or `MOV PC, <symbol>` whose resolved value is not
+   in `0x0000`–`0x3FFF` or `0xC000`–`0xFFFF` once rebased, and any
+   `LDI <symbol> / 2`/`>>`/`SL`-based address builder (the `sread` return-PC
+   trick, `asm/forth_nano.asm:20160`) that no longer fits the field. These are
+   not only in the jump tables: `LDI bdos_unknown; MOV PC, R0`
+   (`asm/forth_nano.asm:1577`) is a >16-bit PC once BDOS is assembled at
+   `0x40000`. `.word` entries that hold absolute addresses are checked the
+   same way and must become `symbol - <CHAPTER>_BASE`.
 5. **Emit.** `{ chapters[], symbols, flatView, manifest }`. `flatView` is a
    compatibility view for the old scatter/tests during migration.
 
@@ -143,23 +161,60 @@ start (flash word 64). Put the chapter table **inside the unused header words**:
 
 ```
 word 0  magic 0x44313646
-word 1  format = 2            (1 = legacy flat scatter, still accepted)
+word 1  format = 2            (1 = legacy hardcoded-window scatter, still accepted)
 word 2  total 32-bit flash words
 word 3  payload CRC-16        (unchanged, low byte of each CPU word first)
 word 4  build id
 word 5  chapter count
-word 6  header CRC-16 over words 0,2,4..63
+word 6  header CRC-16, computed over words 0..63 with word 6 read as 0
 word 7  reserved
-word 8..  per chapter: { id, seg, base, srcPairStart, wordCount, flags }
+word 8..  per destination: { id, seg, base, srcPairStart, wordCount, flags }
 word 63 reserved / pad
 ```
+
+Word 6 must not cover itself: verify with word 6 treated as zero, or the check
+is circular. Cover every other header word (including `format` and the payload
+CRC field), so a corrupted `format` cannot slip past on its way to selecting a
+parser. "Word" here is one 16-bit CPU word packed under the existing
+two-per-32-bit-flash-word layout, not one 32-bit flash word.
+
+A table entry names **one destination**, not one source. The current loader
+writes the same source range to two destinations (flat `0x3000..0x57DC` →
+`DS=0x1000`; flat `0x4A00..` → `CS=0x3000`), and those source ranges overlap
+each other (`rtl/flash/flash_boot.sv:181-247`). Format 2 therefore must allow
+several entries to point at the same or overlapping source ranges — the DS
+mirror is simply a second entry with `seg=0x1000`, `base=<kernel-data offset>`
+and the same `srcPairStart`. The RTL loop must not assume entries are sorted or
+that source ranges are disjoint; it iterates entries and, for each, copies
+`wordCount` pairs from `srcPairStart`. Say this explicitly, because a
+monotonic-source assumption is the easy mistake in the generic loop.
+
+The payload CRC must also stay **per source pair, not per destination**: the
+DS mirror re-reads flash words the flat copy already streamed, and feeding them
+to the CRC twice changes the value the header was built with. Either keep one
+canonical pass over the payload and drive destinations from it (the current
+shape), or skip the CRC on duplicate source pairs. Same for `entry_exp`
+(`flash_boot.sv:147`), which is captured from the pair at image word `0x0100`:
+the kernel chapter must still be copied through the pass that sees it.
 
 `flash_boot.sv` reads the table (it currently reads 8 header words with a
 3-bit `hdr_i`: `rtl/flash/flash_boot.sv:109-135`), checks both CRCs and bounds,
 then uses **one generic copy loop** instead of the three hard-coded windows at
 `:168-239`. Destination is `(seg << 4) + base + index`; `baddr` is already 20
-bits. For format 1 it keeps the current path, so old bitstreams/images and the
-installer still work.
+bits. For format 1 it keeps the hardcoded-window path (retuned in Phase 4a), so
+old bitstreams/images and the installer still work.
+
+This is an RTL change by nature, not a choice. The copy happens **before the
+CPU is released** (`done`/`entry_exp` gate the core), so no software can read
+the chapter table first: `flash_boot.sv` *is* the machine's only reader of
+config flash at that point. Its format, word count and window constants are
+`localparam`s compiled into the bitstream (`FORMAT = 32'd1`,
+`IMG_WORDS = 28672`, `IMG_PAIRS = 14336`), its header reader is a 3-bit counter
+over 8 words, and its three destinations are the literal constants
+`20'h10000`, `20'h2B600` and `{5'd0, img_i, 1'b0}`. A per-chapter
+`(seg, base, srcPairStart, wordCount)` cannot be expressed to that hardware
+without changing the header state machine and the copy FSM, which is exactly
+what Phase 4b does.
 
 ### 3.5 Constant pool (`LDC`) — addresses without `LDI` bit tricks
 
@@ -173,12 +228,13 @@ LDS Rx, CS, R0         ; Rx = [CS:index], one word (doc/Deep16-Arch.md:466)
 
 `LD Rx, R0` is the DS-default spelling (offset 0,
 `js/deep16_assembler.js:1323-1327`), but **prefer the explicit `LDS`**: DS is
-rewritten 146 times in `asm/forth_nano.asm`, and `DS:0x0000–0x1FFF` is scratch
-/SD-buffer space that the segmented loader does not fill from the image.
-Handlers in the shadow bank must also name their segment explicitly.
+rewritten more than a hundred times in `asm/forth_nano.asm`, and
+`DS:0x0000–0x1FFF` is scratch/SD-buffer space that the segmented loader does
+not fill from the image. Handlers in the shadow bank must also name their
+segment explicitly.
 
 A far target is just two consecutive entries, generalising the kernel's
-existing `sread` call pair (`asm/forth_nano.asm:20279-20287`):
+existing CS:PC pair read (`bps2_done`, `asm/forth_nano.asm:13048-13056`):
 
 ```asm
 LDI CONST_far_bdos
@@ -202,7 +258,7 @@ JML R10
 
 **Scope and cost.** Use the pool for addresses, far pointers and the
 `0x4000–0xBFFF` range that one `LDI` cannot produce. Do **not** blanket-replace
-small values: `LDI 0` occurs 377 times in the kernel and `LDI 0x1000` 37 times,
+small values: `LDI 0` occurs ~370 times in the kernel and `LDI 0x1000` ~36 times,
 where an inline `LDI` is cheaper. A lookup costs one extra word and a load-use
 stall (`doc/Deep16-Prog-Man.md:1235-1241`), and loads do not set flags
 (`doc/Deep16-Arch.md:140-151`), so schedule an independent instruction or a
@@ -257,7 +313,8 @@ committed before their RTL counterpart is tested.
   to `handler - BDOS_BASE` and dispatch with `LDS R2,CS,R3` after establishing
   `CS=BDOS_SEG` in the far entry stub.
 * Keep kernel-side far-call stubs at `CS=0`, but have them read the CS:PC pair
-  with `LDC_FAR` (the generalisation of `asm/forth_nano.asm:20279-20287`);
+  with `LDC_FAR` (the generalisation of the `bps2_done` pair at
+  `asm/forth_nano.asm:13048-13056`);
   no `LDI 0x4000`-class constant remains in those stubs. Existing `call-far`,
   menu and BIOS callers keep their ABI.
 * Move `bd_count`/scratch out of DS `0x2F40` into the BDOS segment, except the
@@ -266,14 +323,21 @@ committed before their RTL counterpart is tested.
   segment; a test poisons flat `0x2D4A` and confirms calls still work;
   `dict_free` no longer has to skip `0x3FCD`–`0x417C` in the D16D build; a
   scratch-layout diff changes a chapter base and proves only pool words move.
+* Phases 2–3 are simulator-verified only until Phase 4a adds the `CS=0x4000`
+  window to the loader. Do not flash a board from an intermediate commit.
 * **Files:** `asm/forth_nano.asm`, new `asm/bdos_block.asm`, linker layout,
   `tests/bdos.test.js`, `tests/segmented.test.js`.
 
 ### Phase 3 — ILL + FloatLib into the system segment
 
 * Move the ILL handler (`0x5000`) and `softfloat.asm` (`0x5800`, `0x6000`)
-  into the system chapter at `CS=0x3000`, next to BIOS. Delete the D16D
-  trampoline at `0x4D24` and vector 0 directly to the handler.
+  into the system chapter at `CS=0x3000`, next to BIOS. The ILL entry must
+  keep a `CS=0` stub: the trap forces `CS'=0` and vector 0 is a single 16-bit
+  PC word (`doc/Deep16-Arch.md:218`, installed at
+  `asm/forth_nano.asm:196-211`), so "vector 0 directly to the handler" is not
+  expressible. Shrink the `0x4D24` trampoline to a two-word far stub whose
+  `(seg, offset)` pair comes from the pool — the same shape as `swi_to_bios`
+  (`asm/forth_nano.asm:703`).
 * Route the five direct `i2f`/`f2i` call sites
   (`asm/forth_float.asm:311,331,1114,1147,1201`) through a short far-call shim
   in `CS=0`, or convert them to trap words. Replace `ill_fpu`'s PC-relative
@@ -286,15 +350,39 @@ committed before their RTL counterpart is tested.
   `FPU && BAKE_PACMAN` mutual exclusion.
 * **Acceptance:** `tests/d16d-fpu.test.js` now asserts the library exists
   *only* at `CS=0x3000`, with flat `0x5800`–`0x6475` left as FILL; `s>f`,
-  `f>s`, `f+`, `fexp` and float literals all run; no trampoline test remains.
+  `f>s`, `f+`, `fexp` and float literals all run; the `CS=0` entry stub still
+  exists and is a far jump whose target comes from the pool (no literal
+  `0x3000`).
 * **Files:** `asm/forth_nano.asm`, `asm/softfloat.asm`,
   `asm/forth_float.asm`, `tests/d16d-fpu.test.js`, `tests/ill-fpu.test.js`,
   `tests/forth-float.test.js`.
 
-### Phase 4 — format 2 in the loader and IDE
+### Phase 4a — retune the loader windows (format 1, no header change)
+
+* The dictionary win does not need a new image format. Once Phases 2–3 have
+  fixed the chapter layout, change only the `localparam`s and windows in
+  `rtl/flash/flash_boot.sv`: the DS mirror range, the system range, and one
+  additional hard-coded window for `CS=0x4000`. Keep `FORMAT = 1`, the 64-word
+  header and the installer path untouched.
+* Mirror the same windows in `scatterD16SEG()` (`js/deep16_d16d_image.js`) and
+  `js/deep16_ui_core.js`, so the simulator and the board boot from identical
+  memory.
+* This is the step that actually boots Phases 2–3 on hardware; it must land
+  before Phase 5 moves the dictionary base. It is also the cheapest rollback
+  point: a window table is four constants, not a parser.
+* **Acceptance:** the board boots, `free` grows, all boot tests below pass, and
+  the image is still format 1 with an unchanged installer.
+* **Files:** `rtl/flash/flash_boot.sv`, `rtl/sim/flash_boot_tb.*`,
+  `js/deep16_d16d_image.js`, `js/deep16_ui_core.js`, boot tests.
+
+### Phase 4b — format 2 chapter table in the loader and IDE
 
 * Implement format-2 chapter parsing in `rtl/flash/flash_boot.sv` (keep
-  format 1). Replace `scatterD16SEG()` in `js/deep16_d16d_image.js` with
+  format 1). Read the table from header words 8.., validate both CRCs and the
+  bounds, and drive one generic copy loop from `(seg, base, srcPairStart,
+  wordCount)`. Do not assume entries are sorted or sources disjoint — the DS
+  mirror is a second entry over the same source range (§3.4).
+* Replace `scatterD16SEG()` in `js/deep16_d16d_image.js` with
   `applyChapters()` driven by the same table, and mirror it into simulator
   memory in `js/deep16_ui_core.js`.
 * Update flash/installer word counts only if the total grows past the existing
@@ -331,13 +419,14 @@ committed before their RTL counterpart is tested.
 
 | Risk | Mitigation |
 |---|---|
-| FPGA is nearly full (39–83 CLS free, `HARDWARE.md:183-192`, `USERFLASH.md:190-199`) | Run `synth:tile` after Phase 4 before committing format 2; keep the chapter table in header RAM/ROM, not registers; keep the legacy path if the fit fails. |
+| FPGA is nearly full (39–83 CLS free, `HARDWARE.md:183-192`, `USERFLASH.md:190-199`) | Run `synth:tile` after Phase 4a (window retune) and again before committing format 2 in 4b; keep the chapter table in header RAM/ROM, not registers; 4a's constants-only change is the fallback if the fit fails. |
 | 15-bit signed `LDI` cannot hold physical addresses like `0x40000` (`tests/forth.test.js:2002`) | All cross-chapter targets use `seg` + `base-relative delta` pairs or the `LDC`/`LDC_FAR` pool of §3.5; the linker generates base equ's, assigns indices and checks the delta range. |
+| ILL entry is hardware-fixed to `CS'=0` with a single 16-bit vector word (`doc/Deep16-Arch.md:218`) | Keep a thin `CS=0` entry stub (the `swi_to_bios` shape, `asm/forth_nano.asm:703`); the far target comes from the pool. Never assume the handler can be vectored directly. |
 | Pool lookup adds a load-use stall and loads do not set flags (`doc/Deep16-Prog-Man.md:1235-1241`, `doc/Deep16-Arch.md:140-151`) | Schedule an independent instruction or a `CMP` after `LDC`; keep hot loops and small immediates inline; measure before converting softfloat constants. |
 | Pool index lands in `0x4000–0xBFFF` or the pool sits in a swapped DS window | Linker rejects indices `> 0x3FFF` and places the pool in a named code segment; handlers use explicit `LDS`, with a per-chapter pool copy where needed. |
 | Header/CRC mismatch bricks the board | Keep format 1 accepted; add header CRC; A/B test old and new images on the same bitstream; verify `0x100000` boot and `0x13000` file size with the flashing scripts. |
 | IDE duplicates Node layout rules | Phase 1 forces both through one browser-safe linker module; keep the word-for-word parity test. |
-| Test churn (≈15 test files pin flat addresses) | Phases 2–4 update tests to assert chapter metadata instead of flat addresses; `flatView` keeps unrelated tests alive until their phase. |
+| Test churn (≈15 test files pin flat addresses) | Phases 2–4b update tests to assert chapter metadata instead of flat addresses; `flatView` keeps unrelated tests alive until their phase. |
 | Runtime segment conflicts | Layout reserves `0x5000`, `0x6000`, `0x7000`, `0x8000` for game slices/dir; linker rejects a chapter that overlaps a reserved segment. |
 | Boot probe false positive if dictionary base moves into BSRAM | Phase 5 keeps the probe address unchanged and moves only the assigned dictionary base. |
 
@@ -350,6 +439,8 @@ committed before their RTL counterpart is tested.
   fails with `BIOS (5591 words) overruns the stacks`).
 * `npm test` green, RTL flash-boot test green, board boots from a format-2
   image and runs Forth, BDOS file ops, `1000 deep` and float arithmetic.
+* The ILL and SWI entries remain thin `CS=0` far stubs; no vector holds a
+  20-bit call target, and no stub embeds its target as a literal.
 * All cross-chapter addresses and far pointers come from the linker-generated
   pool; moving a chapter in a scratch layout changes only pool words (verified
   by diff test), with no hand-built `LDI` bit tricks for addresses.
