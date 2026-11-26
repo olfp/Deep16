@@ -4352,14 +4352,14 @@ bdos_seg_cell:
 bdos_fcreate_far:
     LDI bdos_seg_cell
     LDS R2, CS, R0
-    LDI 0x3FFC
+    LDI 0x3FFD
     MOV R3, R0
     JML R2
     NOP
 bdos_fdelete_far:
     LDI bdos_seg_cell
     LDS R2, CS, R0
-    LDI 0x00AA
+    LDI 0x00AB
     OR R0, 14
     MOV R3, R0
     JML R2
@@ -4367,7 +4367,7 @@ bdos_fdelete_far:
 bdos_fsize_far:
     LDI bdos_seg_cell
     LDS R2, CS, R0
-    LDI 0x011E
+    LDI 0x011F
     OR R0, 14
     MOV R3, R0
     JML R2

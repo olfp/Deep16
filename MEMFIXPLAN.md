@@ -404,11 +404,36 @@ mirrors. Two hard-coded `-0x4000` address builders (`fw_restore`,
   **Intermediate state:** the flat image and `scatterD16SEG()` do not carry
   the chapter yet, so fns 27..29 are simulator-tested only until Phase 4a.
   Do not flash a board from this commit.
-* **2c — the rest.** Move the entry, table and fns 0–13, then the gap handlers
-  (`0x4680`–`0x49FB`) and `0x1F78`, migrating scratch into the BDOS segment
-  with kernel mirrors for the cells the kernel writes directly. The flash
-  helpers are either duplicated in the BDOS chapter or reached through a
-  kernel shim; decide per helper, not globally.
+* **2c-0 — put the chapter into the loader (prerequisite).** Moving the
+  *entry* means every kernel boot enters `CS=0x4000`: the showcase menu, the
+  editor slice and the boot-time ps2-init call all go through it. The flat
+  image and `scatterD16SEG()` do not carry the chapter yet; a direct entry move
+  broke every BDOS caller in the harnesses (measured: bdos, editor, ps2 and
+  showcase tests all failed). Do this first:
+  - `scatterD16SEG()` writes the chapter's offsets at `0x40000`;
+  - the browser builder accepts `asm/bdos_block.asm` and the page/example
+    loader includes it;
+  - `tests/helpers.js buildMemory()` places the chapter for kernel images, so
+    every boot harness gets it in one place;
+  - `asm/editor.asm` and `asm/showcase/showcase.asm` set the entry CS to
+    `0x4000` instead of `0`.
+  Until Phase 4a the **board** loader still cannot carry it, so this remains
+  simulator-only.
+* **2c-1 — entry, table and fns 0..7.** A working draft exists: a shared
+  `bdos_call` stub at `0x3FE2` (`R7` carries the function), the kernel call
+  sites use it, the chapter's table points fns 0..7 at the copied entry block
+  and fns 8..26 at far stubs that set CS=0 and jump to the kernel handler. The
+  chapter assembled with zero overlaps (1,335 words). It was reverted only
+  because 2c-0 is missing; re-apply it on top of 2c-0.
+* **2c-2 — the gap handlers.** Move `0x4680`–`0x49FB` and `0x1F78` into the
+  chapter, delete the far stubs, and migrate the CS-relative scratch with
+  kernel mirrors for the cells the kernel writes directly (`bd_count` is
+  DS-relative and stays shared). The flash helpers are either duplicated or
+  shimmed; decide per helper.
+
+  Note: the 2b `fd_pack` CS mirror adds one word, so the chapter handlers are
+  at `0x3FFD`/`0x40AB`/`0x411F`; the kernel's 2b trampolines were corrected to
+  match. The 2c-1 table must use the chapter's labels, not hard-coded offsets.
 
 **Target bullets (2c finishes them):**
 
