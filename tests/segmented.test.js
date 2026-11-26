@@ -157,6 +157,33 @@ test('screen loads the hello slice', () => {
   assert.ok(sim.running);
 });
 
+test('a failed load stops the chain and leaves the console alive', () => {
+  // A source slice with a bad word in the middle: the first line must run,
+  // the error must stop the load, and the line after the error must not run
+  // at all.  The console must stay usable: an error in an evaluated text
+  // used to leave the evaluation depth standing, and the next line then
+  // resumed the abandoned thread of the load, so the rest of the source ran
+  // after the error.
+  const s = scratch(7);
+  line(`${s} 0x0C slice-create`);
+  // The payload starts at cell 8 of the slice: 123 . cr, then the bad word,
+  // then 456 . cr, with a line feed after each line.
+  line('s" 123 . cr" slice-buf 8 cells + swap move');
+  line('s" nosuchword" slice-buf 17 cells + swap move');
+  line('s" 456 . cr" slice-buf 28 cells + swap move');
+  line('10 slice-buf 16 cells + c!');
+  line('10 slice-buf 27 cells + c!');
+  line('slice-flush');
+  const loaded = line(`${s} screen`);
+  assert.match(loaded, /123/, 'the line before the error ran');
+  assert.match(loaded, /undefined word/, 'the error is reported');
+  assert.doesNotMatch(loaded, /456/, 'the line after the error did not run');
+  const after = line('7 8 + . cr');
+  assert.match(after, /15/, 'the console still works');
+  assert.doesNotMatch(after, /456/, 'the abandoned load did not resume');
+  assert.ok(sim.running);
+});
+
 test('a slice payload can be printed from flash to the terminal', () => {
   // `slice` reads the 4 KB sector into slice-buf; the payload starts at cell 8.
   // The manifest length, not 2040: the latter would print the LF padding too.
@@ -217,8 +244,9 @@ test('edit opens a text slice by name', () => {
 test('editing a full slice does not write past its buffer', () => {
   // The edit source's first slice is a full 2040 bytes, so slice-last + 1
   // used to write one cell past slice-buf. That zeroed the link of the next
-  // header (text-buf) and cut the dictionary chain between the catalog and
-  // the kernel, so `see` could no longer name kernel words.
+  // header (the boot loader's old text-buf) and cut the dictionary chain
+  // between the catalog and the kernel, so `see` could no longer name kernel
+  // words.
   lineWithKeys(`${editFirst} text-edit`, [0x18, 0x03]);
   assert.match(line('see edit'), /bl word count find text-edit/);
   assert.match(line('see bl'), /constant bl 32/);
@@ -623,15 +651,16 @@ test('catch and throw still unwind the return stack', () => {
 test('the 64K data stack holds thousands of cells', () => {
   // The data stack grows down from 0xFFF0 and the dictionary up from 0x5800.
   // After the catalog, the tools slice (edit/serial/xmodem) and the graphics
-  // module the gap here is 9,293 cells (measured from here(), which is why the
-  // count is derived and not a constant: a fixed 10,000 used to fit, and the
-  // text-buf below took the room back).
+  // module the gap here is measured from here(), which is why the count is
+  // derived and not a constant: a fixed 10,000 used to fit, and the boot
+  // loader's source buffer took the room back.
   //
-  // The big tenant of that gap is the boot loader's `text-buf`: 22,528 cells
-  // for the eleven 2,040-character source slices the LILA compiler loads (see
-  // lila/LILANATIVE.md). It is allocated in the dictionary at power-on, so
-  // every board pays for it whether it loads LILA or not. With the old
-  // eight-slice cap the gap was 15,671 cells and this test pushed 15,000.
+  // The boot loader does not keep the source text in the dictionary at all
+  // any more: it reads one slice into slice-buf and interprets it line by
+  // line, so the gap is 29,618 cells here, against 9,178 with the old
+  // loader's text-buf (see lila/LILANATIVE.md).  The packed screen test
+  // above has taken its own 2,040-cell buffer by now, so the gap measured
+  // here is that much smaller than it is at the prompt.
   //
   // Push all but 400 cells: the stack must not reach the words this test
   // defines a moment later, or the loop body overwrites itself (that is how

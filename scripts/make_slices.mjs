@@ -60,10 +60,42 @@ function entry({ type, flags = 0, first = 0xffff, name = '' }) {
   return cells;
 }
 
+// The loader interprets a line at a time and `evaluate` takes at most 128
+// characters, so a longer line cannot be loaded at all. Catch it here rather
+// than on the board.
+const MAX_LINE = 128;
+
+// The cuts between the slices of a text source. A slice holds 2040
+// characters and the cut falls on a line boundary: the loader reads one slice
+// at a time and interprets a line at a time, so a line that straddled a cut
+// would be split in two.
+function sourceCuts(text) {
+  const cuts = [];
+  let pos = 0;
+  while (pos < text.length) {
+    let end = Math.min(pos + SLICE_PAYLOAD, text.length);
+    if (end < text.length) {
+      const nl = text.lastIndexOf('\n', end - 1);
+      if (nl >= pos) end = nl + 1;
+    }
+    cuts.push([pos, end]);
+    pos = end;
+  }
+  return cuts;
+}
+
 // Split a text source into 2040-char slices, LF-padded. The first slice is a
 // TEXT source; continuations are type 0 and linked.
 function sourceSlices(text, firstIndex, baseName) {
-  const count = Math.max(1, Math.ceil(text.length / SLICE_PAYLOAD));
+  const lines = text.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].length > MAX_LINE) {
+      throw new Error(`${baseName}: line ${i + 1} is ${lines[i].length} characters, `
+        + `past the ${MAX_LINE} the loader reads per line`);
+    }
+  }
+  const cuts = sourceCuts(text);
+  const count = Math.max(1, cuts.length);
   const out = [];
   for (let i = 0; i < count; i++) {
     const words = new Uint16Array(SLICE_WORDS);
@@ -74,9 +106,10 @@ function sourceSlices(text, firstIndex, baseName) {
       name,
     });
     words.set(h, 0);
+    const [from, to] = cuts[i] ?? [0, 0];
     for (let j = 0; j < SLICE_PAYLOAD; j++) {
-      const at = i * SLICE_PAYLOAD + j;
-      words[8 + j] = at < text.length ? (text.charCodeAt(at) & 0xff) : 10;
+      const at = from + j;
+      words[8 + j] = at < to ? (text.charCodeAt(at) & 0xff) : 10;
     }
     out.push(words);
   }

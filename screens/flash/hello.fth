@@ -2,6 +2,6 @@
 \ (or `s" hello" find screen`).
 \
 \ A source slice is one 4 KB file-system sector: 2040 characters in cells
-\ 8..2047. `screen` copies it one character per cell into text-buf and runs it
-\ through `included`, so this is ordinary Forth source like any other.
+\ 8..2047. `screen` reads it into slice-buf and interprets it line by line,
+\ so this is ordinary Forth source like any other.
 : hello ( -- ) ." hello from the user flash" cr ;

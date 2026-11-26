@@ -106,23 +106,23 @@ Loading lila
 ```
 
 `need` finds the object in the master directory and calls `screen`, which
-copies the whole slice chain into `text-buf` and includes it in one go. The
-chain is eleven slices long, so the boot loader's cap moved from eight slices
-(16,320 characters) to eleven (22,440), and `text-buf` grew from 16,384 to
-22,528 cells to match. `text-buf` is allocated in the dictionary at boot, not
-in the image, so the image layout did not change - but the boot loader is
-baked into the image, so a board that already carries one needs
-`npm run flash:tile` for the new cap. The buffer is allocated at power-on, so
-every board pays the 6,144 extra cells whether it loads LILA or not.
+reads the whole slice chain into `slice-buf` one slice at a time and
+interprets it line by line. The chain is eleven slices long, but the loader
+has no length cap: it follows the links until the chain ends, and the source
+text never sits in the dictionary. A board that already carries an older boot
+loader needs `npm run flash:tile` for the new loader.
 
 That cost lands on the data stack. In the D16SEG map the dictionary grows up
 from `0x5800` and the data stack grows down from `0xFFF0` in the same
-region, so `text-buf` takes its cells out of the stack's room: the gap fell
-from 15,671 cells to 9,527 after the catalog and the tools slice were
-loaded. A board that wants the old stack back has to give up the eleven-slice
-chain - trim the compiler, or wait for packed slices.
+region, so the dictionary and the stack share their cells. The old loader
+reserved a 22,528-cell `text-buf` for the source text and took that room out
+of the stack; the new loader keeps only the 2,048-cell `slice-buf` - and the
+packed loader's own buffer is taken from the dictionary only when a packed
+slice is actually loaded - so the gap between the two is 29,618 cells where
+the old loader left 9,178, and a D16D boot leaves 32,782 free dictionary
+cells instead of 10,302.
 
-After the load the compiler has taken about 9.3k cells, leaving about 1.1k
+After the load the compiler has taken about 9.3k cells, leaving about 23.5k
 free in a D16D dictionary.
 
 **XMODEM over the serial line.** `xmodem` lives in the `edit` slice, which
@@ -135,7 +135,7 @@ cells: check before you start.
 ### Packed slices are future work
 
 A source slice stores one character per cell, so the eleven slices of the
-compiler cost 22,440 cells of `text-buf`. The slice type table already has
+compiler hold 22,440 characters. The slice type table already has
 `PACKED` (type 8) and `p-screen` unpacks two characters per cell, which
 would halve the compiler to six slices. It does not work yet:
 
@@ -144,8 +144,9 @@ would halve the compiler to six slices. It does not work yet:
   boundaries - and any later edit to the file would break that split.
 - Nothing in the repository builds a PACKED object; `buildSlices` registers
   TEXT, BINARY and ULAW objects only.
-- `screen`, the TEXT loader, copies the whole chain into `text-buf` and
-  includes it once, so chain boundaries do not matter there.
+- `screen`, the TEXT loader, interprets each line as it arrives, so chain
+  boundaries do not matter there - only the 128-character limit of
+  `evaluate` does.
 
 The text path is used today. A packed loader that collects a whole chain
 before including it is the obvious next step.
@@ -520,11 +521,10 @@ lets a block span several lines, and it is why the pending source is kept in
 
 The rest are scalar variables for parser and VM state. The arrays account for
 most of the compiler's footprint. On the D16SEG image used by the test, the
-booted kernel has `here = 0xd73f`: the boot loader has already carved its
-22,528-cell `text-buf` out of the dictionary, and 10,417 of the 65,520 cells
-below `limit = 0xfff0` are still free. Loading the compiler from the flash
-takes 9,281 cells, leaving 1,136 free; typing it in takes the same 9,281
-cells.
+booted kernel has `here = 0x7fe2`: the boot loader keeps no copy of the
+source text in the dictionary, and 32,782 of the 65,520 cells below
+`limit = 0xfff0` are still free. Loading the compiler from the flash takes
+9,281 cells, leaving 23,501 free; typing it in takes the same 9,281 cells.
 
 ### Input
 
@@ -1038,11 +1038,12 @@ loaded, and the limits that matter — source length, token count, name count,
 name length and the two arenas — are checked before anything is written. The
 bytecode buffer is the one exception; it relies on the token cap to stay
 inside 1024 cells. That is what makes it possible to run the whole pipeline in
-a dictionary that already has about 1.1k cells free.
+a dictionary that already has about 23.5k cells free.
 
 The escape decoder is what the profile gave up the most room for. The
-compiler grew by 762 cells, from 8,519 to 9,281, and the larger `text-buf`
-took another 2,048: the load leaves 1,136 dictionary cells free.
+compiler grew by 762 cells, from 8,519 to 9,281. The loader no longer holds
+the source text in the dictionary, so the load leaves 23,501 dictionary cells
+free.
 
 The name budget, the globals and the two string arenas are per *session*, not
 per line. That is what makes the state carry from one line to the next, and

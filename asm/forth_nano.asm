@@ -4276,35 +4276,37 @@ text_attr:
 boot_script:
 ; >>> generated from forth/boot.fth - do not edit here <<<
     .string "create slice-buf 2048 cells allot"
-    .string "create text-buf 22528 cells allot       \\ up to 11 slices"
-    .string "variable slice-sec drop"
-    .string "variable slice-wp drop"
-    .string "variable sf-a drop"
-    .string "variable sf-l drop"
+    .string "create slice-sec 0 ,"
+    .string "create slice-wp 0 ,"
+    .string "create sf-a 0 ,"
+    .string "create sf-l 0 ,"
+    .string "create ea 0 , create ec 0 , create en 0 , create es 0 , create el 0 , create lfc 10 ,"
     .string "create cf-burst-prim 0x2F49 ,"
     .string ": cf-burst ( sector buf -- ) cf-burst-prim execute ;"
     .string ": cf-read-burst ( sector -- ) slice-buf cf-burst ;"
     .string "create slice-write-prim 0x4988 ,"
-    .string ": slice-write ( src slice u -- r ) slice-write-prim execute ;"
+    .string ": slice-write ( src n u -- r ) slice-write-prim execute ;"
     .string ": slice ( n -- a )"
     .string "  dup 0 511 within 0= if .\" slice: 0..511\" cr drop slice-buf exit then"
-    .string "  dup slice-sec !  slice-buf bdos-slice"
+    .string "  dup slice-sec ! slice-buf bdos-slice"
     .string "  slice-buf dup @ 0x8000 and slice-wp ! ;"
     .string ": slice-valid? ( a -- f )"
-    .string "  @ dup 0xffff = if drop 0 exit then  0x7000 and 0x5000 = ;"
-    .string ": slice-type ( a -- t )   @ 0xff and ;"
-    .string ": slice-link ( a -- n )   1 cells + @ ;"
-    .string ": screen ( n -- )"
-    .string "  dup 0 511 within 0= if .\" screen: 0..511\" cr drop exit then"
-    .string "  0 >r  begin"
-    .string "    r@ 22440 < 0= if .\" screen: too long\" cr r> 2drop exit then"
-    .string "    dup slice  ( n a )"
-    .string "    dup slice-valid? 0= if 2drop r> drop exit then"
-    .string "    dup 8 cells +  text-buf r@ cells +  2040 move"
-    .string "    slice-link  ( n n' )"
-    .string "    r> 2040 + >r"
-    .string "    dup 0xffff = if drop drop r> text-buf swap included exit then"
-    .string "    nip"
+    .string "  @ dup 0xffff = if drop 0 exit then 0x7000 and 0x5000 = ;"
+    .string ": slice-type ( a -- t ) @ 0xff and ;"
+    .string ": slice-link ( a -- n ) 1 cells + @ ;"
+    .string ": screen"
+    .string "  es ! 0 en !"
+    .string "  begin"
+    .string "    en @ 511 > if quit then"
+    .string "    es @ slice dup slice-valid? 0= if drop quit then"
+    .string "    8 cells + ea ! 2040 el !"
+    .string "    begin el @ while"
+    .string "      ea @ el @ lfc 1 search if swap ec ! 1- el ! else 2drop quit then"
+    .string "      ec @ ea @ - ea @ swap evaluate"
+    .string "      ec @ 1+ ea !"
+    .string "    repeat"
+    .string "    slice-buf slice-link dup es ! 0xffff = if quit then"
+    .string "    en @ 1+ en !"
     .string "  again ;"
     .string ": slice-name= ( e -- f )"
     .string "  12 0 do"
@@ -4981,6 +4983,23 @@ fd_pg_e2:
         MOV PC, R0
         NOP
 
+; ---- the ten words between this block and the 0x0500 block ----------------
+; The kernel's code is hand-placed: the 0x0500 block ends exactly where the
+; BDOS word trampolines start (0x18C3 in the segmented build), so a word that
+; does not fit there pushes the tail of es! under that block and the store
+; silently disappears - the editor's cursor walks into the BDOS and the
+; machine spins in a directory read.  `psw` is a leaf primitive that nothing
+; calls from the interpreter, so it lives here, in the room this gap has.
+.org 0x04F6
+.code
+word_psw:                   ; psw ( -- x )  read the processor status word
+    LPSW R1
+    SUB SP, 1
+    ST R1, SP, 0
+    LDI next
+    MOV PC, R0
+    NOP
+
 .org 0x0500
 word_plus:
     MOV R9, SP
@@ -5503,6 +5522,18 @@ read_line:
     ; REPL only comes back here after an error (recover_prompt) or at the top of
     ; the next line, and a failed line must not be resumed after the user has
     ; typed the recovery line.
+    ;
+    ; It ends any evaluation that was running as well. An error inside an
+    ; evaluated text - the boot loader's `screen` is one - leaves the evaluation
+    ; depth standing, and the thread of that abandoned text would be picked up
+    ; again when the next line ends: the load would carry on with a source
+    ; that has already been called off. The clearing lives here, and not in the
+    ; error path, because the 0x0100 block has no words to spare: it ends at
+    ; 0x0474, and the .org at 0x0475 would silently overwrite its tail.
+    LDI eval_depth
+    MOV R2, R0
+    LDI 0
+    ST R0, R2, 0
     LDI inc_state
     MOV R2, R0
     LDI 0
@@ -11145,14 +11176,6 @@ hex_digit_upper:
 ; es@ and es! are @ and ! through ES, which is the MMIO segment (0xF000):
 ; DS points at the kernel's data and cannot reach 0xF0080, so the Forth that
 ; talks to a peripheral - the SD card driver in screens/flash/sd.fth - needs these.
-word_psw:                   ; psw ( -- x )  read the processor status word
-    LPSW R1
-    SUB SP, 1
-    ST R1, SP, 0
-    LDI next
-    MOV PC, R0
-    NOP
-
 word_segbase:               ; seg-base! ( seg -- )  set ES, used by loaders
     LDI sp0_base
     MOV R2, R0

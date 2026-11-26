@@ -112,7 +112,18 @@ variable sn-l drop
     dup 0xff and 2 pick i 2* cells + c!
     8 rshift 0xff and 1 pick i 2* 1+ cells + c!
   loop 2drop ;
+\ A packed slice carries two characters per cell, so one slice holds twice the
+\ text a TEXT slice does - but the loader takes one half at a time, and a
+\ definition cannot span the two calls.  The unpacked half needs a buffer of
+\ its own: the source is no longer copied into a text-buf.  `included` reads
+\ that buffer a line at a time, so the load ends the line, as it always did.
+\
+\ The buffer is taken from the dictionary the first time a packed slice is
+\ loaded.  A board that never loads one does not pay for it, and a board
+\ that does pays for it once.
+create p-buf 0 ,
 : p-screen ( n which -- )
   dup 0 2 within 0= if ." p-screen: 0 or 1" cr 2drop exit then
+  p-buf @ 0= if here p-buf ! 2040 cells allot then
   swap slice 8 cells + swap 1020 cells * +
-  text-buf 1020 unpack text-buf 2040 included ;
+  p-buf @ 1020 unpack p-buf @ 2040 included ;

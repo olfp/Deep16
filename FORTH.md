@@ -529,6 +529,11 @@ get at that code, since the interpreter is what finds the name. A throw out of a
 evaluation also puts the **input source** back, so the line that was being read
 when it happened carries on instead of re-reading text that was abandoned.
 
+With no `catch` in reach the error is reported and the line ends, and every
+evaluation that was running ends with it: the text that failed is abandoned,
+and its thread is not picked up again when the next line ends. An error in a
+loaded source therefore stops the load there.
+
 ```text
 s" 1 2 + ." evaluate                  \ 3  ok
 : c s" nosuch" evaluate ;
@@ -899,18 +904,25 @@ s" sd-card" need      \ sd, block, include
 hello                 \ hello from the user flash
 ```
 
-`screen ( n -- )` follows the link chain, concatenates 2040 characters per
-slice into `text-buf` (22,528 cells, eleven slices) and interprets the result.
-The source slices are LF-padded, so each 2040-character chunk ends on a line
-boundary. `screen` ends its line: `1 screen` does not return to the words that
-follow it on the same line.
+`screen ( n -- )` follows the link chain, reads one slice at a time into
+`slice-buf` and interprets it line by line with `evaluate`, so the source text
+never sits in the dictionary and a chain can be as long as the flash holds.
+The source slices are LF-padded and the slicer cuts the chain on line
+boundaries, so a line is never split across two slices; `evaluate` takes at
+most 128 characters, so a source line has to stay under that. The line ends
+are found with `search`, which also answers with the number of cells left in
+the slice, so the scan never runs past the end of the slice: a slice that has
+no line feed in it is not a source slice and the load stops there. `screen`
+ends its line: `1 screen` does not return to the words that follow it on the
+same line. A word that is not in the dictionary stops the load there: the
+error is reported like any other and the rest of the chain is not read.
 
 | word | effect |
 |---|---|
 | `slice ( n -- a )` | read slice `n` into `slice-buf` |
 | `slice-valid? ( a -- f )` | magic `5` and a live header |
 | `slice-type ( a -- t )` / `slice-link ( a -- n )` | header fields |
-| `screen ( n -- )` | chain + concatenate + interpret |
+| `screen ( n -- )` | chain + interpret, one line at a time |
 | `dir` | list the master directory |
 | `find ( addr len -- n )` | first slice of a named entry, `0xFFFF` if absent |
 | `slice-create ( n t -- )` | blank header + payload in `slice-buf` |

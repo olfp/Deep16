@@ -46,7 +46,7 @@ It boots the segmented D16D image with the soft-float library, types the
 compiler in, runs the fixture program, compares the output with what
 `lua5.4` 5.4.8 prints, and asserts that the run leaves the data stack at
 depth 0. The compiler takes about 9.3k dictionary cells after the kernel
-boots, leaving about 1.1k free.
+boots, leaving about 23.5k free.
 
 ## On the device
 
@@ -67,17 +67,21 @@ Loading lila
 ```
 
 `need` finds the object in the master directory and calls `screen`, which
-copies the slice chain into `text-buf` and includes it. The chain is eleven
-slices long, so the boot loader's cap moved from 16,320 to 22,440 characters
-and `text-buf` grew to 22,528 cells; `text-buf` lives in the dictionary, not
-in the image, so a board with the old boot loader needs `npm run flash:tile`
-for the new cap. The buffer is allocated at boot, so every board pays the
-6,144 extra cells whether it loads LILA or not.
+reads the slice chain one slice at a time into `slice-buf` and interprets it
+line by line. The chain is eleven slices long, but the loader has no length
+cap and keeps no copy of the source in the dictionary, so the compiler's text
+costs no dictionary cells. A board with an older boot loader needs
+`npm run flash:tile` for the new loader.
 
-The dictionary and the data stack share one region in the D16SEG map, so
-those 6,144 cells come out of the data stack: the gap between the two fell
-from 15,671 cells to 9,527. The stack still holds thousands of cells - far
-more than the LILA VM needs - but it is a real cost on every board.
+The dictionary and the data stack share one region in the D16SEG map. The old
+loader reserved a 22,528-cell `text-buf` for the source text and took that
+room out of the stack; the new loader keeps only the 2,048-cell `slice-buf` -
+and the packed loader's own buffer is taken from the dictionary only when a
+packed slice is actually loaded - so the gap between the two is 29,618 cells
+where the old loader left 9,178, and a D16D boot leaves 32,782 free
+dictionary cells instead of 10,302. The stack still holds thousands of cells
+- far more than the LILA VM needs - and the cost is no longer paid by boards
+that never load the compiler.
 
 `tests/native-lila-slice.test.js` runs that path in the simulator.
 

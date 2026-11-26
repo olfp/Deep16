@@ -3,9 +3,10 @@
 //
 // The board keeps its Forth sources in the upper half of the on-board SPI
 // flash as slices (USERFLASH.md). `s" lila" need` finds the compiler in the
-// master directory and runs `screen`, which copies the slice chain into
-// text-buf and includes it. This test drives that path on the JS core: the
-// same boot image, the same slice image, the same loader words.
+// master directory and runs `screen`, which reads the slice chain one slice
+// at a time into slice-buf and interprets it line by line. This test drives
+// that path on the JS core: the same boot image, the same slice image, the
+// same loader words.
 //
 // It is the device-faithful twin of native-lila.test.js, which types the
 // compiler in line by line instead.
@@ -27,10 +28,9 @@ test('the compiler is in the config-flash directory', () => {
   assert.ok(lila, 'no lila object in the slice manifest');
   assert.ok(lila.chars > 16_320, 'the source is longer than eight slices');
   assert.ok(lila.count >= 10, `the source needs ${lila.count} slices`);
-  // The boot loader reads the source into text-buf, which holds eleven
-  // slices; a twelfth would not fit.
-  assert.ok(lila.count <= 11, `the source needs ${lila.count} slices`);
-  assert.ok(lila.chars <= 22_440, `the source is ${lila.chars} characters`);
+  // The loader reads the chain one slice at a time and interprets it as it
+  // goes, so the chain only has to fit in the flash, not in a text buffer.
+  assert.ok(lila.count <= 512, `the source needs ${lila.count} slices`);
 });
 
 test('need loads the compiler from the flash', () => {

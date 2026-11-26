@@ -1,0 +1,179 @@
+# LILASTATUS — state of the on-device LILA work
+
+Written at the loader cut (2026-11-26). It says where the work stands, what
+was measured, and what the next batch has to do. The tables batch has not
+started yet.
+
+## Where the work stands
+
+| batch | state | commit |
+|---|---|---|
+| float datatype (tag 5, `f+`/`f.`/`s>f`) | done, pushed | `329db80` |
+| kernel glyph fix (`utx_glyph_space`) | done, pushed | `4d8160b` |
+| strings (escape decoder, `\n`, `\x41`, `\u{20ac}`) | done, pushed | `2aaea83` |
+| loader rewrite (this cut) | done in this commit | - |
+| tables (tag 4, `{}`, `t[k]`, `t[k]=v`, `#t`) | **not started** | - |
+
+The loader rewrite was the blocker for the tables batch: the old loader kept
+the source text in a dictionary buffer, so the native profile could not grow
+without taking the buffer's room back. That is fixed now (below), so the
+tables batch can start.
+
+## The loader, as it stands now
+
+`forth/boot.fth` is the source; `scripts/embed_forth.mjs` bakes it into the
+image between `0x3C20` and `0x3FCC` (941 cells, the BDOS slice-file code
+starts at `0x3FCD`). The baked block is at **921 cells**, so there is room
+for a little more, but not much.
+
+What changed:
+
+- **`screen` walks the whole chain itself.** It reads one slice at a time
+  into `slice-buf` and interprets it line by line with `evaluate`. The source
+  text never enters the dictionary, so the chain can be as long as the flash
+  holds (the old cap was eleven slices / 22,440 characters).
+- **One colon word for the whole chain.** The kernel keeps the compile-time
+  placeholders of `if`, `then`, `begin` and `do` on the return stack, so a
+  loader word that returned between two lines would pop the *source's*
+  placeholder instead of its own return address. Walking the chain in one
+  word means there is no return in between. For the same reason the scan
+  keeps its place in variables and the slice number never sits on the data
+  stack while the source runs.
+- **The line scan uses the kernel's `search`.** It finds the LF natively, so
+  a line costs one native call instead of one interpreted step per character.
+  The first version of this cut scanned cell by cell and booted in three
+  times the steps; `search` brought that back down. `search` answers with the
+  address of the match and the number of cells from the match to the end of
+  the range, so the loader keeps the rest of the slice in a variable (`el`)
+  and hands the next line a range that is one cell shorter. The range is the
+  rest of the slice, so a slice that has no LF in it is not a source slice
+  and the load stops there instead of running off into the dictionary.
+- **The slicer cuts on line boundaries** (`sourceCuts` in
+  `scripts/make_slices.mjs`), because a line that straddled a cut would be
+  interpreted in two pieces. It also refuses a line over 128 characters,
+  which `evaluate` could not read anyway.
+- `text-buf` is gone; `p-screen` (packed type-8 slices) got its own
+  `p-buf` and keeps using the kernel's `included`. The packed buffer is
+  taken from the dictionary the **first time a packed slice is loaded**, not
+  at boot: a board that never loads one does not pay for it, and a board
+  that does pays for it once. That is worth 2,025 cells at boot (2,040 for
+  the buffer, less the one cell the flag takes and the fourteen the extra
+  code costs).
+- **One kernel fix came with it.** An error inside an evaluation used to
+  leave the evaluation stack alone: the kernel reported the error, read the
+  next line, and at the end of *that* line resumed the thread of the text
+  that had failed - the loader's own frame - so the rest of the source ran
+  after the error that was supposed to stop it. The reader now clears the
+  evaluation depth (`read_line` in `asm/forth_nano.asm`), so an error ends
+  the line and every evaluation that was running with it. That is the
+  standard's rule for an error, and it is what makes a failed load stop
+  where it failed, the way the old `included` loader stopped.
+
+  The fix sits in `read_line` and not in the error path itself because the
+  error path lives in the `0x0100` code block, which has no words to spare:
+  it ends at `0x0474`, and the `.org 0x0475` behind it would silently
+  overwrite the tail - which is exactly what the first attempt did, and why
+  the D16D image stopped booting with `PC=0`. `read_line` is in the `0x0500`
+  block, and there the fix fits.
+
+  It needed four words of room, and the `0x0500` block has none: it ends at
+  `0x18C2` in the segmented build, and the `.org 0x18C3` behind it - the
+  BDOS word trampolines - is assembled last, so it overwrites whatever is
+  there. The first attempt with the fix grew the block into that gap and
+  destroyed the tail of `es!`: the editor's cursor store walked into the
+  BDOS and the machine spun in a directory read, which is what the 41
+  failures in the segmented group were. `psw` is a leaf primitive that
+  nothing calls from the interpreter, so it moved to the ten free words
+  between the `0x0475` block and the `0x0500` one (`.org 0x04F6`). The
+  `0x0500` block now ends at `0x18C1`, with two words to spare, and the
+  same move keeps the D16D build (which had one word) inside its gap.
+
+## What was measured
+
+D16D image, FPU profile, the real slice image in the flash, measured with the
+same script on the old loader (HEAD) and on this one:
+
+| | old loader | new loader |
+|---|---|---|
+| boot to prompt | 5,495,556 steps | 7,926,839 steps |
+| dictionary after boot (`here`) | `0xd7b2` | `0x7fe2` |
+| free dictionary cells after boot | 10,302 | 32,782 |
+| free dictionary cells after `s" lila" need` | 1,021 | 23,501 |
+| cells the compiler itself takes | 9,281 | 9,281 |
+| data stack depth after the load | 0 | 0 |
+
+So the loader costs about 44% more boot steps and gives back 22,480
+dictionary cells: the 22,528-cell `text-buf` is gone, the packed loader's
+own buffer costs 15 cells at boot instead of 2,040 (it is taken from the
+dictionary only when a packed slice is loaded), and the new loader's own
+words and variables take 33 of the rest.
+
+In the D16SEG map the dictionary and the data stack share their cells, so
+the free cells are the gap: the segmented build's gap between the dictionary
+and the stack is 29,618 cells, against 9,178 cells with the old loader -
+measured at the same point of the segmented test, after the catalog, the
+tools slice and the graphics module are loaded.
+
+Tests: the whole suite is green at the cut (1005 tests, see the commit
+message). The segmented group has a test of its own for the failed load: a
+source slice with a bad word in the middle must run the line before it,
+report the error, leave the line after it unrun, and leave the console
+usable.
+
+## Known limits of the current loader
+
+- **A source line has to stay under 128 characters.** `evaluate` copies at
+  most 128 characters into its buffer and throws `-22` above that. The
+  longest line in the native profile is 127 characters, and the slicer now
+  refuses to build a source with a longer line, so the failure comes with
+  the build and not on the board.
+- **The boot script has 20 cells of room** (921 of 941). Every line of
+  `forth/boot.fth` costs `ceil(len / 2) + 1` cells, and an inline `\`
+  comment costs as much as the code it sits on.
+- **The chain is capped at 512 slices** (`en @ 511 >`), which is the whole
+  flash; the cap exists to turn a corrupt link chain into a quiet stop
+  instead of a hang.
+- **The boot script's `create` does not reserve the data cell** (unlike
+  `variable`): `create ea 0 ,` reserves it, `create ea` does not, and the
+  next definition would land on top of it.
+- `screen` still ends its line, so a module load has to be its own boot
+  script line.
+- **A failed load leaves its frame on the return stack.** The error path ends
+  the line and abandons the evaluation, but it does not empty the return
+  stack, so the loader's own frame (one cell) stays there - the old
+  `included` loader left its own frame too. A later `r>` at the prompt would
+  pick it up; the stack has thousands of cells, so this only matters after a
+  load that failed.
+
+## The next batch: tables
+
+The host compiler (`lila/compiler.fs`, `lila/value.fs`, `lila/hash.fs`,
+`lila/tablelib.fs`) has the tables; the native profile does not. What the
+native side has to grow:
+
+- **tag 4** is free (0 nil, 1 number, 2 boolean, 3 string, 5 float).
+- `{}` builds an empty table; `t[k]` reads (nil when the key is missing);
+  `t[k] = v` inserts or updates; assigning nil deletes the key.
+- `#t` is the *border* (the largest `n` with `1..n` all present), not the
+  count, and it has to follow the host.
+- Keys are full tagged values, a nil key is rejected, and nested assignment
+  (`t[k][j] = v`) is not supported on the native side either.
+- The host uses a 4-cell header, 7-cell slots, open addressing with linear
+  probing, growth at 75% and a rebuild on delete. The native version may
+  differ as long as the *observable* behaviour matches.
+
+The native profile has room for it: 23,501 free cells after the load, and
+the loader no longer holds the source text. The budgets to keep inside are
+the flash/dictionary budgets above - the profile is 22,226 characters in 11
+slices today, and `lila/README.md`, `LUAPARITY.md`, `TYPEPLAN.md`,
+`lila/LILANATIVE.md` and `lila/native/README.md` have to follow the code.
+
+## Rules this work follows
+
+- One batch per commit, pushed as it lands.
+- `lila/README.md`, `LUAPARITY.md`, `TYPEPLAN.md`, `lila/LILANATIVE.md`,
+  `lila/native/README.md`, `FORTH.md` and `USERFLASH.md` stay in step with
+  the code.
+- `lila/VIOLATIONS.md` is not touched.
+- The generated OpenWiki pages are not hand-edited; the scheduled workflow
+  refreshes them.

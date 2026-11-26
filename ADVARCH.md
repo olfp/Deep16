@@ -139,8 +139,8 @@ slice ( n -- a )              read 4 KB into the 2048-cell buffer
 slice-valid? ( a -- f )       magic 5 and a live header
 slice-type ( a -- t )
 slice-link ( a -- n )         the next slice in the chain
-screen ( n -- )               follow the chain, concatenate 2040 cells/slice
-                              into text-buf, interpret the result
+screen ( n -- )               follow the chain, read one slice into the
+                              buffer, interpret it line by line
 cf-protect / cf-unprotect     BP = 2 MB / clear BP
 ```
 
