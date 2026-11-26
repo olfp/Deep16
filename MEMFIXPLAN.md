@@ -10,8 +10,10 @@ implemented yet.
 the ILL handler and FloatLib their own address space so none of them can ever
 grow into the Forth dictionary or stacks.
 
-**Scope:** the D16SEG/D16D tile image (24 K / 28 K flat image, scattered into
-segments by `flash_boot`). The 1 MiB screen/IDE build stays flat and untouched.
+**Scope:** the D16nano tile image (`D16SEG`/`D16D`, 24 K / 28 K flat image,
+scattered into segments by `flash_boot`). The 1 MiB D16SIM (screen/IDE) build
+stays flat and untouched; archived D16MINI and the flat `D16NANO` test harness
+are ignored.
 
 **Non-goals:**
 
@@ -23,6 +25,9 @@ segments by `flash_boot`). The 1 MiB screen/IDE build stays flat and untouched.
   `LD`/`ST`, so it stays a DS window below the dictionary. The data stack
   already is its own segment (`SS`).
 * No "full" linker with dynamic objects. This is a build-time chapter linker.
+* No blanket replacement of immediates with table lookups: small `LDI` values
+  stay inline; the constant pool introduced in §3.5 is for addresses, far
+  pointers and constants the 15-bit `LDI` field cannot express.
 
 ## 1. Why a linker, and which kind
 
@@ -46,11 +51,22 @@ must resolve are cross-chapter absolute addresses and chapter boundaries —
 both can be expressed with generated `.equ` prologues, which the assembler
 already understands (`js/deep16_assembler.js:213-228`).
 
+The other half of the answer is to take absolute addresses *out of the
+instructions altogether*. `LDI` writes only `R0` and sign-extends a 15-bit
+field, so `0x4000`–`0xBFFF` is unencodable and the kernel is full of shift/OR
+workarounds (`js/deep16_assembler.js:1385-1397`, `asm/softfloat.asm:183`). A
+small index *is* always encodable, so code can do
+`LDI CONST_foo; LDS Rx, CS, R0` and read the real value from a
+linker-generated constant pool (§3.5). The kernel already uses precisely this
+idiom for the BDOS far-call pair (`asm/forth_nano.asm:20279-20287`) and for a
+CS-resident variable (`asm/forth_nano.asm:1665-1668`). With a pool, a layout
+change rewrites pool words only; the instructions never change.
+
 ## 2. Target map
 
 | Segment | Physical | Chapters | Notes |
 |---|---|---|---|
-| `CS=0x0000` | `0x00000` | vectors `0..2`, kernel code `0x0100`–`0x2D49`, short far trampolines, IRQ handler `0x51A0` | entry stays at physical `0x00100` so PSRAM boot verification is unchanged |
+| `CS=0x0000` | `0x00000` | vectors `0..2`, kernel code `0x0100`–`0x2D49`, short far trampolines, IRQ handler `0x51A0`, constant pool (§3.5) | entry stays at physical `0x00100` so PSRAM boot verification is unchanged; pool indices stay `< 0x4000` |
 | `DS=0x1000` | `0x10000` | kernel data + boot script, return stack `0x2000`–`0x2FFF`, dictionary | no system code in this segment at all |
 | `SS=0x2000` | `0x20000` | data stack | unchanged |
 | **`CS=0x3000`** | `0x30000` | **BIOS + ILL handler + FloatLib + PS/2 tables + showcase menu** (~13 K words of 64 K) | one *system* chapter: ILL reaches BIOS division and FloatLib without far calls or duplicated code |
@@ -105,13 +121,18 @@ is attached to the chapter, not hard-coded in the loader.
 2. **Resolve pass.** Re-assemble each chapter with an additional generated
    prologue of `.equ` lines for its imported cross-chapter symbols, e.g.
    `.equ bdos_entry, 0x40000`. Source code refers to those names directly for
-   far targets; local labels and all deltas stay as they are.
+   far targets; local labels and all deltas stay as they are. Imported symbols
+   that cross a chapter boundary are instead assigned a small pool index and
+   injected as `.equ CONST_<name>, <index>`; code reaches them with the
+   `LDC` / `LDC_FAR` macros of §3.5, never with a hand-built immediate.
 3. **Merge.** Every `memoryChanges` record must fall into exactly one chapter
    range. Same address written twice with a different value is an **error**
    (not last-write-wins). Unwritten words inside a chapter get `fill`.
 4. **Validate.** Chapter ranges do not overlap; each fits in 64 K words;
    vectors are in the kernel chapter; far targets are inside their chapter;
-   `dict_free < dictionary base` and dictionary top `<= 0xFFEF`.
+   `dict_free < dictionary base` and dictionary top `<= 0xFFEF`. Pool indices
+   are unique and `<= 0x3FFF`, and the pool lives in a fixed code segment;
+   no instruction contains a relocated absolute address.
 5. **Emit.** `{ chapters[], symbols, flatView, manifest }`. `flatView` is a
    compatibility view for the old scatter/tests during migration.
 
@@ -140,6 +161,60 @@ then uses **one generic copy loop** instead of the three hard-coded windows at
 bits. For format 1 it keeps the current path, so old bitstreams/images and the
 installer still work.
 
+### 3.5 Constant pool (`LDC`) — addresses without `LDI` bit tricks
+
+**Mechanism.** A small index is always encodable, so store the real constant
+in a linker-emitted pool and read it back:
+
+```asm
+LDI CONST_foo          ; index 0..0x3FFF, no sign-extension trap
+LDS Rx, CS, R0         ; Rx = [CS:index], one word (doc/Deep16-Arch.md:466)
+```
+
+`LD Rx, R0` is the DS-default spelling (offset 0,
+`js/deep16_assembler.js:1323-1327`), but **prefer the explicit `LDS`**: DS is
+rewritten 146 times in `asm/forth_nano.asm`, and `DS:0x0000–0x1FFF` is scratch
+/SD-buffer space that the segmented loader does not fill from the image.
+Handlers in the shadow bank must also name their segment explicitly.
+
+A far target is just two consecutive entries, generalising the kernel's
+existing `sread` call pair (`asm/forth_nano.asm:20279-20287`):
+
+```asm
+LDI CONST_far_bdos
+LDS R10, CS, R0
+ADD R0, 1
+LDS R11, CS, R0
+JML R10
+```
+
+**Linker contract.**
+
+* `LDC Rx, foo` emits `LDI CONST_foo; LDS Rx, CS, R0` (2 words).
+* `LDC_FAR foo` emits the four-word pair above; the caller keeps the existing
+  `R0`/`R1` argument and `R10:R11` return-pair ABI.
+* The linker assigns one index per imported symbol, injects
+  `.equ CONST_<name>, <index>`, emits the `.word` pool into the kernel chapter
+  at a low CS offset, and checks index range/uniqueness (`<= 0x3FFF`).
+* If a handler needs a constant in its own segment (e.g. the system chapter),
+  give that chapter its own small pool; the macro takes the pool segment as a
+  parameter.
+
+**Scope and cost.** Use the pool for addresses, far pointers and the
+`0x4000–0xBFFF` range that one `LDI` cannot produce. Do **not** blanket-replace
+small values: `LDI 0` occurs 377 times in the kernel and `LDI 0x1000` 37 times,
+where an inline `LDI` is cheaper. A lookup costs one extra word and a load-use
+stall (`doc/Deep16-Prog-Man.md:1235-1241`), and loads do not set flags
+(`doc/Deep16-Arch.md:140-151`), so schedule an independent instruction or a
+`CMP` before branching; do not put it in a softfloat inner loop without a
+measurement. For hard constants it is still 2 words versus 3 for
+`LDI low; OR R0,14; OR R0,15`, plus one pool word.
+
+**Relocation payoff.** Because code holds indices rather than addresses,
+moving BDOS or FloatLib changes only pool `.word`s. Phase 2 adds a diff test
+that changes a chapter base in a scratch layout and asserts no instruction word
+outside the pool differs.
+
 ## 4. Phases
 
 Every phase ends with `npm test` green and a byte-identical legacy image where
@@ -164,6 +239,9 @@ committed before their RTL counterpart is tested.
 
 * Add `js/deep16_linker.js` and `scripts/link_image.mjs` with the chapter
   schema but a *single* chapter equal to today's flat image.
+* Add the constant-pool plumbing and `LDC`/`LDC_FAR` macros to the linker, but
+  emit an empty pool and leave existing sources unchanged, so this phase stays
+  byte-identical.
 * Route Node and browser builders through it; keep `flatView` as the output
   used by the existing scatter.
 * **Acceptance:** `image.hex`, `image.mi`, `image.flash.bin` and the manifest
@@ -178,13 +256,16 @@ committed before their RTL counterpart is tested.
   `.org` it at `0x40000` under a `BDOS_BASE` equ. Change `BDOS_JTABLE` entries
   to `handler - BDOS_BASE` and dispatch with `LDS R2,CS,R3` after establishing
   `CS=BDOS_SEG` in the far entry stub.
-* Keep kernel-side far-call stubs at `CS=0` that set `R2=0x4000, R3=offset`;
-  existing `call-far`, menu and BIOS callers keep their ABI.
+* Keep kernel-side far-call stubs at `CS=0`, but have them read the CS:PC pair
+  with `LDC_FAR` (the generalisation of `asm/forth_nano.asm:20279-20287`);
+  no `LDI 0x4000`-class constant remains in those stubs. Existing `call-far`,
+  menu and BIOS callers keep their ABI.
 * Move `bd_count`/scratch out of DS `0x2F40` into the BDOS segment, except the
   cells the kernel writes directly (those get a tiny kernel-side mirror).
 * **Acceptance:** `tests/bdos.test.js` drives all functions from the new
   segment; a test poisons flat `0x2D4A` and confirms calls still work;
-  `dict_free` no longer has to skip `0x3FCD`–`0x417C` in the D16D build.
+  `dict_free` no longer has to skip `0x3FCD`–`0x417C` in the D16D build; a
+  scratch-layout diff changes a chapter base and proves only pool words move.
 * **Files:** `asm/forth_nano.asm`, new `asm/bdos_block.asm`, linker layout,
   `tests/bdos.test.js`, `tests/segmented.test.js`.
 
@@ -196,7 +277,9 @@ committed before their RTL counterpart is tested.
 * Route the five direct `i2f`/`f2i` call sites
   (`asm/forth_float.asm:311,331,1114,1147,1201`) through a short far-call shim
   in `CS=0`, or convert them to trap words. Replace `ill_fpu`'s PC-relative
-  return to `ill_restore_shared` with a far return.
+  return to `ill_restore_shared` with a far return. Both far targets come
+  from the pool (`LDC_FAR`); the system chapter carries its own small pool
+  for handler-local constants.
 * Keep the Forth float word surface, scanner, trampolines and power tables in
   the kernel chapter but move them out of the old free gaps (`0x417D`,
   `0x4330`, `0x48A9`, `0x6900`) into declared space — no more
@@ -240,7 +323,8 @@ committed before their RTL counterpart is tested.
   24 K / 12,352-word format), `HARDWARE.md`, `FPUEMUPLAN.md`.
 * **Acceptance:** board `free` grows by ~5 K words; `1000 deep`, deep mixed
   recursion and a board FPU smoke test all pass; no source file contains a
-  hard-coded BIOS/BDOS/FloatLib origin outside the layout declaration.
+  hard-coded BIOS/BDOS/FloatLib origin outside the layout declaration and the
+  linker-generated pool.
 * **Files:** `asm/forth_nano.asm`, `scripts/make_image.mjs`, docs.
 
 ## 5. Risks and mitigations
@@ -248,7 +332,9 @@ committed before their RTL counterpart is tested.
 | Risk | Mitigation |
 |---|---|
 | FPGA is nearly full (39–83 CLS free, `HARDWARE.md:183-192`, `USERFLASH.md:190-199`) | Run `synth:tile` after Phase 4 before committing format 2; keep the chapter table in header RAM/ROM, not registers; keep the legacy path if the fit fails. |
-| 15-bit signed `LDI` cannot hold physical addresses like `0x40000` (`tests/forth.test.js:2002`) | All cross-chapter targets use `seg` + `base-relative delta` pairs; the linker generates base equ's and checks the delta range. |
+| 15-bit signed `LDI` cannot hold physical addresses like `0x40000` (`tests/forth.test.js:2002`) | All cross-chapter targets use `seg` + `base-relative delta` pairs or the `LDC`/`LDC_FAR` pool of §3.5; the linker generates base equ's, assigns indices and checks the delta range. |
+| Pool lookup adds a load-use stall and loads do not set flags (`doc/Deep16-Prog-Man.md:1235-1241`, `doc/Deep16-Arch.md:140-151`) | Schedule an independent instruction or a `CMP` after `LDC`; keep hot loops and small immediates inline; measure before converting softfloat constants. |
+| Pool index lands in `0x4000–0xBFFF` or the pool sits in a swapped DS window | Linker rejects indices `> 0x3FFF` and places the pool in a named code segment; handlers use explicit `LDS`, with a per-chapter pool copy where needed. |
 | Header/CRC mismatch bricks the board | Keep format 1 accepted; add header CRC; A/B test old and new images on the same bitstream; verify `0x100000` boot and `0x13000` file size with the flashing scripts. |
 | IDE duplicates Node layout rules | Phase 1 forces both through one browser-safe linker module; keep the word-for-word parity test. |
 | Test churn (≈15 test files pin flat addresses) | Phases 2–4 update tests to assert chapter metadata instead of flat addresses; `flatView` keeps unrelated tests alive until their phase. |
@@ -264,4 +350,7 @@ committed before their RTL counterpart is tested.
   fails with `BIOS (5591 words) overruns the stacks`).
 * `npm test` green, RTL flash-boot test green, board boots from a format-2
   image and runs Forth, BDOS file ops, `1000 deep` and float arithmetic.
+* All cross-chapter addresses and far pointers come from the linker-generated
+  pool; moving a chapter in a scratch layout changes only pool words (verified
+  by diff test), with no hand-built `LDI` bit tricks for addresses.
 * `MEMLAYOUT.md` matches the assembler/loader symbols again.

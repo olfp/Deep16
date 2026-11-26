@@ -8,7 +8,7 @@ addresses** (not bytes) and are **offsets in a segment** unless the column says
 
 **Source of truth:** the `Deep16Assembler` symbol dump, not the hand-written
 comments in `MEMMAP.md` (that file warns itself that `dict_free` and the boot
-script drift). The D16D numbers below were measured by assembling
+script drift). The D16nano numbers below were measured by assembling
 `asm/forth_nano.asm` + `asm/softfloat.asm` + `asm/forth_float.asm` with
 `DEFINES = { CONSOLE_UART, D16NANO, D16SEG, D16D, FPU_KERNEL, FPU_WORDS }`.
 
@@ -16,28 +16,40 @@ script drift). The D16D numbers below were measured by assembling
 
 ## 1. Quick table: the four subsystems
 
-| Block | Screen / IDE (1 Mi) | D16MINI (archived) | D16nano flat | D16SEG / D16D (current board) | How it is entered |
-|---|---|---|---|---|---|
-| Vectors ILL / IRQ / SWI | `0x0000` / `0x0001` / `0x0002` | same | same | same, written through `CS=0` (`STS R1,CS,R2`) | hardware |
-| Forth kernel code | `0x0100`–`0x2D49` | `0x0100`–`0x2F47` | `0x0100`–`0x2D49` | `0x0100`–`0x2D49` (`swi_to_bios` `0x232`) | direct / threaded |
-| Forth static data, `dict_free` | `0x3000`–`0x3BFB`, ceiling `0x4000` | `0x3000`–`0x3F5E`, ceiling `0x5600` | `0x3000`–`0x3FAF`, ceiling `0x4A00` | DS=0x1000 `0x3000`–`0x3FC4`; dictionary from `DS:0x5800` to `0xFFEF` | DS-relative |
-| **BDOS** entry + jump table | `0x2D4A` / `0x2D59` | **none** (pre-split) | `0x2D4A` / `0x2D59` | `0x2D4A` / `0x2D59` | **far jump `JML R2`**, `R0`=fn, `R1`=arg, `R10:R11`=return CS:PC; 30 fns with D16NANO, 27 otherwise |
-| BDOS scattered handlers | `0x4400`–`0x49FB` | – | `0x3FFC`–`0x417C` (fns 27–29), `0x4400`–`0x49FB` | same as flat, plus `bdos_ps2_init` `0x1F78`, D16D bridge `0x5400`–`0x548D` | table of absolute `CS=0` addresses |
-| **BIOS** code | `0xF8000`–`0xF8156` (physical, `CS=0xF800`), 6 fns | `0x5600`–`0x576F`, 6 fns | `0x4A00`–`0x57EC`, 24 fns | image `0x4A00`–`0x6C8F`; **copied to `CS=0x3000:0x0000`** by `flash_boot`, SWI target `0x3000:0` | **SWI** vector 2 → `swi_to_bios`, shadow bank, `I=0` |
-| **ILL handler** | `0x5000` (+ save area `0x5200`) | `0x5000` | `0x5000` | flat `0x5000`, but D16D vector → trampoline `0x4D24` → `CS=0x3000:0x0600` (the BIOS copy, so division routines are reachable) | vector 0, shadow bank |
-| IRQ handler | `0x51A0` | `0x51A0` | `0x51A0` | `0x51A0` (vector 1) | vector 1 |
-| **FloatLib / softfloat** | absent | absent | absent (FPU needs D16SEG) | flat `0x5800`–`0x5FD6`, `0x6000`–`0x6475`; **copied to `CS=0x3000:0x0E00` / `0x1600`** | from `ill_fpu` (`0x5F1B`), PC-relative `LINK`/`JMP` |
-| Forth float word surface | absent | absent | absent | `0x417D`–`0x430B`, scanner `0x4330`–`0x43FD`, `0x48A9`–`0x48D8`, `0x6800`–`0x6862`, tables `0x6900`/`0x6950`, low trampolines `0x2D3F`–`0x2D49` | Forth threading + trap words `0xFFF8`–`0xFFFE` |
-| Return stack (down) | `0x6F00` | `0x5800` | `0x5800` | DS `0x2FF0` → `0x2000` (4,080 frames) | `LD`/`ST` through DS |
-| Data stack (down) | `0x7FF0` | `0x5FF0` | `0x5FF0` | SS `0xFFF0` (64 K words) | `SP` |
-| Boot ROM | `0xFFFF0`–`0xFFFFF` | same | same | same | reset `CS=0xFFFF:0` |
+| Block | D16SIM (screen/IDE, 1 Mi) | D16MINI (archived, ignored) | D16nano (D16SEG/D16D, current board) | How it is entered |
+|---|---|---|---|---|
+| Vectors ILL / IRQ / SWI | `0x0000` / `0x0001` / `0x0002` | same | same, written through `CS=0` (`STS R1,CS,R2`) | hardware |
+| Forth kernel code | `0x0100`–`0x2D49` | `0x0100`–`0x2F47` | `0x0100`–`0x2D49` (`swi_to_bios` `0x232`) | direct / threaded |
+| Forth static data, `dict_free` | `0x3000`–`0x3BFB`, ceiling `0x4000` | `0x3000`–`0x3F5E`, ceiling `0x5600` | DS=0x1000 `0x3000`–`0x3FC4`; dictionary from `DS:0x5800` to `0xFFEF` | DS-relative |
+| **BDOS** entry + jump table | `0x2D4A` / `0x2D59` | **none** (pre-split) | `0x2D4A` / `0x2D59` | **far jump `JML R2`**, `R0`=fn, `R1`=arg, `R10:R11`=return CS:PC; 30 fns with D16NANO, 27 otherwise |
+| BDOS scattered handlers | `0x4400`–`0x49FB` | – | `0x3FFC`–`0x417C` (fns 27–29), `0x4400`–`0x49FB`, `bdos_ps2_init` `0x1F78`, D16D bridge `0x5400`–`0x548D` | table of absolute `CS=0` addresses |
+| **BIOS** code | `0xF8000`–`0xF8156` (physical, `CS=0xF800`), 6 fns | `0x5600`–`0x576F`, 6 fns | image `0x4A00`–`0x6C8F`; **copied to `CS=0x3000:0x0000`** by `flash_boot`, SWI target `0x3000:0` | **SWI** vector 2 → `swi_to_bios`, shadow bank, `I=0` |
+| **ILL handler** | `0x5000` (+ save area `0x5200`) | `0x5000` | flat `0x5000`, but D16D vector → trampoline `0x4D24` → `CS=0x3000:0x0600` (the BIOS copy, so division routines are reachable) | vector 0, shadow bank |
+| IRQ handler | `0x51A0` | `0x51A0` | `0x51A0` (vector 1) | vector 1 |
+| **FloatLib / softfloat** | absent | absent | flat `0x5800`–`0x5FD6`, `0x6000`–`0x6475`; **copied to `CS=0x3000:0x0E00` / `0x1600`** | from `ill_fpu` (`0x5F1B`), PC-relative `LINK`/`JMP` |
+| Forth float word surface | absent | absent | `0x417D`–`0x430B`, scanner `0x4330`–`0x43FD`, `0x48A9`–`0x48D8`, `0x6800`–`0x6862`, tables `0x6900`/`0x6950`, low trampolines `0x2D3F`–`0x2D49` | Forth threading + trap words `0xFFF8`–`0xFFFE` |
+| Return stack (down) | `0x6F00` | `0x5800` | DS `0x2FF0` → `0x2000` (4,080 frames) | `LD`/`ST` through DS |
+| Data stack (down) | `0x7FF0` | `0x5FF0` | SS `0xFFF0` (64 K words) | `SP` |
+| Boot ROM | `0xFFFF0`–`0xFFFFF` | same | same | reset `CS=0xFFFF:0` |
 
-D16D extra fixed blocks in the same flat image: showcase menu `0x4D34`–`0x547F`
+Flat `D16NANO` without `D16SEG`/`D16D` is **not a built or flashed image**: no
+script emits it — every image-producing command adds `D16D=1 D16SEG=1`
+(`scripts/build_gowin_tile_flash.sh:21`, `scripts/flash_gowin_tile_flash.sh:39`,
+`scripts/build_installer.sh:20`, `scripts/build_flash_boot_sim.sh:7`). It
+survives only as a unit-test harness configuration
+(`tests/ill-trap.test.js:15`, `tests/nano-uart-echo.test.js:14`,
+`tests/tile-console.test.js:28`, `tests/ill-fpu.test.js:16`;
+`tests/forth-float.test.js:29` even uses `D16SEG` without `D16D`). Its former
+column values were kernel/data `0x0100`–`0x2D49`, `dict_free` `0x3FAF`,
+BDOS `0x2D4A`, BIOS `0x4A00`, RP `0x5800`, SP `0x5FF0`; FloatLib was absent.
+It is archived/ignored here, not a build profile.
+
+D16nano extra fixed blocks in the same flat image: showcase menu `0x4D34`–`0x547F`
 (sparse), Pac-Man gap `0x4330` (normally a config-flash slice, `BAKE_PACMAN`
 only), PS/2 layout tables `0x6A90`–`0x6C8F`, echo cell `0xF0064` (the one
 deliberate word outside the image window).
 
-### 1.1 Measured D16D symbols
+### 1.1 Measured D16nano symbols
 
 | Symbol | Value | Symbol | Value |
 |---|---:|---|---:|
@@ -104,10 +116,10 @@ grow the next block automatically.
 
 **Mostly yes, with three corrections.** Every segment is a 64 K-word window,
 so there is plenty of room: BDOS ≈ 2 K words, FloatLib ≈ 3.1 K, BIOS ≈ 3.5 K
-in flat nano / ≈ 8.8 K in D16D (its manifest counts `biosWords=8848` after the
-PS/2 decoder and layout tables), ILL ≈ 0.3 K — all of them fit in *one*
-segment together, let alone one segment each. The 1 MiB screen build does not
-need this; the 24 K/28 K D16D image does.
+in the flat test map / ≈ 8.8 K in the D16nano showcase image (its manifest
+counts `biosWords=8848` after the PS/2 decoder and layout tables), ILL ≈ 0.3 K
+— all of them fit in *one* segment together, let alone one segment each. The
+1 MiB D16SIM build does not need this; the 24 K/28 K D16nano image does.
 
 1. **BDOS is cleanest.** It is already a far `JML` target with a return pair,
    so callers need no changes. What must change: the absolute addresses in
