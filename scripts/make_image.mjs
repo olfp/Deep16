@@ -97,6 +97,14 @@ function loadLinker() {
   return vm.runInThisContext('Deep16Linker');
 }
 
+function loadD16DImage() {
+  globalThis.window = globalThis.window || {};
+  try { return vm.runInThisContext('Deep16D16DImage'); } catch { /* not yet */ }
+  const file = path.join(ROOT, 'js', 'deep16_d16d_image.js');
+  vm.runInThisContext(fs.readFileSync(file, 'utf8'), { filename: 'deep16_d16d_image.js' });
+  return vm.runInThisContext('Deep16D16DImage');
+}
+
 // Phase 3b: the flat FloatLib shifts by -0x4A00 into the system chapter.
 function systemSoftfloat(text) {
   return `.equ ill_restore_shared, 0x0728\n` + text
@@ -292,6 +300,14 @@ export function buildImage() {
     checkPacman(pacman);
   }
 
+  // Phase 4a: stage the system and BDOS chapter payloads in free flat words.
+  // The RTL windows use the same source ranges as Deep16D16DImage.stageChapters.
+  let bdosWindows = null;
+  if (D16D) {
+    const staged = loadD16DImage().stageChapters(words, { bdos, sys });
+    bdosWindows = staged.bdosWindows;
+  }
+
   const build = crypto.createHash('sha256')
     .update(source)
     .update(library)
@@ -307,6 +323,7 @@ export function buildImage() {
     fpu: FPU, fpuWords: FPU, showcase, pacman,
     bdos: bdos ? { words: bdos.words, outOfWindow: bdos.outOfWindow } : null,
     sys: sys ? { words: sys.words, outOfWindow: sys.outOfWindow } : null,
+    bdosWindows,
     layouts: layouts ? { base: PS2_LAYOUT_BASE, words: LAYOUT_WORDS,
                          count: LAYOUT_COUNT } : null,
   };

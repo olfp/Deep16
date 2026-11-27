@@ -955,15 +955,16 @@ test('game-load copies the pacman binary slice into its segment', () => {
 });
 
 test('call-far enters a segment and returns to the interpreter', () => {
-  // A one-word stub at segment 0x4000 offset 0 (0x3000 holds the BIOS):
+  // A one-word stub at segment 0x6000 offset 0 (0x3000 holds the BIOS,
+  // 0x4000 the BDOS chapter):
   // `JML R10`, the far return pair
   // that call-far leaves in R10/R11. The delay slot is a NOP. Coming back must
   // restore DS/SS/ES and carry on with the next word in the caller's thread.
-  const seg = 0x4000;
+  const seg = 0x6000;
   sim.memory[(seg << 4) + 0] = 0xffea;   // JML R10
   sim.memory[(seg << 4) + 1] = 0x0000;   // NOP (delay slot)
-  const t = line('0x4000 call-far depth . cr');
-  assert.equal(number(t, '0x4000 call-far depth . cr'), 0);
+  const t = line('0x6000 call-far depth . cr');
+  assert.equal(number(t, '0x6000 call-far depth . cr'), 0);
   assert.equal(sim.segmentRegisters.DS, DS_SEG, 'DS');
   assert.equal(sim.segmentRegisters.SS, SS_SEG, 'SS');
   assert.equal(sim.segmentRegisters.ES, 0xf000, 'ES');

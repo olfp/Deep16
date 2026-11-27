@@ -1,7 +1,7 @@
 # MEMFIXPLAN — clean up the memory map with chapters and a thin linker
 
-Status: **phases 0–3 implemented**, 2026-11-26; phase 4 (board loader) and
-phase 5 remain. Companion to `MEMLAYOUT.md` (audit) and
+Status: **phases 0–4a implemented**, 2026-11-27; phase 4b (format 2)
+and phase 5 remain. Companion to `MEMLAYOUT.md` (audit) and
 `MEMMAP.md` (hardware/MMIO reference).
 
 ## 0. Goal, scope, non-goals
@@ -130,7 +130,24 @@ Each chapter has its own assembler instance (so label names cannot clash) and
 its own `.org`s rewritten to `base + offset`. `entry` / `trampoline` metadata
 is attached to the chapter, not hard-coded in the loader.
 
-### 3.3 Two passes, no assembler changes
+### 3.3 Twomake: Nothing to be done for `default'.
+- V e r i l a t i o n   R e p o r t: Verilator 5.052 2026-09-05 rev vUNKNOWN-built20260905
+- Verilator: Built from 0.000 MB sources in 0 modules, into 0.000 MB in 0 C++ files needing 0.000 MB
+- Verilator: Walltime 0.158 s (elab=0.000, cvt=0.000, bld=0.156); cpu 0.001 s on 1 threads; allocated 3.188 MB
+ok   loader finished without error    = 0x0000
+ok   loader done                      = 0x0001
+ok   entry word 0x0100                = 0x1000
+ok   flat word 0x0000                 = 0xf880
+ok   flat word 0x0100                 = 0x1000
+ok   flat word 0x3000                 = 0x0000
+ok   DS copy of 0x3000                = 0x0000
+ok   BIOS copy of 0x4A00              = 0x1000
+ok   BIOS copy of 0x5800 (FPU)        = 0xfa98
+ok   BIOS copy of 0x6000 (FEXP)       = 0xc3d8
+ok   BDOS chapter entry at 0x40000    = 0xf880
+ok   BDOS chapter tail at 0x406F2     = 0xf880
+cycles: 3249142
+PASS passes, no assembler changes
 
 1. **Placement pass.** Assemble every chapter with its final physical origin
    and a generated prologue `.equ <CHAPTER>_BASE, <base>` etc. Collect the
@@ -490,7 +507,8 @@ mirrors. Two hard-coded `-0x4000` address builders (`fw_restore`,
   and the `f.` integer/fraction, `f2i` at `f>s` and the `f.` fraction, plus
   four `u2f` calls in the literal builder. `CS=0` shims at
   `0x46DC`/`0x46EA` store the `LINK` return PC in the cell `0x2F36` and
-  far-jump; system stubs at `0x1B00`/`0x1B08` read it via `ES=0` and return.
+  far-jump; system stubs read it via `ES=0` and return (4a moved them to
+  `0x049F`/`0x04A7` so their flat image span stays free).
   The i2f/u2f stub preserves `R2:R3`; the f2i stub preserves both `R0` and the
   `R10` flags. The stubs sit after the library and before the PS/2 decoder
   copy (`0x1F9C`). The call sites are gated so the non-D16D flat FPU build
@@ -513,23 +531,31 @@ mirrors. Two hard-coded `-0x4000` address builders (`fw_restore`,
   `asm/softfloat.asm`, `asm/forth_float.asm`, the linker/builders,
   `tests/d16d-fpu.test.js`, `tests/ill-fpu.test.js`, `tests/forth-float.test.js`.
 
-### Phase 4a — retune the loader windows (format 1, no header change)
+### Phase 4a — loader windows for the chapters (done, format 1)
 
-* The dictionary win does not need a new image format. Once Phases 2–3 have
-  fixed the chapter layout, change only the `localparam`s and windows in
-  `rtl/flash/flash_boot.sv`: the DS mirror range, the system range, and one
-  additional hard-coded window for `CS=0x4000`. Keep `FORMAT = 1`, the 64-word
-  header and the installer path untouched.
-* Mirror the same windows in `scatterD16SEG()` (`js/deep16_d16d_image.js`) and
-  `js/deep16_ui_core.js`, so the simulator and the board boot from identical
-  memory.
-* This is the step that actually boots Phases 2–3 on hardware; it must land
-  before Phase 5 moves the dictionary base. It is also the cheapest rollback
-  point: a window table is four constants, not a parser.
-* **Acceptance:** the board boots, `free` grows, all boot tests below pass, and
-  the image is still format 1 with an unchanged installer.
+* BDOS was re-laid densely at `CS=0x4000`: entry `0x0000`, jump table
+  `0x000F`, fns 27–29 `0x0236`/`0x02DE`/`0x034E`; the whole chapter is 1,821
+  words ending at `0x0725`. The stale `-0x4000`/OR-bit-14 entry builders are
+  gone, the kernel stubs use the new offsets, and `bd_count` stays the shared
+  DS cell at `0x2FB8`.
+* `flash_boot.sv` keeps `FORMAT = 1`, the 64-word header, `IMG_WORDS = 28672`
+  and the 14,400-word installer. It gains nine hard-coded windows that copy
+  the dense BDOS chapter from free flat runs to `CS=0x4000` after the CRC
+  pass. The system chapter is staged at flat `0x4A00 + offset`, so the existing
+  BIOS window carries it; the two FPU return stubs moved to system
+  `0x049F`/`0x04A7` to keep their flat span free.
+* `Deep16D16DImage.stageChapters()` and `scripts/make_image.mjs` write the same
+  staging words into the flat image; the browser and Node images stay
+  word-for-word equal. `scatterD16SEG()` still overlays the chapter images
+  directly, so simulator memory equals the board windows.
+* **Acceptance:** `scripts/build_flash_boot_sim.sh` passes, including
+  the BDOS entry at `0x40000` and the last staged word at `0x406F2`; the full
+  `npm test` suite passes; the image is still format 1 and the installer is
+  unchanged. The dictionary reclaim remains Phase 5.
 * **Files:** `rtl/flash/flash_boot.sv`, `rtl/sim/flash_boot_tb.*`,
-  `js/deep16_d16d_image.js`, `js/deep16_ui_core.js`, boot tests.
+  `asm/bdos_block.asm`, `asm/forth_nano.asm`, `asm/ill_block.asm`,
+  `asm/forth_float.asm`, `js/deep16_d16d_image.js`, `scripts/make_image.mjs`,
+  boot tests.
 
 ### Phase 4b — format 2 chapter table in the loader and IDE
 

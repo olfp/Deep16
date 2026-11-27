@@ -422,7 +422,7 @@ ed_bdos:
         MOV R11, R0
         MOV R7, R9              ; the kernel's shared BDOS far-entry stub
         LSI R2, 0
-        LDI 0x3FE2              ; bdos_call: sets CS=0x4000, PC=0x2D4A
+        LDI 0x3FE2              ; bdos_call: sets CS=0x4000, PC=0x0000
         MOV R3, R0
         JML R2
         NOP

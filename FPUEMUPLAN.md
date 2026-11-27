@@ -470,12 +470,13 @@ stack. The D16SEG profile puts the data stack in SS=0x2000, which avoids the
 collision but needs the slice loader.
 
 D16D uses the D16SEG map: the return stack is at `0x2FF0`, the dictionary is
-in PSRAM, and flat `0x5800` is free. The BIOS copy extension makes the whole
-library reachable at `CS=0x3000` offset `0x0E00`; `checkImage` accepts a BIOS
-that runs up to the `0x7000` window edge for an FPU image instead of stopping
-at the `0x5800` return-stack base. `tests/d16d-fpu.test.js` covers FADD,
-FMUL, FDIV, FSQRT, FCMP and a repeated trap through that path, and the flash
-boot bench checks the `0x5800` word at physical `0x30E00`.
+in PSRAM, and flat `0x5800`/`0x6000` are the staged copies of the system
+chapter. The BIOS copy extension makes the whole library reachable at
+`CS=0x3000` offset `0x0E00`; `checkImage` accepts a BIOS that runs up to the
+`0x7000` window edge for an FPU image instead of stopping at the `0x5800`
+return-stack base. `tests/d16d-fpu.test.js` covers FADD, FMUL, FDIV, FSQRT,
+FCMP and a repeated trap through that path, and the flash boot bench checks
+the `0x5800` word at physical `0x30E00`.
 
 Subtraction is exact on both sides of the guard-bit boundary. The `d < 24`
 case aligns A to the smaller exponent, subtracts the full 48-bit value, and

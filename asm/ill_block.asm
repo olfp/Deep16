@@ -696,7 +696,7 @@ ill_flags:
 ; routine's LR point is here; these stubs read the caller PC via ES=0 and
 ; far-return. The i2f stub uses JML R10 so R2:R3 (the result) survives; the
 ; f2i stub uses JML R2 so R0 and the R10 flags survive.
-.org 0x1B00
+.org 0x049F
 .code
 fpu_sys_i2f_ret:
     LDI 0

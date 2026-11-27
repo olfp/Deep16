@@ -55,8 +55,10 @@ test('browser builder matches the Node D16D image word for word', () => {
   assert.equal(node.fpu, true, 'the Node build carries the FPU library');
   assert.equal(browser.fpuWords, true, 'the browser build carries the Forth words');
   assert.equal(node.fpuWords, true, 'the Node build carries the Forth words');
-  // f_unpack is the first library word at 0x5800 (BIOS offset 0x0E00).
-  assert.equal(node.words[0x5800], 0xFFFF, 'the flat library is FILL');
+  // Phase 4a stages the system chapter at 0x4A00 + offset for the BIOS
+  // window: 0x5800 carries f_unpack and 0x6000 carries fexp32.
+  assert.equal(node.words[0x5800], node.sys.words[0x0E00], 'the flat 0x5800 slot is the staged library');
+  assert.equal(node.words[0x6000], node.sys.words[0x1600], 'the flat 0x6000 slot is the staged fexp32');
   assert.equal(browser.sys.words[0x0E00], node.sys.words[0x0E00], 'library word matches');
   assert.equal(browser.symbols.h_fdot, 0x417D, 'the Forth header block starts at 0x417D');
   assert.equal(browser.symbols.h_fexp, 0x42EF, 'fexp/flog headers end the 0x417D block');
@@ -66,8 +68,8 @@ test('browser builder matches the Node D16D image word for word', () => {
   assert.equal(browser.words[browser.symbols.d16d_exit], browser.symbols.d16d_menu_boot,
                'the f. scratch cells do not overwrite the D16D exit block');
   // The games are slices: the words above the FPU image stay empty.
-  assert.equal(node.words[0x6FFF], 0xffff, 'frogger is not baked into the image');
-  assert.equal(node.words[0x6FFE], 0xffff, 'flappy is not baked into the image');
+  assert.equal(node.words[0x6FFF], node.bdos.words[0x629], 'the high tail is BDOS staging');
+  assert.equal(node.words[0x6FFE], node.bdos.words[0x628], 'the high tail is BDOS staging');
   assert.notEqual(node.words[0x3FE9], 0xffff, 'the literal scanner is in the image');
   assert.equal(browser.symbols.scan_float, 0x3FE9, 'the literal scanner starts at 0x3FE9');
   assert.equal(node.words[0x4330], 0xffff, 'the PACMAN gap carries no FPU code');
@@ -110,8 +112,8 @@ test('the BIOS scatter carries the FPU library to segment 0x3000', () => {
   const image = Deep16D16DImage.build(sources);
   const memory = [];
   Deep16D16DImage.scatterD16SEG(image.words, { bdos: image.bdos, sys: image.sys, memory });
-  assert.notEqual(image.bdos.words[0x2D4A], 0xFFFF, 'the BDOS entry is in the chapter');
-  assert.equal(memory[0x40000 + 0x2D4A], image.bdos.words[0x2D4A],
+  assert.notEqual(image.bdos.words[0], 0xFFFF, 'the BDOS entry is in the chapter');
+  assert.equal(memory[0x40000 + 0], image.bdos.words[0],
                'the scatter placed the BDOS chapter at 0x40000');
   // 0x5800 - 0x4A00 = 0x0E00, and 0x30000 + 0x0E00 = 0x30E00.
   assert.equal(memory[0x30E00], image.sys.words[0x0E00], 'f_unpack reached the system copy');
@@ -120,7 +122,7 @@ test('the BIOS scatter carries the FPU library to segment 0x3000', () => {
   const libEnd = image.symbols.fpu_lib_end;
   assert.equal(memory[0x30E00 + (libEnd - 0x5800 - 1)], image.sys.words[0x0E00 + (libEnd - 0x5800 - 1)],
                'the last library word too');
-  assert.equal(memory[0x325FF], 0xFFFF, 'the FILL tail below 0x7000 is copied as the loader does');
+  assert.equal(memory[0x32290], image.words[0x6C90], 'the tail below 0x7000 is copied as the loader does');
 });
 
 test('a broken kernel reports the assembler error', () => {
@@ -130,4 +132,21 @@ test('a broken kernel reports the assembler error', () => {
 
 test('missing showcase sources are rejected', () => {
   assert.throws(() => Deep16D16DImage.build({ kernel }), /showcase source/);
+});
+
+test('the board loader stages both chapters in free flat words', () => {
+  const image = Deep16D16DImage.build(sources);
+  assert.equal(image.bdosWindows.length, 9, 'nine BDOS windows');
+  for (const win of image.bdosWindows) {
+    for (let i = 0; i < win.len; i++) {
+      assert.equal(image.words[win.src + i], image.bdos.words[win.dst + i],
+                   `BDOS window 0x${win.src.toString(16)} + ${i}`);
+    }
+  }
+  // The system chapter sits at 0x4A00 + offset, so the BIOS window carries it.
+  for (const offset of [0x049f, 0x0600, 0x0e00, 0x1600, 0x1a75]) {
+    assert.equal(image.words[0x4A00 + offset], image.sys.words[offset],
+                 `system stage 0x${offset.toString(16)}`);
+  }
+  assert.equal(image.words[0x4330], 0xFFFF, 'the PACMAN gap stays free');
 });

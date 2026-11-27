@@ -45,6 +45,8 @@ int main(int argc, char** argv) {
   expect("BIOS copy of 0x4A00", top->got_bios4a00, top->exp_bios4a00);
   expect("BIOS copy of 0x5800 (FPU)", top->got_bios5800, top->exp_bios5800);
   expect("BIOS copy of 0x6000 (FEXP)", top->got_bios6000, top->exp_bios6000);
+  expect("BDOS chapter entry at 0x40000", top->got_bdos_entry, top->exp_bdos_entry);
+  expect("BDOS chapter tail at 0x406F2", top->got_bdos_tail, top->exp_bdos_tail);
   std::printf("cycles: %d\n", cycles);
 
   delete top;

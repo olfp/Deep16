@@ -41,6 +41,26 @@ module flash_boot (
   localparam int FLASH_IMG = 64;                    // first 32-bit word of image
   localparam int IMG_PAIRS = IMG_WORDS / 2;         // 14,336
 
+`ifdef D16SEG
+  // Phase 4a: after the flat copy, carry the dense BDOS chapter from free
+  // flat-image runs into CS=0x4000. Each entry is {len[15:0], src[15:0],
+  // dst[15:0]}; the source ranges match Deep16D16DImage.stageChapters().
+  localparam int BDOS_WIN_COUNT = 9;
+  function automatic [47:0] bdos_win(input logic [3:0] i);
+    case (i)
+      4'd0: bdos_win = {16'd256,  16'h0000, 16'h0000};
+      4'd1: bdos_win = {16'd293,  16'h2E05, 16'h0100};
+      4'd2: bdos_win = {16'd149,  16'h40E8, 16'h0225};
+      4'd3: bdos_win = {16'd880,  16'h6C90, 16'h02BA};
+      4'd4: bdos_win = {16'd11,   16'h6A85, 16'h062A};
+      4'd5: bdos_win = {16'd117,  16'h688B, 16'h0635};
+      4'd6: bdos_win = {16'd43,   16'h67D5, 16'h06AA};
+      4'd7: bdos_win = {16'd29,   16'h5FE3, 16'h06D5};
+      default: bdos_win = {16'd64, 16'h2D49, 16'h06F2};
+    endcase
+  endfunction
+`endif
+
   localparam logic [5:0]
     S_IDLE = 6'd0,
     S_HDR_REQ = 6'd1, S_HDR_WAIT = 6'd2,
@@ -53,7 +73,9 @@ module flash_boot (
     S_WR_B0 = 6'd21, S_WR_B0W = 6'd22,
     S_WR_B1 = 6'd23, S_WR_B1W = 6'd24,
     S_WR_D0 = 6'd29, S_WR_D0W = 6'd30,
-    S_WR_D1 = 6'd31, S_WR_D1W = 6'd32;
+    S_WR_D1 = 6'd31, S_WR_D1W = 6'd32,
+    S_WIN_LOAD = 6'd33, S_WIN_REQ = 6'd34,
+    S_WIN_WAIT = 6'd35, S_WIN_WR = 6'd36, S_WIN_WRW = 6'd37;
 
   logic [5:0]  st;
   logic [2:0]  hdr_i;
@@ -64,6 +86,12 @@ module flash_boot (
   logic [1:0]  crc_byte;
   logic [2:0]  crc_bit;
   logic [7:0]  crc_b;
+`ifdef D16SEG
+  logic [3:0]  win_i;
+  logic [10:0] win_pos;
+  logic [15:0] win_word;
+  logic [47:0] win_desc;
+`endif
 
 
   // flash controller
@@ -97,6 +125,9 @@ module flash_boot (
       entry_exp <= 16'd0;
       f_addr <= 15'd0; f_read <= 1'b0;
       breq <= 1'b0; bwe <= 1'b0; baddr <= 20'd0; bwdata <= 16'd0;
+`ifdef D16SEG
+      win_i <= 4'd0; win_pos <= 11'd0; win_word <= 16'd0; win_desc <= 48'd0;
+`endif
     end else begin
       breq <= 1'b0;
       f_read <= 1'b0;
@@ -240,13 +271,61 @@ module flash_boot (
 
         S_CRC_CHK: begin
           if (crc == hdr_crc[15:0]) begin
+`ifdef D16SEG
+            win_i <= 4'd0;
+            win_pos <= 11'd0;
+            st <= S_WIN_LOAD;
+`else
             done <= 1'b1;
             st <= S_DONE;
+`endif
           end else begin
             err <= 1'b1;
             st <= S_ERR;
           end
         end
+
+`ifdef D16SEG
+        // ---- BDOS chapter windows -------------------------------------
+        // A window is {len, src, dst}. Source words are in free flat-image
+        // runs; the destination is offset dst inside CS=0x4000. Reads may
+        // start at an odd word, so select the half of the flash pair.
+        S_WIN_LOAD: begin
+          win_desc <= bdos_win(win_i);
+          st <= S_WIN_REQ;
+        end
+        S_WIN_REQ: begin
+          f_addr <= 15'(FLASH_IMG + ((win_desc[31:16] + {5'd0, win_pos}) >> 1));
+          f_read <= 1'b1;
+          st <= S_WIN_WAIT;
+        end
+        S_WIN_WAIT: if (f_done) begin
+          win_word <= ((win_desc[31:16] + {5'd0, win_pos}) & 16'd1)
+                      ? f_rdata[31:16] : f_rdata[15:0];
+          st <= S_WIN_WR;
+        end
+        S_WIN_WR: if (!bbusy) begin
+          breq <= 1'b1; bwe <= 1'b1;
+          baddr <= 20'h40000 + {4'd0, win_desc[15:0]} + {9'd0, win_pos};
+          bwdata <= win_word;
+          st <= S_WIN_WRW;
+        end
+        S_WIN_WRW: if (bbusy) begin
+          if ({5'd0, win_pos} == win_desc[47:32] - 16'd1) begin
+            if (win_i == BDOS_WIN_COUNT - 1) begin
+              done <= 1'b1;
+              st <= S_DONE;
+            end else begin
+              win_i <= win_i + 4'd1;
+              win_pos <= 11'd0;
+              st <= S_WIN_LOAD;
+            end
+          end else begin
+            win_pos <= win_pos + 11'd1;
+            st <= S_WIN_REQ;
+          end
+        end
+`endif
 
         S_DONE: done <= 1'b1;
         S_ERR:  err  <= 1'b1;

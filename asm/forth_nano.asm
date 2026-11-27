@@ -1528,10 +1528,10 @@ interpret_next:
     NOP
 
 ; =============================================
-; BDOS: the bitstream-resident system calls at 0x2D4A
+; BDOS: the bitstream-resident system calls (CS=0x4000)
 ;
 ; The kernel code ends at 0x2D49 and the data section starts at 0x3000, so the
-; block 0x2D4A-0x2FFF (694 words) is the bitstream's system area. BDOS is not
+; block 0x2D4A-0x2FFF used to be the bitstream's system area. BDOS is not
 ; an SWI: it is a long-jump target, so the showcase menu (CS=0x04A0), the BIOS
 ; (CS=0x3000) and the Forth all reach it the same way.
 ;
@@ -4377,8 +4377,8 @@ dict_free:               ; colon definitions are built upwards from here
 ; The slice now lives in the BDOS chapter at CS=0x4000. 0x3FCD..0x3FDF is the
 ; free head of the block it used to occupy: one cell for the BDOS segment and
 ; three stubs. Each stub keeps the caller's R1/R4 and R10:R11; it only sets the
-; JML pair. fdelete (0x40AA) and fsize (0x411E) are above LDI's 0x3FFF ceiling,
-; so their offsets use the documented OR bit-14 recipe.
+; JML pair. The chapter is laid out densely below 0x4000, so every entry is a
+; plain LDI offset (entry 0x0000, fcreate 0x0236, fdelete 0x02DE, fsize 0x034E).
 .org 0x3FCD
 bdos_seg_cell:
     .word 0x4000
@@ -4386,34 +4386,33 @@ bdos_seg_cell:
 bdos_fcreate_far:
     LDI bdos_seg_cell
     LDS R2, CS, R0
-    LDI 0x3FFD
+    LDI 0x0236
     MOV R3, R0
     JML R2
     NOP
 bdos_fdelete_far:
     LDI bdos_seg_cell
     LDS R2, CS, R0
-    LDI 0x00AB
-    OR R0, 14
+    LDI 0x02DE
     MOV R3, R0
     JML R2
     NOP
 bdos_fsize_far:
     LDI bdos_seg_cell
     LDS R2, CS, R0
-    LDI 0x011F
-    OR R0, 14
+    LDI 0x034E
     MOV R3, R0
     JML R2
     NOP
-; Phase 2c-1: every kernel caller enters the chapter at 0x2D4A with CS=0x4000.
-; The function is in R7 (copied from R0 at the call site); R1/R4 and R10:R11
-; are untouched.
+; Phase 2c-1: every kernel caller enters the chapter at offset 0x0000 with
+; CS=0x4000. The function is in R7 (copied from R0 at the call site); R1/R4
+; and R10:R11 are untouched. Keep the public stub at 0x3FE2: the editor and
+; showcase menu hard-code that address.
+.org 0x3FE2
 bdos_call:
     LDI bdos_seg_cell
     LDS R2, CS, R0
-    LDI 0x2D4A
-    MOV R3, R0
+    LSI R3, 0
     MOV R0, R7
     JML R2
     NOP
@@ -13750,7 +13749,7 @@ to_unknown:
 ; chain. Returns R1 = xt (CFA cell address) and steps >IN past the token on a
 ; match, or R1 = 0 and >IN at the token start otherwise. Called with LINK.
 ; find_token moved to the first-block free tail (0x1900) to keep the
-; second block below the BDOS entry at 0x2D4A.
+; second block below the old flat BDOS entry.
 ; ---------------------------------------------
 ; P4: vocabularies and the search order
 ; ---------------------------------------------

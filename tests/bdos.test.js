@@ -1,4 +1,4 @@
-// BDOS: the bitstream-resident system calls at CS=0, 0x2D4A.
+// BDOS: the bitstream-resident system calls in the CS=0x4000 chapter.
 //
 // BDOS is not an SWI. A caller long-jumps to it with R0 = function, R1 =
 // argument and R10:R11 = the return CS:PC, exactly the pair call-far and the
@@ -49,7 +49,7 @@ const bdosBlock = assemble(fs.readFileSync(path.join(ROOT, 'asm', 'bdos_block.as
 assert.equal(bdosBlock.success, true, bdosBlock.errors?.join('; '));
 const BDOS_SEG = 0x4000;
 
-export const BDOS_ENTRY = 0x2D4A;
+export const BDOS_ENTRY = 0x0000;
 const DIR_SEG = 0x8000;
 const slices = buildSlices();
 
@@ -84,7 +84,7 @@ ${loadImm(arg)}
         MOV R10, R2           ; return CS = 0
         LDI 0x0200
         MOV R11, R0           ; return PC = 0x0200
-        LDI 0x2D4A
+        LSI R0, 0
         MOV R3, R0            ; jump PC
         LDI 0x2000
         SL R0, 1
@@ -175,10 +175,10 @@ test('function 3 loads a type-4 block into its segment', () => {
 });
 
 test('function 3 follows a continuation slice', () => {
-  // A two-slice block of 2100 words at segment 0x4000: slice 1 carries the
+  // A two-slice block of 2100 words at segment 0x6000: slice 1 carries the
   // five header cells and the first 2035 words, slice 2 the other 65.
   const words = Array.from({ length: 2100 }, (_, i) => (0x1000 + i) & 0xFFFF);
-  const payload = [0xD16B, 1, 0, words.length, 0x4000, ...words];
+  const payload = [0xD16B, 1, 0, words.length, 0x6000, ...words];
   const flash = new Uint8Array(SLICE_BYTES * 4).fill(0xFF);
   putWord(flash, 1, 0, 0x5004);          // type 4, magic 5
   putWord(flash, 1, 1, 2);               // link
@@ -190,9 +190,9 @@ test('function 3 follows a continuation slice', () => {
   for (let i = 2040; i < payload.length; i++) putWord(flash, 2, 8 + (i - 2040), payload[i]);
 
   const { r0, r1, sim } = callBdos(3, 1, { flash });
-  assert.equal(r0, 0x4000, 'the second slice is pulled in through the link');
+  assert.equal(r0, 0x6000, 'the second slice is pulled in through the link');
   assert.equal(r1, 0);
-  const base = 0x4000 << 4;
+  const base = 0x6000 << 4;
   for (const i of [0, 2034, 2035, 2099]) {
     assert.equal(sim.memory[base + i] & 0xFFFF, words[i], `word ${i}`);
   }
@@ -221,7 +221,7 @@ test('a second load starts at offset 0 in its own segment', () => {
         MOV R10, R2
         LDI 0x0200
         MOV R11, R0
-        LDI 0x2D4A
+        LSI R0, 0
         MOV R3, R0
         LDI 0x2000
         SL R0, 1
@@ -238,7 +238,7 @@ test('a second load starts at offset 0 in its own segment', () => {
         MOV R10, R2
         LDI 0x0300
         MOV R11, R0
-        LDI 0x2D4A
+        LSI R0, 0
         MOV R3, R0
         LDI 0x2000
         SL R0, 1
@@ -434,7 +434,7 @@ test('functions 12/13 set the SPI bus and transfer a byte', () => {
         MOV R10, R2            ; return CS = 0
         LDI 0x0110
         MOV R11, R0
-        LDI 0x2D4A
+        LSI R0, 0
         MOV R3, R0
         LDI 0x2000
         SL R0, 1
@@ -453,7 +453,7 @@ test('functions 12/13 set the SPI bus and transfer a byte', () => {
         MOV R10, R2
         LDI 0x0120
         MOV R11, R0
-        LDI 0x2D4A
+        LSI R0, 0
         MOV R3, R0
         LDI 0x2000
         SL R0, 1
@@ -472,7 +472,7 @@ test('functions 12/13 set the SPI bus and transfer a byte', () => {
         MOV R10, R2
         LDI 0x0140
         MOV R11, R0
-        LDI 0x2D4A
+        LSI R0, 0
         MOV R3, R0
         LDI 0x2000
         SL R0, 1

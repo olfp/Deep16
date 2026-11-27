@@ -48,7 +48,7 @@ function machine() {
   sim.registers[0] = 9;                 // BDOS function 9: ps2-init
   sim.registers[10] = 0;                // return CS = kernel
   sim.registers[11] = HALT;             // return PC
-  sim.registers[15] = 0x2D4A;           // bdos_entry offset in the chapter
+  sim.registers[15] = 0x0000;           // bdos_entry offset in the chapter
   sim.psw = 0;
   sim.running = true;
   return sim;

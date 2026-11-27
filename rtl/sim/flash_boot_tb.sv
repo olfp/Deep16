@@ -23,7 +23,11 @@ module flash_boot_tb (
   output logic [15:0] got_ds3000,
   output logic [15:0] got_bios4a00,
   output logic [15:0] got_bios5800,
-  output logic [15:0] got_bios6000
+  output logic [15:0] got_bios6000,
+  output logic [15:0] exp_bdos_entry,
+  output logic [15:0] got_bdos_entry,
+  output logic [15:0] exp_bdos_tail,
+  output logic [15:0] got_bdos_tail
 );
   logic        spi_we;
   logic [3:0]  spi_addr;
@@ -119,4 +123,11 @@ module flash_boot_tb (
   assign exp_bios4a00 = flash32[64 + 16'h2500] & 16'hFFFF;
   assign exp_bios5800 = flash32[64 + 16'h2C00] & 16'hFFFF;
   assign exp_bios6000 = flash32[64 + 16'h3000] & 16'hFFFF;
+  // Phase 4a: the dense BDOS chapter lands at CS=0x4000. Entry is word 0;
+  // the last window starts at chapter offset 0x06F2, sourced from flat 0x2D49
+  // (odd, so the high half of its flash pair).
+  assign exp_bdos_entry = flash32[64] & 16'hFFFF;
+  assign got_bdos_entry = psram[20'h40000];
+  assign exp_bdos_tail  = flash32[64 + 16'h16A4] >> 16;
+  assign got_bdos_tail  = psram[20'h406F2];
 endmodule

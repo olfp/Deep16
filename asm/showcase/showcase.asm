@@ -551,11 +551,11 @@ menu_r6:
 ; =====================================================================
 ; BDOS bridge: 0xA00 (the game block's old home)
 ;
-; BDOS runs at CS=0x4000, 0x2D4A and returns through R10:R11. The menu runs in
-; the BIOS segment, so the bridge reads CS for the return segment and keeps its
-; own return in LR, which BDOS does not touch. The kernel's shared bdos_call
-; stub at 0x3FE2 performs the CS=0x4000/PC=0x2D4A switch; it reads the function
-; from R7.
+; BDOS runs at CS=0x4000, offset 0x0000 and returns through R10:R11. The menu
+; runs in the BIOS segment, so the bridge reads CS for the return segment and
+; keeps its own return in LR, which BDOS does not touch. The kernel's shared
+; bdos_call stub at 0x3FE2 performs the CS=0x4000/PC=0x0000 switch; it reads
+; the function from R7.
 ; =====================================================================
 .org 0x0A00
 menu_bdos:

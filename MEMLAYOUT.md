@@ -21,12 +21,12 @@ script drift). The D16nano numbers below were measured by assembling
 | Vectors ILL / IRQ / SWI | `0x0000` / `0x0001` / `0x0002` | same | same, written through `CS=0` (`STS R1,CS,R2`) | hardware |
 | Forth kernel code | `0x0100`–`0x2D49` | `0x0100`–`0x2F47` | `0x0100`–`0x2D49` (`swi_to_bios` `0x232`) | direct / threaded |
 | Forth static data, `dict_free` | `0x3000`–`0x3BFB`, ceiling `0x4000` | `0x3000`–`0x3F5E`, ceiling `0x5600` | DS=0x1000 `0x3000`–`0x3FC4`; dictionary from `DS:0x5800` to `0xFFEF` | DS-relative |
-| **BDOS** entry + jump table | `0x2D4A` / `0x2D59` | **none** (pre-split) | `0x2D4A` / `0x2D59` | **far jump `JML R2`**, `R0`=fn, `R1`=arg, `R10:R11`=return CS:PC; 30 fns with D16NANO, 27 otherwise |
-| BDOS scattered handlers | `0x4400`–`0x49FB` | – | `0x3FFC`–`0x417C` (fns 27–29), `0x4400`–`0x49FB`, `bdos_ps2_init` `0x1F78`, D16D bridge `0x5400`–`0x548D` | table of absolute `CS=0` addresses |
+| **BDOS** entry + jump table | `0x2D4A` / `0x2D59` | **none** (pre-split) | `0x0000` / `0x000F` in the dense `CS=0x4000` chapter | **far jump `JML R2`**, `R0`=fn, `R1`=arg, `R10:R11`=return CS:PC; 30 fns with D16NANO, 27 otherwise |
+| BDOS scattered handlers | `0x4400`–`0x49FB` | – | dense chapter `0x0000`–`0x0725`; fns 27–29 `0x0236`/`0x02DE`/`0x034E`, `bdos_ps2_init` `0x0501`; staged in free flat words and copied to `0x40000` | chapter-relative jump table (`LDS R2, CS, R3`) |
 | **BIOS** code | `0xF8000`–`0xF8156` (physical, `CS=0xF800`), 6 fns | `0x5600`–`0x576F`, 6 fns | image `0x4A00`–`0x6C8F`; **copied to `CS=0x3000:0x0000`** by `flash_boot`, SWI target `0x3000:0` | **SWI** vector 2 → `swi_to_bios`, shadow bank, `I=0` |
-| **ILL handler** | `0x5000` (+ save area `0x5200`) | `0x5000` | flat `0x5000`–`0x519F` is **FILL**; D16D vector → trampoline `0x4D24` → `CS=0x3000:0x0600` (the BIOS copy, so division routines are reachable) | vector 0, shadow bank |
+| **ILL handler** | `0x5000` (+ save area `0x5200`) | `0x5000` | flat `0x5000`–`0x519F` is the **staged system copy**; D16D vector → trampoline `0x4D24` → `CS=0x3000:0x0600` (the BIOS copy, so division routines are reachable) | vector 0, shadow bank |
 | IRQ handler | `0x51A0` | `0x51A0` | `0x51A0` (vector 1) | vector 1 |
-| **FloatLib / softfloat** | absent | absent | flat `0x5800`–`0x6475` is **FILL**; **copied to `CS=0x3000:0x0E00` / `0x1600`** | from `ill_fpu` (system `0x151B`), PC-relative `LINK`/`JMP` |
+| **FloatLib / softfloat** | absent | absent | flat `0x5800`–`0x6475` is the **staged system copy**; **copied to `CS=0x3000:0x0E00` / `0x1600`** | from `ill_fpu` (system `0x151B`), PC-relative `LINK`/`JMP` |
 | Forth float word surface | absent | absent | words `0x417D`–`0x42EF`, transcendentals `0x42EF`–`0x430F`, scanner/probe `0x3FE9`–`0x40E7`, build `0x6724`–`0x67C7`, `f.` cells `0x67C8`–`0x67D4`, parse `0x6800`–`0x6862`, tables `0x6900`/`0x6950`, low trampolines `0x2D3F`–`0x2D49` | Forth threading + trap words `0xFFF8`–`0xFFFE` |
 | Return stack (down) | `0x6F00` | `0x5800` | DS `0x2FF0` → `0x2000` (4,080 frames) | `LD`/`ST` through DS |
 | Data stack (down) | `0x7FF0` | `0x5FF0` | SS `0xFFF0` (64 K words) | `SP` |
@@ -56,14 +56,34 @@ outside the image window).
 | `forth_start` | `0x0100` | `bios_entry` | `0x4A00` |
 | `swi_to_bios` | `0x0232` | `BIOS_JTABLE` | `0x4A14` |
 | `scan_number_entry` | `0x1FF9` | `ill_trampoline` | `0x4D24` |
-| `bdos_entry` | `0x2D4A` | `ill_handler` | `0x5000` |
-| `BDOS_JTABLE` | `0x2D59` | `irq_handler` | `0x51A0` |
-| `sf_parse_tramp` | `0x2D3F` | `f_unpack` | `0x5800` |
-| `fpu_lit_tramp_end` | `0x2D49` | `ill_fpu` | `0x5F1B` |
-| `dict_free` | `0x3FC4` | `fexp32` | `0x6000` |
+| `bdos_entry` | `0x0000` | `ill_handler` | `0x0600` |
+| `BDOS_JTABLE` | `0x000F` | `irq_handler` | `0x51A0` |
+| `sf_parse_tramp` | `0x2D3F` | `f_unpack` | `0x0E00` |
+| `fpu_lit_tramp_end` | `0x2D49` | `ill_fpu` | `0x151B` |
+| `dict_free` | `0x3FC4` | `fexp32` | `0x1600` |
 | `fpu_words_base` / `end` | `0x417D` / `0x42EF` | `fpu_lib_end` | `0x6476` |
 | `fpu_trans_base` / `end` | `0x42EF` / `0x430F` | `ps2_decode` | `0x699C` |
 | `scan_float` / `scan_float_probe` | `0x3FE9` / `0x40B8` | `ps2_layout` | `0x57DC` |
+
+Phase 4a stages the two segment chapters in free flat words. The system chapter
+sits at `0x4A00 + offset`, so the existing BIOS window carries it to
+`CS=0x3000`. The dense BDOS chapter (1,821 words, ending at `0x0725`) is packed
+into nine free runs and copied by nine windows in `flash_boot.sv`:
+
+| Source flat words | Destination offset in `CS=0x4000` | Words |
+|---|---|---|
+| `0x0000`–`0x00FF` | `0x0000` | 256 |
+| `0x2E05`–`0x2F29` | `0x0100` | 293 |
+| `0x40E8`–`0x417C` | `0x0225` | 149 |
+| `0x6C90`–`0x6FFF` | `0x02BA` | 880 |
+| `0x6A85`–`0x6A8F` | `0x062A` | 11 |
+| `0x688B`–`0x68FF` | `0x0635` | 117 |
+| `0x67D5`–`0x67FF` | `0x06AA` | 43 |
+| `0x5FE3`–`0x5FFF` | `0x06D5` | 29 |
+| `0x2D49`–`0x2D88` | `0x06F2` | 64 |
+
+The header stays format 1 and the installer stays at 14,400 words: everything
+stays inside the existing 28,672-word flat image.
 
 ---
 

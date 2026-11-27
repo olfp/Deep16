@@ -2,8 +2,8 @@
 .equ i2f_sys, 0x0E4F
 .equ u2f_sys, 0x0E8E
 .equ f2i_sys, 0x0E93
-.equ fpu_sys_i2f_ret, 0x1B00
-.equ fpu_sys_f2i_ret, 0x1B08
+.equ fpu_sys_i2f_ret, 0x049F
+.equ fpu_sys_f2i_ret, 0x04A7
 .equ fpu_far_ret, 0x2F36
 .equ fpu_far_i2f, 0x46DC
 .equ fpu_far_f2i, 0x46EA

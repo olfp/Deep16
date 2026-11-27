@@ -18,7 +18,62 @@
  * scatterD16SEG() below makes the three physical copies the RTL flash loader
  * makes.
  */
+const SYS_STAGE_BASE = 0x4A00;
+// The BDOS chapter is dense after Phase 4a. These free flat-image runs carry
+// its words to the board: the RTL windows in flash_boot.sv use the same six
+// (source, destination, length) triples.
+const BDOS_IMAGE_WORDS = 0x71D;
+const BDOS_STAGE_WINDOWS = [
+  { src: 0x0000, dst: 0x0000, len: 256 },
+  { src: 0x2E05, dst: 0x0100, len: 293 },
+  { src: 0x40E8, dst: 0x0225, len: 149 },
+  { src: 0x6C90, dst: 0x02BA, len: 880 },
+  { src: 0x6A85, dst: 0x062A, len: 11 },
+  { src: 0x688B, dst: 0x0635, len: 117 },
+  { src: 0x67D5, dst: 0x06AA, len: 43 },
+  { src: 0x5FE3, dst: 0x06D5, len: 29 },
+  { src: 0x2D49, dst: 0x06F2, len: 64 },
+];
+
 class Deep16D16DImage {
+  // Stage the two segment-relative chapters into free flat-image words. The
+  // system chapter is placed at 0x4A00 + offset so the existing BIOS window
+  // copies it to CS=0x3000; BDOS is packed into free runs and copied by the
+  // dedicated 0x4000 windows. The chapter images themselves stay separate for
+  // the manifest and the JS scatter.
+  static stageChapters(words, { bdos = null, sys = null } = {}) {
+    if (!words || typeof words.length !== 'number') throw new Error('stageChapters needs the flat image');
+    if (sys && sys.words) {
+      for (let offset = 0; offset < sys.words.length; offset++) {
+        if (sys.words[offset] === 0xFFFF) continue;
+        const address = SYS_STAGE_BASE + offset;
+        if (address >= words.length) throw new Error(`system staging 0x${address.toString(16)} is outside the image`);
+        if (words[address] !== 0xFFFF) {
+          throw new Error(`system staging collides at 0x${address.toString(16)}`);
+        }
+        words[address] = sys.words[offset];
+      }
+    }
+    if (bdos && bdos.words) {
+      for (const win of BDOS_STAGE_WINDOWS) {
+        for (let i = 0; i < win.len; i++) {
+          const address = win.src + i;
+          if (address >= words.length) throw new Error(`BDOS staging 0x${address.toString(16)} is outside the image`);
+          if (words[address] !== 0xFFFF) {
+            throw new Error(`BDOS staging collides at 0x${address.toString(16)}`);
+          }
+          words[address] = bdos.words[win.dst + i];
+        }
+      }
+      let last = 0;
+      for (let i = 0; i < bdos.words.length; i++) if (bdos.words[i] !== 0xFFFF) last = i + 1;
+      if (last > BDOS_IMAGE_WORDS) {
+        throw new Error(`BDOS chapter is ${last} words, past the ${BDOS_IMAGE_WORDS}-word staging plan`);
+      }
+    }
+    return { bdosWindows: BDOS_STAGE_WINDOWS.slice() };
+  }
+
   // Assemble one nano kernel into the flat 24K image window. When softfloat is
   // supplied it is appended, at its own .org 0x5800, and FPU_KERNEL turns on
   // the ILL dispatch that calls it. forthFloat adds the Forth surface at
@@ -310,6 +365,13 @@ class Deep16D16DImage {
       }
     }
 
+    // Phase 4a: put the chapter payloads into free flat words for the board
+    // loader. This runs after the showcase and layouts so the staging checks
+    // see the final image.
+    const staged = defines.D16SEG !== 0
+      ? this.stageChapters(words, { bdos: kernelImage.bdos, sys: kernelImage.sys })
+      : { bdosWindows: [] };
+
     const block = (res, seg, pack, spritePack) => res === null ? null : (() => {
       const blockWords = res.memoryChanges.map((c) => [c.address, c.value & 0xFFFF])
         .sort((a, b) => a[0] - b[0]);
@@ -332,6 +394,7 @@ class Deep16D16DImage {
       outOfWindow: [...outOfWindow].sort((a, b) => a - b),
       bdos: kernelImage.bdos,
       sys: kernelImage.sys,
+      bdosWindows: staged.bdosWindows,
       collisions,
       dictFree: kres.symbols.dict_free,
       biosEntry: kres.symbols.bios_entry,

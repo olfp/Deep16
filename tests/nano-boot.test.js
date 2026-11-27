@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { assemble, buildMemory, loadBrowserScripts, ROOT } from './helpers.js';
+import { assemble, bdosBlockImage, buildMemory, loadBrowserScripts, ROOT } from './helpers.js';
 import { buildSlices, SCREEN_BASE } from '../scripts/make_slices.mjs';
 
 loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
@@ -18,6 +18,7 @@ const kernel = assemble(source,
 assert.equal(kernel.success, true, kernel.errors?.join('; '));
 const sym = kernel.symbols;
 const slices = buildSlices();
+const bdosSym = bdosBlockImage().symbols;
 
 // The flat nano image grows its dictionary from 0x6000, which is the same
 // address as the D16SEG decoder tail. This harness is the flat map, so put the
@@ -47,7 +48,7 @@ let doneAt = -1;
 for (let i = 0; i < 60_000_000; i++) {
   const pc = sim.registers[15] & 0xFFFF;
   const cs = sim.segmentRegisters.CS & 0xFFFF;
-  const at = cs === 0x4000 && pc === sym.bdos_read_slice;
+  const at = cs === 0x4000 && pc === bdosSym.bdos_read_slice;
   if (at && !inReadSlice) readSliceCalls++;
   inReadSlice = at;
   sim.step();

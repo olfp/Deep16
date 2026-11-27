@@ -3,7 +3,7 @@
 ;
 ; Assembled with segment-relative addresses: every .org value is an offset
 ; inside CS=0x4000, and the linker lays the chapter at 0x40000 + offset. The
-; entry is at offset 0x2D4A; kernel callers set CS=0x4000 and PC=0x2D4A.
+; entry is at offset 0x0000; kernel callers set CS=0x4000 and PC=0x0000.
 ;
 ; The chapter owns the entry, jump table, all 30 functions, the SPI/slice
 ; helpers, the fcreate/fdelete/fsize slice, the flash drivers, the PS/2 host
@@ -18,7 +18,7 @@
 ; ============================================================
 
 ; ---- entry, jump table and fns 0..7 (copied from the kernel) -----------
-.org 0x2D4A
+.org 0x0000
 ; Function codes are unsigned, so a code at or above BDOS_FN_COUNT is
 ; unknown. The table holds in-segment offsets: BDOS runs with CS=BDOS_SEG, so
 ; the dispatcher reads the word with LDS R2, CS, R3 and JMPs to it.
@@ -608,7 +608,7 @@ bdos_abort:
 
 ; ---- BDOS state -------------------------------------------------------
 
-.org 0x2F40
+.org 0x01ED
 bd_ds:
     .word 0
 bd_name:
@@ -625,7 +625,7 @@ bd_link:
     .word 0
 bd_poll:
     .word 0
-.org 0x2FB9
+.org 0x01F6
 bd_wr_n:
     .word 0
 bd_wr_err:
@@ -657,9 +657,9 @@ bd_wr_page:
 bd_next:
     .word 0
 
-; ---- fcreate / fdelete / fsize (the 0x3FCD..0x417C slice) --------------
+; ---- fcreate / fdelete / fsize --------------
 .ifdef D16NANO
-.org 0x3FCD
+.org 0x0206
 .code
 ; fd_pack: pack the NUL-terminated name at bd_name into 6 cells at
 ; ES:R4, two characters per cell, zero padded. DS is the caller's DS.
@@ -752,8 +752,7 @@ fcr_have:
         STS R3, CS, R2
         JNZ fcr_ok
         NOP
-        LDI fw_restore - 0x4000
-        OR R0, 14
+        LDI fw_restore
         MOV R2, R0
         LSI R0, -1
         LSI R1, 7
@@ -765,7 +764,7 @@ fcr_ok:
         STS R3, CS, R2
         LSI R2, 0
         MVS ES, R2
-        LDI 0x2F35
+        LDI bd_name_scratch + 2
         MOV R4, R0
         LDI fd_pack
         MOV R5, R0
@@ -781,10 +780,10 @@ fcr_ok:
         SL R0, 14
         OR R4, R0
         OR R3, R4
-        LDI 0x2F33
+        LDI bd_name_scratch
         MOV R2, R0
         STS R3, ES, R2
-        LDI 0x2F34
+        LDI bd_name_scratch + 1
         MOV R2, R0
         LSI R3, -1
         STS R3, ES, R2
@@ -793,7 +792,7 @@ fcr_ok:
         LDS R7, CS, R2
         LDI bd_wr_src
         MOV R2, R0
-        LDI 0x2F33
+        LDI bd_name_scratch
         MOV R3, R0
         STS R3, CS, R2
         LDI bd_wr_left
@@ -805,8 +804,7 @@ fcr_ok:
         INV R2
         MVS DS, R2
         LSI R1, 1
-        LDI fcr_p1 - 0x4000
-        OR R0, 14
+        LDI fcr_p1
         MOV R12, R0
         LDI fd_program
         MOV PC, R0
@@ -816,8 +814,7 @@ fcr_p1:
         SL R0, 1
         MVS ES, R0
         LSI R7, 0
-        LDI fcr_p2 - 0x4000
-        OR R0, 14
+        LDI fcr_p2
         MOV R12, R0
         LDI slice_read
         MOV PC, R0
@@ -838,8 +835,7 @@ fcr_find:
         SUB R5, 1
         JNZ fcr_find
         NOP
-        LDI fw_restore - 0x4000
-        OR R0, 14
+        LDI fw_restore
         MOV R2, R0
         LSI R0, -1
         LSI R1, 7
@@ -858,7 +854,7 @@ fcr_found:
         STS R3, ES, R2
         LSI R5, 0
 fcr_copy:
-        LDI 0x2F35
+        LDI bd_name_scratch + 2
         MOV R2, R0
         ADD R2, R5
         LDS R3, CS, R2
@@ -887,15 +883,13 @@ fcr_copy:
         INV R2
         MVS DS, R2
         LSI R1, 1
-        LDI fcr_p3 - 0x4000
-        OR R0, 14
+        LDI fcr_p3
         MOV R12, R0
         LDI fd_program
         MOV PC, R0
         NOP
 fcr_p3:
-        LDI fw_restore - 0x4000
-        OR R0, 14
+        LDI fw_restore
         MOV R2, R0
         LDI bd_new
         MOV R3, R0
@@ -922,7 +916,7 @@ bdos_fdelete:
         STS R1, CS, R2
         LSI R2, 0
         MVS ES, R2
-        LDI 0x2F33
+        LDI bd_name_scratch
         MOV R4, R0
         LDI fd_pack
         MOV R5, R0
@@ -938,8 +932,7 @@ bdos_fdelete:
         INV R2
         MVS DS, R2
         LSI R1, 1
-        LDI fdl_p1 - 0x4000
-        OR R0, 14
+        LDI fdl_p1
         MOV R12, R0
         LDI slice_read
         MOV PC, R0
@@ -958,7 +951,7 @@ fdl_entry:
         NOP
         LSI R7, 0
 fdl_cmp:
-        LDI 0x2F33
+        LDI bd_name_scratch
         MOV R2, R0
         ADD R2, R7
         LDS R4, CS, R2
@@ -1002,15 +995,13 @@ fdl_clear:
         INV R2
         MVS DS, R2
         LSI R1, 1
-        LDI fdl_p2 - 0x4000
-        OR R0, 14
+        LDI fdl_p2
         MOV R12, R0
         LDI fd_program
         MOV PC, R0
         NOP
 fdl_p2:
-        LDI fw_restore - 0x4000
-        OR R0, 14
+        LDI fw_restore
         MOV R2, R0
         LSI R0, 0
         LSI R1, 0
@@ -1021,8 +1012,7 @@ fdl_next:
         SUB R5, 1
         JNZ fdl_entry
         NOP
-        LDI fw_restore - 0x4000
-        OR R0, 14
+        LDI fw_restore
         MOV R2, R0
         LSI R0, -1
         LSI R1, 8
@@ -1047,8 +1037,7 @@ bdos_fsize:
         CMP R1, R2
         JC fsz_ok
         NOP
-        LDI fw_restore - 0x4000
-        OR R0, 14
+        LDI fw_restore
         MOV R2, R0
         LSI R0, -1
         LSI R1, 6
@@ -1064,8 +1053,7 @@ fsz_ok:
         LDI 0x4000
         SL R0, 1
         MVS ES, R0
-        LDI fsz_p1 - 0x4000
-        OR R0, 14
+        LDI fsz_p1
         MOV R12, R0
         LDI slice_read
         MOV PC, R0
@@ -1086,8 +1074,7 @@ fsz_p1:
         CMP R3, R2
         JZ fsz_text
         NOP
-        LDI fw_restore - 0x4000
-        OR R0, 14
+        LDI fw_restore
         MOV R2, R0
         LDI 2040
         LSI R1, 0
@@ -1096,8 +1083,7 @@ fsz_p1:
 fsz_bin:
         LSI R2, 11
         LDS R3, ES, R2
-        LDI fw_restore - 0x4000
-        OR R0, 14
+        LDI fw_restore
         MOV R2, R0
         MOV R0, R3
         LSI R1, 0
@@ -1120,13 +1106,11 @@ fsz_scan:
         JNZ fsz_scan_done
         NOP
         SUB R4, 1
-        LDI fsz_scan - 0x4000
-        OR R0, 14
+        LDI fsz_scan
         MOV PC, R0
         NOP
 fsz_scan_done:
-        LDI fw_restore - 0x4000
-        OR R0, 14
+        LDI fw_restore
         MOV R2, R0
         MOV R0, R4
         LSI R1, 0
@@ -1149,7 +1133,7 @@ fsz_scan_done:
 ; ============================================================
 
 ; ---- fwrite segment restore helper (copied) ----------------------------
-.org 0x464E
+.org 0x03B8
 .code
 fw_restore:
         MOV R2, R0
@@ -1190,7 +1174,7 @@ fw_restore:
 
 
 ; ---- config-flash erase/program driver (copied) ------------------------
-.org 0x0475
+.org 0x03DC
 .code
 fd_wren:
         LDI 0x80
@@ -1335,18 +1319,16 @@ fd_pg_e2:
         MOV R2, R0
         LSI R3, 0
         STS R3, DS, R2
-        LDI fd_pg_part2 - 0x4000
-        OR R0, 14
+        LDI fd_pg_part2
         MOV PC, R0
         NOP
 
 
 ; ---- config-flash page driver, part 2 (copied) -------------------------
-.org 0x483B
+.org 0x045E
 .code
 fd_pg_part2:
-        LDI fd_pg_e3 - 0x4000
-        OR R0, 14
+        LDI fd_pg_e3
         MOV R9, R0
         LDI fd_wait
         MOV PC, R0
@@ -1364,8 +1346,7 @@ fd_pg_page:
         CMP R3, R4
         JNZ fd_pg_go
         NOP
-        LDI fd_pg_done - 0x4000
-        OR R0, 14
+        LDI fd_pg_done
         MOV PC, R0
         NOP
 fd_pg_go:
@@ -1380,8 +1361,7 @@ fd_pg_n_done:
         LDI bd_wr_n
         MOV R2, R0
         STS R4, CS, R2
-        LDI fd_pg_p1 - 0x4000
-        OR R0, 14
+        LDI fd_pg_p1
         MOV R9, R0
         LDI fd_wren
         MOV PC, R0
@@ -1391,8 +1371,7 @@ fd_pg_p1:
         MOV R2, R0
         LDS R6, CS, R2
         LSI R3, 2
-        LDI fd_pg_p2 - 0x4000
-        OR R0, 14
+        LDI fd_pg_p2
         MOV R9, R0
         LDI fd_cmd
         MOV PC, R0
@@ -1412,8 +1391,7 @@ fd_pg_cell:
         AND R3, R2
         LDI spi_put
         MOV R5, R0
-        LDI fd_pg_hi - 0x4000
-        OR R0, 14
+        LDI fd_pg_hi
         MOV R8, R0
         JMP R5
         NOP
@@ -1422,8 +1400,7 @@ fd_pg_hi:
         SR R3, 8
         LDI spi_put
         MOV R5, R0
-        LDI fd_pg_next - 0x4000
-        OR R0, 14
+        LDI fd_pg_next
         MOV R8, R0
         JMP R5
         NOP
@@ -1452,15 +1429,13 @@ fd_pg_next:
         LDS R3, CS, R2
         ADD R3, 1
         STS R3, CS, R2
-        LDI fd_pg_p3 - 0x4000
-        OR R0, 14
+        LDI fd_pg_p3
         MOV R9, R0
         LDI fd_wait
         MOV PC, R0
         NOP
 fd_pg_p3:
-        LDI fd_pg_page - 0x4000
-        OR R0, 14
+        LDI fd_pg_page
         MOV PC, R0
         NOP
 fd_pg_done:
@@ -1474,7 +1449,7 @@ fd_pg_done:
 
 ; ---- the PS/2 host helpers (copied) ---------------------------------
 .ifdef D16D
-.org 0x198B
+.org 0x04CD
 .code
 ; R1 = byte -> R0 = 1 when the keyboard clocked the frame, 0 otherwise.
 bps2_send:
@@ -1541,9 +1516,9 @@ bps2_wf_seen:
 
 
 ; ---- bdos_ps2_init (copied) ---------------------------------
-.org 0x1F78
+.org 0x0501
 bdos_ps2_init:
-    LDI 0x2FB0
+    LDI bps2_ret_cs
     MOV R2, R0
     STS R10, CS, R2
     ADD R2, 1
@@ -1587,7 +1562,7 @@ bdos_ps2_init:
     ; Enable (0xF4) blindly, several times. Do not wait for the ACK frame:
     ; the receiver can miss it while the keyboard still enables and scans.
     ; Eight tries over about two seconds cover a keyboard that comes up late.
-    LDI 0x2FB2
+    LDI bps2_attempt
     MOV R2, R0
     LSI R3, 8
     STS R3, CS, R2
@@ -1606,7 +1581,7 @@ bps2_enable:
     LINK
     JMP R4
     NOP
-    LDI 0x2FB2
+    LDI bps2_attempt
     MOV R2, R0
     LDS R3, CS, R2
     SUB R3, 1
@@ -1624,7 +1599,7 @@ bps2_flush:
     JNZ bps2_flush
     NOP
 bps2_done:
-    LDI 0x2FB0
+    LDI bps2_ret_cs
     MOV R2, R0
     LDS R10, CS, R2
     ADD R2, 1
@@ -1636,7 +1611,7 @@ bps2_done:
 
 
 ; ---- bdos_serial_read (copied) ---------------------------------
-.org 0x4800
+.org 0x054C
 .code
 bdos_serial_read:
     ; ( addr pairs -- n )  read `pairs` UART bytes-pairs, packing two bytes
@@ -1646,8 +1621,7 @@ bdos_serial_read:
     ; BDOS function 10: R1 = addr, R4 = pairs; BDOS has no stack. The return
     ; pair is parked in the 0x44E0 cells: the loop below uses R10 for the
     ; first byte, and R8 cannot be used under ER=8.
-    LDI 0x2470
-    SL R0, 1                  ; R0 = 0x44E0
+    LDI sread_ret_cs
     STS R10, CS, R0
     ADD R0, 1
     STS R11, CS, R0
@@ -1702,8 +1676,7 @@ sread_gb:
     JNZ sread_loop
     NOP
 sread_done:
-    LDI 0x2470
-    SL R0, 1                  ; R0 = 0x44E0
+    LDI sread_ret_cs
     LDS R10, CS, R0
     ADD R0, 1
     LDS R11, CS, R0
@@ -1714,7 +1687,7 @@ sread_done:
 
 
 ; ---- bdos_read_slice (copied) ---------------------------------
-.org 0x4680
+.org 0x0588
 .code
 bdos_read_slice:
     MVS R3, DS
@@ -1792,7 +1765,7 @@ brs_copy:
 ; ============================================================
 
 ; ---- bdos_spi_ctrl (copied) ---------------------------------
-.org 0x4780
+.org 0x05C7
 .code
 bdos_spi_ctrl:
     ; 12: R1 = control, R4 = divider. BIOS f20 writes both registers.
@@ -1806,7 +1779,7 @@ bdos_spi_ctrl:
 
 
 ; ---- bdos_spi_xfer (copied) ---------------------------------
-.org 0x47C0
+.org 0x05CF
 .code
 bdos_spi_xfer:
     ; 13: R1 = byte; returns R0 = received byte. Busy-waits through f22.
@@ -1851,7 +1824,7 @@ sxi_done:
 ; ============================================================
 
 ; ---- bdos_fwrite (copied) ---------------------------------
-.org 0x49C3
+.org 0x05EB
 .code
 bdos_fwrite:
         LDI bd_ent
@@ -1877,8 +1850,7 @@ bdos_fwrite:
         JC fw_slice_ok
         NOP
 fw_err5:
-        LDI fw_restore - 0x4000
-        OR R0, 14
+        LDI fw_restore
         MOV R2, R0
         LSI R0, -1
         LSI R1, 5
@@ -1904,8 +1876,7 @@ fw_count_ok:
         CMP R3, R2
         JC fw_count_ok2
         NOP
-        LDI fw_restore - 0x4000
-        OR R0, 14
+        LDI fw_restore
         MOV R2, R0
         LSI R0, -1
         LSI R1, 6
@@ -1918,7 +1889,7 @@ fw_count_ok2:
 
 
 ; ---- palette/I2S/SIC/sample (copied) ---------------------------------
-.org 0x4900
+.org 0x0625
 .code
 bdos_palette:
     ; 14: R1 = bank * 8 + pair, R4 = background | ink << 8.
@@ -2088,7 +2059,7 @@ bdos_sample_copy_done:
 ; ============================================================
 
 ; ---- gfx 24..26 (copied) ---------------------------------
-.org 0x49A0
+.org 0x06AE
 .code
 bdos_gfx_read:
     ; 24: R1 = offset inside 0xF000 -> R0 = value.
@@ -2153,19 +2124,20 @@ bdos_gfx_copy_done:
 ; BIOS block: 0x4A00 for D16NANO/D16D, 0x5600 for the D16MINI UART build.
 
 ; ---- cells used by the copied gap handlers -----------------------------
-.org 0x2FA7
+.org 0x06D2
 bd_src_ds:
     .word 0
 bd_src_dest:
     .word 0
 bd_src_es:
     .word 0
-.org 0x2FB8
-bd_count:
-    .word 0
+; bd_count is DS-relative and shared with the kernel (function 7 writes it
+; through the caller's DS before the far call). Keep the kernel's offset; a
+; chapter-local copy would be read from the wrong segment.
+.equ bd_count, 0x2FB8
 
 ; ---- fwrite flash programming step (copied) ----------------------------
-.org 0x2FC8
+.org 0x06D8
 .code
 fw_part2:
         LDI bd_wr_left
@@ -2183,8 +2155,7 @@ fw_part2:
         AND R3, R0
         JZ fw_unprot
         NOP
-        LDI fw_err5 - 0x4000
-        OR R0, 14
+        LDI fw_err5
         MOV PC, R0
         NOP
 fw_unprot:
@@ -2210,16 +2181,14 @@ fd_fw_ret:
         CMP R3, R4
         JZ fw_ok
         NOP
-        LDI fw_restore - 0x4000
-        OR R0, 14
+        LDI fw_restore
         MOV R2, R0
         LSI R0, -1
         LSI R1, 4
         MOV PC, R2
         NOP
 fw_ok:
-        LDI fw_restore - 0x4000
-        OR R0, 14
+        LDI fw_restore
         MOV R2, R0
         LDI bd_tmp
         MOV R3, R0
@@ -2230,3 +2199,28 @@ fw_ok:
 
 
 .endif
+
+; ---- scratch cells the copied handlers addressed numerically -----------
+; The old flat block left these words unwritten and reached them by absolute
+; address. Dense layout gives them names.
+.org 0x070F
+bd_name_scratch:
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+    .word 0
+bps2_ret_cs:
+    .word 0
+bps2_ret_pc:
+    .word 0
+bps2_attempt:
+    .word 0
+    .word 0
+sread_ret_cs:
+    .word 0
+sread_ret_pc:
+    .word 0
