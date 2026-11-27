@@ -580,23 +580,65 @@ mirrors. Two hard-coded `-0x4000` address builders (`fw_restore`,
   `scripts/make_image.mjs`, `scripts/build_flash_boot_sim.sh`,
   `js/deep16_d16d_image.js`, `js/deep16_ui_core.js`, boot tests.
 
-### Phase 5 — reclaim the dictionary and finish the cleanup
+### Phase 5a — relocate the built-in Forth surface
 
-* Split `PSRAM_PROBE_HI` from `DICT_BASE_HI` in `asm/forth_nano.asm:552-585`.
-  The probe must stay outside the 24 K BSRAM window (flat `0x5800` / `0x6000`),
-  but once PSRAM is found, `HERE` and the dictionary base can move to just
-  after `dict_free` (~`DS:0x3FC4`) because no system block occupies
-  `0x3FCD`–`0x57FF` any more. Ceiling stays `0xFFEF`.
-* Delete the now-obsolete flat assertions in `scripts/make_image.mjs:139-213`
-  and `checkImage`'s `BIOS_BASE`/`STACK_BASE` rules; replace with per-chapter
-  bounds from the linker.
-* Update `MEMLAYOUT.md`, `MEMMAP.md`, `USERFLASH.md` (still describes the old
-  24 K / 12,352-word format), `HARDWARE.md`, `FPUEMUPLAN.md`.
-* **Acceptance:** board `free` grows by ~5 K words; `1000 deep`, deep mixed
-  recursion and a board FPU smoke test all pass; no source file contains a
-  hard-coded BIOS/BDOS/FloatLib origin outside the layout declaration and the
-  linker-generated pool.
-* **Files:** `asm/forth_nano.asm`, `scripts/make_image.mjs`, docs.
+The range `0x3FC4`–`0x57FF` is not empty: it holds 40 built-in Forth headers
+(`h_bslice`, `h_spi_xfer`, `h_fexp`, …) plus the DS-resident `spi_caps`,
+`ps2_layout` and keyboard-ring cells. The dictionary can only start at
+`dict_free` after those data are moved to the top of DS:
+
+| DS range | What | Source |
+|---|---|---|
+| `0xFB80`–`0xFD01` | relocated headers | flat `0x417D`–`0x42FE` (386 words) |
+| `0xFD02`–`0xFF9D` | relocated headers | flat `0x4440`–`0x46DB` (668 words) |
+| `0xFF9E`–`0xFFA7` | relocated headers | flat `0x4D2A`–`0x4D33` (10 words) |
+| `0xFFA8`–`0xFFB7` | relocated headers | flat `0x5480`–`0x548F` (16 words) |
+| `0xFFC0` | `spi_caps` | flat `0x4D20` (old cell kept) |
+| `0xFFC1` | `ps2_layout` | flat `0x57DC` (old cell kept) |
+| `0xFFC4`–`0xFFE5` | keyboard head/tail/ring | flat `0x52C0` (34 zero words) |
+
+Header ranges keep their source-relative offsets, so code gaps are copied too;
+only the link fields are rewritten. `relocateHeaders()` traverses the
+`forth_wl` chain, groups headers whose addresses are within `0x120`, assigns
+the high destinations, patches every link (including below-`dict_free` headers
+that point upward), and patches the `forth_wl` cell. The old flat headers and
+data cells remain as loader sources but are no longer in the DS mirror.
+
+Dictionary base becomes `dict_free` (`0x3FC4`) and the ceiling `0xFB80`, just
+below the relocated headers. The PC-visible probe stays at DS `0x5800`.
+
+### Phase 5b — loader, kernel and module integration
+
+* Format 2 adds four header entries and three high-data entries to the chapter
+  table (11 existing + 7 = 18, the header capacity); format 1 gains the same
+  seven hard-coded windows after its BDOS windows.
+* The DS mirror ends at `dict_free-1`; the system copy is unchanged.
+* `asm/forth_nano.asm`: split `PSRAM_PROBE_HI` from the dictionary base, point
+  `dp_var`/`dict_base_var` at `dict_free`, set the PSRAM limit to `0xFB80`;
+  give `spi_caps`, `ps2_layout` and `kbd` high labels under `D16SEG`; move the
+  IRQ/BIOS keyboard base and the PS/2 decoder to the high cells.
+* `screens/flash/essentials.fth` checks the high capability cell and the old
+  `0x4D20`; `forth/start.fth` chooses `0xFFC1` on PSRAM and `0x57DC` on BSRAM.
+* `js/deep16_d16d_image.js` and `scripts/make_image.mjs` emit the relocation,
+  the format-2 table and the matching `scatterD16SEG()` fallback. `D16D`
+  images use the `0x7000` window even without the FPU library.
+* Update `MEMLAYOUT.md`, `MEMMAP.md`, `USERFLASH.md`, `HARDWARE.md`,
+  `FPUEMUPLAN.md` and the tests that pinned `dict_base_var`, `forth_wl`,
+  `h_fexp`, `spi_caps` or `ps2_layout`.
+* **Acceptance:** D16D `free` grows by about 5 K words; the full `npm test`
+  suite and both format boots pass; `1000 deep`, editor input, PS/2 layout,
+  BDOS and FPU smoke tests run from the relocated cells.
+
+### Phase 5c — remove the obsolete flat checks
+
+* Delete the old `BIOS_BASE`/`STACK_BASE` assertions from `checkImage` once
+  the dictionaries and chapters are measured from the linker output.
+* Replace them with per-chapter bounds and a `dict_free < 0x4000` guard so the
+  boot probe's `LDI dict_free` stays encodable.
+* **Files:** `asm/forth_nano.asm`, `screens/flash/essentials.fth`,
+  `forth/start.fth`, `js/deep16_d16d_image.js`, `scripts/make_image.mjs`,
+  `rtl/flash/flash_boot.sv`, `tests/segmented.test.js`,
+  `tests/d16d-image.test.js`, `tests/d16d-fpu.test.js`, docs.
 
 ## 5. Risks and mitigations
 
