@@ -45,12 +45,12 @@ node --test tests/native-lila.test.js
 It boots the segmented D16D image with the soft-float library, types the
 compiler in, runs the fixture program, compares the output with what
 `lua5.4` 5.4.8 prints, and asserts that the run leaves the data stack at
-depth 0. The compiler takes about 9.3k dictionary cells after the kernel
-boots, leaving about 23.5k free.
+depth 0. The compiler takes about 10.8k dictionary cells after the kernel
+boots, leaving about 22.0k free.
 
 ## On the device
 
-The compiler is 22,226 characters, so it needs eleven source slices. It is
+The compiler is 27,482 characters, so it needs fourteen source slices. It is
 registered in the config-flash catalog as the TEXT object `lila`:
 
 ```sh
@@ -68,7 +68,7 @@ Loading lila
 
 `need` finds the object in the master directory and calls `screen`, which
 reads the slice chain one slice at a time into `slice-buf` and interprets it
-line by line. The chain is eleven slices long, but the loader has no length
+line by line. The chain is fourteen slices long, but the loader has no length
 cap and keeps no copy of the source in the dictionary, so the compiler's text
 costs no dictionary cells. A board with an older boot loader needs
 `npm run flash:tile` for the new loader.
@@ -104,6 +104,7 @@ Values use the three-cell ABI from `lila/value.fs`, `( value1 value2 tag )`:
 | 1 | number | low 16 bits | high 16 bits |
 | 2 | boolean | `0xFFFF` (true) or 0 (false) | 0 |
 | 3 | string | address of the bytes | length |
+| 4 | table | address of the table's slot block | 0 |
 | 5 | float | low 16 bits | high 16 bits |
 
 Numbers are signed 32-bit two's-complement pairs with the high half on top, so
@@ -123,9 +124,18 @@ library.
 Booleans print `true`/`false`, nil prints `nil`, strings print with `type`,
 numbers print with `0 d.r` and floats print with `f.`, so the output of the
 first four matches Lua's `print`. A float prints as `1.5000 `, with four
-decimals and a trailing space, not Lua's `1.5`. Conditions use Lua truthiness:
-only nil and false are falsy, so `if 0 then` runs. Arithmetic and comparison
-reject a non-numeric operand with code `-26`.
+decimals and a trailing space, not Lua's `1.5`. A table prints as `<table>`,
+where Lua prints its address. Conditions use Lua truthiness: only nil and
+false are falsy, so `if 0 then` runs. Arithmetic and comparison reject a
+non-numeric operand with code `-26`.
+
+A table is a block of slots, and the value carries the block's address. A
+slot is seven cells: the key's three cells, the value's three cells, and an
+occupied flag. The key is a whole tagged value — a number, a string, a
+boolean, a table or a float — and two keys match when their tags and their
+payloads are equal. A table or a float therefore matches by its payload,
+which gives tables identity semantics, as in Lua. A nil key is rejected with
+`-30`.
 
 ## Supported subset
 
@@ -146,12 +156,20 @@ Supported today:
 - `if ... then ... else ... end`
 - `while ... do ... end`
 - `do ... end`
+- tables: `{}` builds an empty table, `t[key]` reads it (nil when the key is
+  missing), `t[key] = value` writes it, and assigning nil deletes the key.
+  The key is a whole expression, and the index may be chained: `t[a][b]`
+- `#` on a string gives its length, and `#` on a table gives its *border* —
+  the largest `n` for which the keys `1..n` are all present, as in the host
+  compiler. It is not the count of the entries.
 - `--` comments to the end of the line
 
 Everything else is rejected with a negative code rather than given a new
-meaning. In particular this profile has no functions, locals, tables, bitwise
-operators, `and`/`or`/`not`, varargs, multiple values, `#`, or libraries.
-Arithmetic and comparison reject a non-numeric operand with `-26`; only `..`
+meaning. In particular this profile has no functions, locals, bitwise
+operators, `and`/`or`/`not`, varargs, multiple values, or libraries. A table
+constructor with contents (`{1, 2}`) is rejected with `-27`, and a nested
+assignment (`t[a][b] = v`) is rejected with `-21`, as on the host. Arithmetic
+and comparison reject a non-numeric operand with `-26`; only `..`
 concatenates, and it expects strings.
 
 ## Bytecode
@@ -175,6 +193,12 @@ an absolute target. Every other opcode has no operand.
 | 10 | `LT` | 23 | `POW` |
 | 11 | `LE` | 24 | `IDIV` |
 | 12 | `GT` | 25 | `MOD` |
+| 26 | `TNEW` | 27 | `TGET` |
+| 28 | `TSET` | 29 | `LEN` |
+
+`TNEW` pushes a new table, `TGET` reads one, `TSET` writes one and `LEN`
+answers the length of a string or the border of a table. None of them has an
+operand.
 
 ## Limits
 
@@ -186,6 +210,8 @@ an absolute target. Every other opcode has no operand.
 | bytecode | 1024 cells |
 | compiled string arena | 500 bytes (500 reserved) |
 | concatenation arena | 200 bytes (200 reserved) |
+| tables | 8 per session |
+| table entries | 8 per table |
 | float quotient | a signed 16-bit cell |
 | `\u` code point | `0xFFFF` |
 
@@ -193,6 +219,11 @@ The global names, the globals themselves and the two string arenas live as
 long as the session does: a string assigned on one line is still there on the
 next. Nothing is reclaimed, so a session that keeps concatenating eventually
 gets `-11`, and one that keeps adding literals eventually gets `-7`.
+
+The tables live as long as the session does too, and their slots are never
+reclaimed: a table that has had eight entries is full (`-31`), and a ninth
+table in the same session is refused (`-32`). A new `lila` call starts a new
+session with an empty table pool and nil globals.
 
 ## Error codes
 
@@ -228,13 +259,20 @@ statement, and the session waits for the next line.
 | -24 | division by zero |
 | -25 | the quotient does not fit in a signed cell |
 | -26 | a non-numeric operand |
+| -27 | expected `}` after `{` |
+| -28 | expected `]` after the key |
+| -29 | the value is not a table |
+| -30 | the table index is nil |
+| -31 | the table is full |
+| -32 | too many tables |
+| -33 | `#` needs a string or a table |
 
 ## Verified
 
 `tests/native-lila.test.js` covers compilation, the 32-bit payload in
-arithmetic, comparisons and printing, the float profile, nil for an
-unassigned global, Lua truthiness for 0, the rejection cases above, the state
-carrying from one line to the next, a block spread over several lines, and the
-depth-0 assertion. `tests/native-lila-slice.test.js` repeats the program, the
-float profile and the depth check with the compiler loaded from the config
-flash.
+arithmetic, comparisons and printing, the float profile, the table profile,
+nil for an unassigned global, Lua truthiness for 0, the rejection cases
+above, the state carrying from one line to the next, a block spread over
+several lines, and the depth-0 assertion. `tests/native-lila-slice.test.js`
+repeats the program, the float profile, the table profile and the depth check
+with the compiler loaded from the config flash.

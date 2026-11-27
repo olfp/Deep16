@@ -66,16 +66,16 @@ npm run flash:slices       # node scripts/make_slices.mjs + openFPGALoader
 #   -o 0x200000 artifacts/image/slices.bin
 ```
 
-The current image is 59 slices / 236 KB: directory 0, start 1,
+The current image is 62 slices / 248 KB: directory 0, start 1,
 essentials 2–4 (SPI/config flash, `dir`/`find`, slice editor, `p-screen`),
 edit 5–12, graphics 13–14 (SIC/raster, scene, palettes, I2S, sprites),
 audio 15–16 (μ-law player), games 17–18, sd 19–21, the text editor 22,
 Pac-Man 23–26, Flappy 27–34, Frogger 35–39, hello 40, the demo `ping`
 sample 41 and the 2-second `swoosh` sample 42–47, and the on-device LILA
-compiler 48–58. The Pole harness is only in the `--with-pole` image, which the
+compiler 48–61. The Pole harness is only in the `--with-pole` image, which the
 default build leaves out.
 
-The LILA compiler is a TEXT object, eleven slices long. The boot loader's
+The LILA compiler is a TEXT object, fourteen slices long. The boot loader's
 `screen` reads the chain one slice at a time and interprets it line by line,
 so there is no length cap and no source buffer in the dictionary: a chain can
 be as long as the flash holds, and the compiler's text costs no dictionary

@@ -6,7 +6,7 @@ three-cell tagged-value ABI used by `lila/value.fs`, `lila/hash.fs`,
 migration record; the source and tests are authoritative.
 
 An on-device conformance profile, `lila/native/lila-native.fth`, implements the
-ABI for tags 0–3 (nil, number, boolean, string) and tag 5 (float) in a small
+ABI for tags 0–5 (nil, number, boolean, string, table, float) in a small
 Lua subset. It is verified by `node --test tests/native-lila.test.js`, which
 boots the segmented image with the soft-float library, runs a compiled program
 against a `lua5.4` fixture, and checks that the data stack returns to depth 0.
@@ -80,7 +80,7 @@ room to grow without changing the layout.
 | 1 | number | low half | high half | signed 32-bit, two's complement |
 | 2 | boolean | 0 or `0xFFFF` | 0 | false / true |
 | 3 | string | `c-addr` | `u` | immutable bytes, GC-managed |
-| 4 | table | header pointer | 0 | GC-managed |
+| 4 | table | header pointer | 0 | GC-managed; the native profile uses a slot-block address instead |
 | 5 | float | low word | high word | IEEE 754 single; high word on top, as `FLOATIMPL.md`; used by the native profile |
 | 6 | function | closure pointer | 0 | GC closure `[seg][off][env]` |
 | 7 | multi | payload pointer | 0 | GC object `[count][v1][v2][v3]...`, count in values |
@@ -295,6 +295,28 @@ honour `__index` and `__newindex`.
 
 Table storage is GC-managed exactly as now, but the scanner must mark both
 payload cells of every live slot, not just one `slot-value` cell. See §7.
+
+### The native profile's tables
+
+`lila/native/lila-native.fth` keeps the seven-cell slot but drops the header:
+the value carries the address of the table's own block of slots, and the block
+is a fixed part of a pool.
+
+```text
+pool:   [table 0: slot x 8][table 1: slot x 8]...
+slot:   [key1][key2][keytag][value1][value2][valuetag][occupied]
+```
+
+There is no hash and no bucket array: the eight slots of a table are scanned
+in order, which is enough for the profile's fixed size. The keys are the same
+full three-cell values as the host's, and the matching rule is the same — the
+tags have to be equal, and the payloads are compared by value for numbers and
+strings, by their flag for booleans, and by their payload for tables and
+floats, which gives tables identity semantics. A nil key is rejected.
+
+The pool is eight tables of eight slots, so a ninth entry in a table and a
+ninth table in a session are both errors. Nothing is reclaimed: the pool is
+reset when a new session starts.
 
 ## 6. Compiler impact
 

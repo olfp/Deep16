@@ -193,12 +193,88 @@ test('an invalid escape is rejected with a code', () => {
   }
 });
 
+// The tables.  The native profile has the same table semantics as the host
+// compiler in lila/compiler.fs: a table is a block of slots, a key that is
+// not there reads as nil, a nil value deletes the key, and # is the border of
+// a table or the length of a string.  A table prints as <table>, not as the
+// host's address.
+const tables = [
+  ['an empty table', ['t = {}', 'print(t["x"])'], 'nil'],
+  ['a string key', ['t = {}', 't["x"] = 1', 'print(t["x"])'], '1'],
+  ['a number key', ['t = {}', 't[1] = 10', 't[2] = 20', 'print(t[1] + t[2])'], '30'],
+  ['a key that is an expression', ['t = {}', 'k = "a" .. "b"', 't[k] = 5', 'print(t["ab"])'], '5'],
+  ['a table in a table', ['a = {}', 'a["x"] = 1', 'b = {}', 'b["a"] = a', 'print(b["a"]["x"])'], '1'],
+  ['a table in a global', ['t = {}', 't["x"] = 3', 'u = t', 'print(u["x"])'], '3'],
+  ['a nil value deletes the key', ['t = {}', 't["x"] = 1', 't["x"] = nil', 'print(t["x"])'], 'nil'],
+  ['the border', ['t = {}', 't[1] = 1', 't[2] = 2', 't[3] = 3', 'print(#t)'], '3'],
+  ['the border stops at the first hole',
+   ['t = {}', 't[1] = 1', 't[2] = 2', 't[3] = 3', 't[2] = nil', 'print(#t)'], '1'],
+  ['the border of a table with string keys', ['t = {}', 't["x"] = 1', 'print(#t)'], '0'],
+  ['the length of a string', ['print(#"hello")'], '5'],
+  ['a table prints as <table>', ['t = {}', 'print(t)'], '<table>'],
+  ['a table inside a block', ['t = {}', 'if 1 then t["x"] = 5 end', 'print(t["x"])'], '5'],
+  ['a table in a loop',
+   ['t = {}', 'i = 1', 'while i < 4 do t[i] = i * 2 i = i + 1 end', 'print(t[3])'], '6'],
+  ['a float in a table', ['t = {}', 't["x"] = 1.5', 'print(t["x"])'], '1.5000 '],
+];
+
+test('the table profile works', () => {
+  for (const [name, prog, expected] of tables) {
+    assert.equal(h.runProgram(prog), expected, name);
+  }
+});
+
+test('a table run leaves the data stack at depth 0', () => {
+  h.runProgram(['t = {}', 't["x"] = 1', 'print(t["x"])']);
+  assert.equal(h.depth(), 0);
+});
+
+// The table errors.  The codes are the native ones; the host compiler gives
+// the same diagnoses in words.
+const tableErrors = [
+  ['a table constructor with contents', 't = {1, 2}', -27],
+  ['a missing bracket', 't = {}\nt["x" = 1', -28],
+  ['a number is not a table', 't = 5\nt["x"] = 1', -29],
+  ['a nil key', 't = {}\nt[nil] = 1', -30],
+  ['the length of a number', 'print(#5)', -33],
+];
+
+test('a table error is rejected with a code', () => {
+  for (const [name, src, code] of tableErrors) {
+    const text = h.runSource(src);
+    const m = text.match(/LERR (-?\d+)/);
+    assert.ok(m, `${name}: no LERR in ${JSON.stringify(text)}`);
+    assert.equal(Number(m[1]), code, name);
+  }
+});
+
+test('a table holds eight entries', () => {
+  const full = ['t = {}'];
+  for (let i = 1; i <= 9; i++) full.push(`t[${i}] = ${i}`);
+  const text = h.runSource(full.join('\n'));
+  const m = text.match(/LERR (-?\d+)/);
+  assert.ok(m, `no LERR in ${JSON.stringify(text)}`);
+  assert.equal(Number(m[1]), -31);
+  // The eight entries that fit are still there.
+  assert.equal(h.runProgram(['t = {}', 't[1] = 1', 't[2] = 2', 't[3] = 3', 't[4] = 4',
+                             't[5] = 5', 't[6] = 6', 't[7] = 7', 't[8] = 8',
+                             'print(#t)']), '8');
+});
+
+test('a session holds eight tables', () => {
+  const many = [];
+  for (const name of 'abcdefghi') many.push(`${name} = {}`);
+  const text = h.runSource(many.join('\n'));
+  const m = text.match(/LERR (-?\d+)/);
+  assert.ok(m, `no LERR in ${JSON.stringify(text)}`);
+  assert.equal(Number(m[1]), -32);
+});
+
 // Syntax outside the profile must be rejected with a code, not reinterpreted.
 const rejected = [
   ['and', 'if 1 and 2 then print(1) end', -14],
   ['function', 'function f() end', -21],
   ['local', 'local x = 1', -21],
-  ['table', 't = {}', -9],
   ['newline in string', 'print("a\nb")', -3],
   ['literal out of range', 'print(2147483648)', -22],
   ['literal far out of range', 'print(99999999999)', -22],

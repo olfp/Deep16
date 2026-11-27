@@ -1,8 +1,7 @@
 # LILASTATUS — state of the on-device LILA work
 
-Written at the loader cut (2026-11-26). It says where the work stands, what
-was measured, and what the next batch has to do. The tables batch has not
-started yet.
+Written at the tables batch (2026-11-27). It says where the work stands, what
+was measured, and what the next batch has to do. The tables batch is done.
 
 ## Where the work stands
 
@@ -11,13 +10,13 @@ started yet.
 | float datatype (tag 5, `f+`/`f.`/`s>f`) | done, pushed | `329db80` |
 | kernel glyph fix (`utx_glyph_space`) | done, pushed | `4d8160b` |
 | strings (escape decoder, `\n`, `\x41`, `\u{20ac}`) | done, pushed | `2aaea83` |
-| loader rewrite (this cut) | done in this commit | - |
-| tables (tag 4, `{}`, `t[k]`, `t[k]=v`, `#t`) | **not started** | - |
+| loader rewrite (no source buffer) | done, pushed | `7a22c8c` |
+| tables (tag 4, `{}`, `t[k]`, `t[k]=v`, `#t`) | done, pushed | this commit |
 
 The loader rewrite was the blocker for the tables batch: the old loader kept
 the source text in a dictionary buffer, so the native profile could not grow
 without taking the buffer's room back. That is fixed now (below), so the
-tables batch can start.
+tables batch could start.
 
 ## The loader, as it stands now
 
@@ -91,7 +90,7 @@ What changed:
 ## What was measured
 
 D16D image, FPU profile, the real slice image in the flash, measured with the
-same script on the old loader (HEAD) and on this one:
+same script on the old loader (HEAD) and on the new loader:
 
 | | old loader | new loader |
 |---|---|---|
@@ -108,16 +107,31 @@ own buffer costs 15 cells at boot instead of 2,040 (it is taken from the
 dictionary only when a packed slice is loaded), and the new loader's own
 words and variables take 33 of the rest.
 
+With the tables batch on top of that:
+
+| | after the loader | after the tables |
+|---|---|---|
+| free dictionary cells after `s" lila" need` | 23,501 | 22,026 |
+| cells the compiler itself takes | 9,281 | 10,756 |
+| data stack depth after the load | 0 | 0 |
+| source | 22,226 chars | 27,482 chars |
+| source slices | 11 (48–58) | 14 (48–61) |
+| longest source line | 127 | 127 |
+| slice image | 59 slices / 236 KB | 62 slices / 248 KB |
+
+The boot is unchanged at 7,926,839 steps and `here` is still `0x7fe2` after
+the boot: the tables cost dictionary cells, not boot time.
+
 In the D16SEG map the dictionary and the data stack share their cells, so
 the free cells are the gap: the segmented build's gap between the dictionary
 and the stack is 29,618 cells, against 9,178 cells with the old loader -
 measured at the same point of the segmented test, after the catalog, the
 tools slice and the graphics module are loaded.
 
-Tests: the whole suite is green at the cut (1005 tests, see the commit
-message). The segmented group has a test of its own for the failed load: a
-source slice with a bad word in the middle must run the line before it,
-report the error, leave the line after it unrun, and leave the console
+Tests: the whole suite is green at the tables batch (1011 tests, see the
+commit message). The segmented group has a test of its own for the failed
+load: a source slice with a bad word in the middle must run the line before
+it, report the error, leave the line after it unrun, and leave the console
 usable.
 
 ## Known limits of the current loader
@@ -145,28 +159,83 @@ usable.
   pick it up; the stack has thousands of cells, so this only matters after a
   load that failed.
 
-## The next batch: tables
+## The tables batch
 
 The host compiler (`lila/compiler.fs`, `lila/value.fs`, `lila/hash.fs`,
-`lila/tablelib.fs`) has the tables; the native profile does not. What the
-native side has to grow:
+`lila/tablelib.fs`) has the tables; the native profile now has them too.
 
-- **tag 4** is free (0 nil, 1 number, 2 boolean, 3 string, 5 float).
+What it does:
+
+- **tag 4** is the table. The value carries the address of the table's block
+  of slots, and `value2` is zero.
 - `{}` builds an empty table; `t[k]` reads (nil when the key is missing);
   `t[k] = v` inserts or updates; assigning nil deletes the key.
 - `#t` is the *border* (the largest `n` with `1..n` all present), not the
-  count, and it has to follow the host.
-- Keys are full tagged values, a nil key is rejected, and nested assignment
-  (`t[k][j] = v`) is not supported on the native side either.
-- The host uses a 4-cell header, 7-cell slots, open addressing with linear
-  probing, growth at 75% and a rebuild on delete. The native version may
-  differ as long as the *observable* behaviour matches.
+  count, and it follows the host. `#s` is the length of a string.
+- Keys are full tagged values - a number, a string, a boolean, a table or a
+  float - and a nil key is rejected. Two keys match when their tags and their
+  payloads are equal, which gives tables identity semantics, as on the host.
+- Nested assignment (`t[k][j] = v`) is not supported on the native side
+  either, as on the host; nested *reads* work.
+- A table prints as `<table>`, where the host prints an address.
 
-The native profile has room for it: 23,501 free cells after the load, and
-the loader no longer holds the source text. The budgets to keep inside are
-the flash/dictionary budgets above - the profile is 22,226 characters in 11
-slices today, and `lila/README.md`, `LUAPARITY.md`, `TYPEPLAN.md`,
-`lila/LILANATIVE.md` and `lila/native/README.md` have to follow the code.
+How it is built:
+
+- **The pool is fixed.** `l-tslot` is 448 cells: eight tables of eight slots
+  of seven cells each (`[k1][k2][ktag][v1][v2][vtag][occupied]`). The host
+  uses a 4-cell header, open addressing with linear probing, growth at 75%
+  and a rebuild on delete; the native version drops the header and the hash
+  and scans the eight slots in order, which is enough for the fixed size.
+- **Four new opcodes**: `TNEW` (26), `TGET` (27), `TSET` (28) and `LEN` (29).
+  None of them has an operand.
+- **The parser grew two rules.** `l-primary0` handles the constructor and
+  `l-primary` loops over the indexes, so `t[a][b]` chains. The key is parsed
+  as a whole expression, with `l-min` and `l-bop` saved and put back around
+  it, because a key that changed the precedence would change how the *outer*
+  expression is parsed. `#` is a new unary operator with the precedence of the
+  unary minus, so it needed a new helper, `l-operand`.
+- **The assignment has two forms.** A plain `name = expression` is the old
+  path; `name[key] = expression` emits a `LOAD`, the key, and a `TSET`.
+
+The new error codes are -27 (expected `}`), -28 (expected `]`), -29 (the
+value is not a table), -30 (the key is nil), -31 (the table is full), -32
+(too many tables) and -33 (`#` needs a string or a table).
+
+Verification: 19 table programs agree with `lua5.4` 5.4.8 (the only
+difference is `print(t)`, which is `<table>` here), the data stack is at
+depth 0 after each of them, and all seven error codes fire. The regression
+tests in `tests/native-lila.test.js` and `tests/native-lila-slice.test.js`
+cover the same ground.
+
+## What the tables batch left open
+
+- **The pool is small and does not grow.** Eight tables of eight entries. A
+  ninth entry in a table is `-31` and a ninth table in a session is `-32`.
+  Nothing is reclaimed: the pool is reset when a new session starts, and
+  until then a table that has had eight entries stays full.
+- **There is no table constructor with contents.** `{1, 2}` is `-27`, as it
+  is on the host.
+- **Nested assignment is still rejected.** `t[k][j] = v` is `-21`.
+- **There is no iteration over a table** - no `pairs`, no `ipairs`, no `next`,
+  and no `table` library. The host has all of them.
+- **A table is not equal to another table** by value; there is no `==` for
+  tables, and comparisons are numeric only, as before.
+
+The budgets are still inside: 22,026 free cells after the load, the source
+is 27,482 characters in 14 slices, and the longest line is 127 characters.
+
+## The next batch
+
+The open question is what the profile grows next. The candidates are the
+remaining language gaps - functions and `local`, the logical operators, the
+bitwise operators, `for` loops - and the library gaps, which are larger
+because the profile has no library at all. The table batch cost 1,475
+dictionary cells, so functions with their frames would cost more again, and
+the dictionary headroom is 22,026 cells.
+
+Every batch keeps `lila/README.md`, `LUAPARITY.md`, `TYPEPLAN.md`,
+`lila/LILANATIVE.md` and `lila/native/README.md` in step with the code, and
+stays inside the flash and dictionary budgets above.
 
 ## Rules this work follows
 

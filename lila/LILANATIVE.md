@@ -89,7 +89,7 @@ asserts that the run leaves the data stack at depth 0.
 
 ### Getting the compiler onto the board
 
-The compiler is 22,226 characters, so it does not fit in one source slice
+The compiler is 27,482 characters, so it does not fit in one source slice
 (2,040 characters). There are two ways to get it onto the device.
 
 **The config-flash catalog.** `scripts/make_slices.mjs` registers the
@@ -107,7 +107,7 @@ Loading lila
 
 `need` finds the object in the master directory and calls `screen`, which
 reads the whole slice chain into `slice-buf` one slice at a time and
-interprets it line by line. The chain is eleven slices long, but the loader
+interprets it line by line. The chain is fourteen slices long, but the loader
 has no length cap: it follows the links until the chain ends, and the source
 text never sits in the dictionary. A board that already carries an older boot
 loader needs `npm run flash:tile` for the new loader.
@@ -122,7 +122,7 @@ slice is actually loaded - so the gap between the two is 29,618 cells where
 the old loader left 9,178, and a D16D boot leaves 32,782 free dictionary
 cells instead of 10,302.
 
-After the load the compiler has taken about 9.3k cells, leaving about 23.5k
+After the load the compiler has taken about 10.8k cells, leaving about 22.0k
 free in a D16D dictionary.
 
 **XMODEM over the serial line.** `xmodem` lives in the `edit` slice, which
@@ -134,10 +134,10 @@ cells: check before you start.
 
 ### Packed slices are future work
 
-A source slice stores one character per cell, so the eleven slices of the
-compiler hold 22,440 characters. The slice type table already has
+A source slice stores one character per cell, so the fourteen slices of the
+compiler hold 28,560 characters. The slice type table already has
 `PACKED` (type 8) and `p-screen` unpacks two characters per cell, which
-would halve the compiler to six slices. It does not work yet:
+would halve the compiler to seven slices. It does not work yet:
 
 - `p-screen` loads one slice at a time. `included` cannot span a definition
   across two calls, so a packed chain would have to be split on definition
@@ -164,7 +164,7 @@ token kinds:
 | 1 | decimal integer | `0`, `42`, `2147483647` |
 | 2 | name | `x`, `total_2`, `print`, `while`, `_tmp` |
 | 3 | string | `"abc"`, `""` |
-| 4 | operator or punctuation | `+`, `==`, `..`, `(`, `,`, `=` |
+| 4 | operator or punctuation | `+`, `==`, `..`, `(`, `,`, `=`, `[`, `{`, `#` |
 | 5 | float | `1.5`, `0.25`, `1.5e3`, `1e3` |
 
 Names start with an ASCII letter or `_` and continue with letters, digits or
@@ -180,10 +180,12 @@ The recognized operators and punctuation are:
 
 ```text
 +  -  *  /  //  %  ^  ==  ~=  <  >  <=  >=  ..  (  )  ,  =
+[  ]  {  }  #
 ```
 
 `=` is assignment. It is not an equality operator; `==` is equality. There is
-no `!=`, `&`, `|`, `~`, `<<`, `>>`, or `#`.
+no `!=`, `&`, `|`, `<<`, or `>>`. The brackets and braces belong to the table
+syntax, and `#` is the length or border operator.
 
 ### Values
 
@@ -195,6 +197,7 @@ Every value is three cells, `( value1 value2 tag )`, matching `lila/value.fs`:
 | 1 | number | low 16 bits | high 16 bits |
 | 2 | boolean | `0xFFFF` (true) or 0 (false) | 0 |
 | 3 | string | address of the bytes | length |
+| 4 | table | address of the table's slot block | 0 |
 | 5 | float | low 16 bits | high 16 bits |
 
 A number is a signed 32-bit two's-complement value split into low and high
@@ -218,6 +221,19 @@ A variable is a three-cell slot. Slots are zero-filled at the start of every
 run, so an unassigned global reads as nil. All variables are global; there is
 no `local`, no block scope, and no shadowing.
 
+A table is a block of slots, and the value carries the block's address. A
+slot is seven cells:
+
+```text
+[ key value1 ][ key value2 ][ key tag ][ value value1 ][ value value2 ][ value tag ][ occupied ]
+```
+
+The key is a whole tagged value, so a number, a string, a boolean, a table or
+a float can be a key. Two keys match when their tags are the same and their
+payloads are equal: a number by its 32-bit value, a string by its bytes, a
+boolean by its flag, and a table or a float by its payload. The last case
+gives tables identity semantics, as in Lua. A nil key is rejected.
+
 Truthiness follows Lua: only nil and boolean false are false. Every number,
 including zero, is true, and every string, including the empty string, is true.
 
@@ -226,16 +242,18 @@ newline. Numbers print as signed 32-bit decimals, booleans as `true`/`false`,
 nil as `nil`, and strings as their bytes. The output for those tags matches
 Lua's `print`. Floats print with the kernel's `f.`, which writes the sign, the
 integer part, exactly four decimals and a trailing space — `1.5000 `, not Lua's
-`1.5`.
+`1.5`. A table prints as `<table>`, where Lua prints its address.
 
 ### Expressions
 
-An expression is a primary, optionally negated with unary `-`, combined with
-binary operators:
+An expression is a primary, optionally negated with unary `-` or measured
+with `#`, combined with binary operators:
 
 ```text
-primary   := number | float | string | name | "(" expression ")"
-unary     := "-" unary | primary
+primary   := number | float | string | name | table | "(" expression ")"
+            | primary "[" expression "]"
+table     := "{" "}"
+unary     := "-" unary | "#" unary | primary
 binary    := unary ( binop unary )*
 ```
 
@@ -244,7 +262,7 @@ Precedence, from tightest to loosest:
 | level | operators | associativity | emitted opcode |
 |---:|---|---|---|
 | 7 | `^` | right | `POW` |
-| unary | `-` | right | `NEG` |
+| unary | `-` `#` | right | `NEG` `LEN` |
 | 6 | `*` `/` `//` `%` | left | `MUL` `DIV` `IDIV` `MOD` |
 | 5 | `+` `-` | left | `ADD` `SUB` |
 | 4 | `..` | right | `CONCAT` |
@@ -254,6 +272,17 @@ This ordering is Lua's: `..` sits below `+`/`-` and above the comparisons, `..`
 is right-associative, so `"a" .. "b" .. "c"` groups as `"a" .. ("b" .. "c")`,
 and `^` is tighter than the unary minus, so `-2 ^ 2` is `-(2 ^ 2)` and
 answers `-4.0000`.
+
+The table index binds tighter than every binary operator: `t[a + 1]` parses
+the key as a whole expression, and `t[a][b]` chains. The key is parsed with
+the parser's own state saved and put back, because a key that changed the
+precedence would change how the *outer* expression is parsed.
+
+`#` is a unary operator with the same precedence as the unary minus, so it
+takes an operand at precedence 7. On a string it is the length in bytes; on a
+table it is the *border* — the largest `n` for which the keys `1..n` are all
+present — which is what the host compiler answers, not the count of the
+entries. On anything else it is `-33`.
 
 **The numeric tower.** Integers and floats are distinct types, as in Lua 5.4:
 
@@ -288,6 +317,7 @@ The statement forms are:
 
 ```text
 assignment := name "=" expression
+            | name "[" expression "]" "=" expression
 print      := "print" "(" expression ( "," expression )* ")"
 if         := "if" expression "then" block ( "else" block )? "end"
 while      := "while" expression "do" block "end"
@@ -298,8 +328,17 @@ do         := "do" block "end"
 a sequence of statements. `print` needs at least one argument; `print()` is an
 error. Assignment creates the global on first use.
 
+An assignment to `t[key]` writes the table's entry instead of a global.
+Assigning nil deletes the key, as in Lua. The target may not be chained:
+`t[a][b] = v` is rejected with `-21`, because the parser has no way to name
+the inner table as an assignment target. Reading a chained index is fine:
+`t[a][b]` is a read of the table that `t[a]` names.
+
+A table is built with `{}` — an empty table. A constructor with contents,
+`{1, 2}`, is rejected with `-27`.
+
 There is no `break`, `return`, `repeat`, numeric `for`, generic `for`,
-`function`, `local`, table constructor or method call. There is also no
+`function`, `local`, or method call. There is also no
 multiple assignment: `a = b = 1` is rejected.
 
 `if` requires `then`; `else` is optional; `end` is required. `while` requires
@@ -413,7 +452,14 @@ only far enough to reject them:
 | `and` / `or` / `not` | `if 1 and 2 then print(1) end` | -14 |
 | `function` statement | `function f() end` | -21 |
 | `local` declaration | `local x = 1` | -21 |
-| table constructor | `t = {}` | -9 |
+| a table constructor with contents | `t = {1, 2}` | -27 |
+| a missing `]` | `t["x" = 1` | -28 |
+| a nested assignment | `t["a"]["b"] = 1` | -21 |
+| a non-table before `[` | `t = 5` then `t["x"]` | -29 |
+| a nil key | `t[nil] = 1` | -30 |
+| a table with nine entries | nine assignments to one table | -31 |
+| a ninth table in one session | nine `x = {}` lines | -32 |
+| `#` on a number | `print(#5)` | -33 |
 | a float without a leading digit | `print(.5)` | -9 |
 | newline inside a string | `print("a` / `b")` | -3 |
 | an unknown escape | `print("\\q")` | -4 |
@@ -465,7 +511,17 @@ exceptions:
   point is `-4` here.
 - **`\z` cannot skip a line feed.** The native source is line-based, so the
   tokenizer rejects the line feed inside the string before the decoder runs.
-- **There is no `local`, function, table, bitwise operator, `and`/`or`/`not`,
+- **A table has eight entries and there are eight tables.** The profile has no
+  growth and no rehash: a ninth entry in a table is `-31`, and a ninth table in
+  a session is `-32`. The host compiler's tables grow, so a program that fits
+  in the host may run out here.
+- **A table constructor has no contents.** Only `{}`; `{1, 2, 3}` and
+  `{name = "x"}` are rejected with `-27`. The host rejects them too, but with
+  a different message.
+- **Nested assignment is rejected.** `t["a"]["b"] = 1` is `-21`, as on the
+  host. Nested reads work.
+- **A table prints as `<table>`.** Lua prints its address.
+- **There is no `local`, function, bitwise operator, `and`/`or`/`not`,
   `break`, `return`, `repeat`, `for`, vararg, multiple return, multiple
   assignment, long string, long comment, or library.** Each is rejected with a
   code.
@@ -518,13 +574,19 @@ lets a block span several lines, and it is why the pending source is kept in
 | `l-vars` | 48 | 16 three-cell slots |
 | `l-arena` | 500 | compiled string literals |
 | `l-rstr` | 200 | concatenation results |
+| `l-tslot` | 448 | 8 tables of 8 slots of 7 cells |
 
 The rest are scalar variables for parser and VM state. The arrays account for
 most of the compiler's footprint. On the D16SEG image used by the test, the
 booted kernel has `here = 0x7fe2`: the boot loader keeps no copy of the
 source text in the dictionary, and 32,782 of the 65,520 cells below
 `limit = 0xfff0` are still free. Loading the compiler from the flash takes
-9,281 cells, leaving 23,501 free; typing it in takes the same 9,281 cells.
+10,756 cells, leaving 22,026 free; typing it in takes the same 10,756 cells.
+
+`l-tslot` is the whole table pool: eight tables, each with eight slots of
+seven cells. A table's value is the address of its own block of slots, so the
+value carries no header and no count. `l-tn` counts the tables handed out so
+far, and it is reset at the start of a session, so the pool starts empty.
 
 ### Input
 
@@ -616,14 +678,19 @@ starts a new session with an empty table and nil globals.
 
 The parser is recursive descent with precedence climbing:
 
-- `l-primary` handles a number, a float, a string, a name, or a parenthesized
-  expression. Integers call `l-num` and emit `PUSH`; floats call `evaluate`
-  and emit `PUSHF`; strings call `l-astr`; names call `l-slot` and emit
-  `LOAD`; `(` parses a full expression and expects `)`.
+- `l-primary0` handles a number, a float, a string, a name, a parenthesized
+  expression, or the table constructor `{}`. Integers call `l-num` and emit
+  `PUSH`; floats call `evaluate` and emit `PUSHF`; strings call `l-astr`;
+  names call `l-slot` and emit `LOAD`; `(` parses a full expression and
+  expects `)`. `{}` emits `TNEW` and expects the closing `}`.
+- `l-primary` calls `l-primary0` and then loops over the table indexes: while
+  the current token is `[`, it parses the key as a whole expression, expects
+  `]`, and emits `TGET`. The loop is what chains the indexes, so `t[a][b]`
+  emits two `TGET`s.
 - `l-unary` handles a leading `-` by parsing its operand at precedence 7 and
-  emitting `NEG`; otherwise it calls `l-primary`. Precedence 7 is the power, so
-  the operand of a unary minus may be a power and nothing else: `-2 ^ 2` is
-  `-(2 ^ 2)`.
+  emitting `NEG`, and a leading `#` the same way, emitting `LEN`. Otherwise it
+  calls `l-primary`. Precedence 7 is the power, so the operand of a unary
+  operator may be a power and nothing else: `-2 ^ 2` is `-(2 ^ 2)`.
 - `l-expr ( min -- )` parses a unary, then repeatedly asks `l-binop` for the
   next operator's precedence. It consumes the operator when its precedence is
   at least `min`, recurses with `min` set to the operator's precedence (left
@@ -631,6 +698,11 @@ The parser is recursive descent with precedence climbing:
   emits the operator opcode afterwards.
 - `l-stmt` requires a kind 2 name at the start, then matches the four keyword
   forms by text; anything else is an assignment.
+- `l-assign` is the one statement with two forms. A plain `name = expression`
+  emits `LOAD`/`STORE` for the global's slot. A `name[key] = expression`
+  emits a `LOAD` of the global, parses the key, expects `]`, expects `=`,
+  parses the value, and emits `TSET`. The nested form `t[a][b] = v` has no
+  place to put the inner table, so it is rejected.
 - `l-block` calls statements until the current token is `end` or `else`.
   Nested statements consume their own `end` before returning.
 - `l-program` parses until the token stream ends and appends `HALT`.
@@ -656,6 +728,14 @@ the token stream they throw `-23` instead: the statement is unfinished, and
 the session asks for another line. Every rule that needs a token goes through
 one of them, so a source that ends mid-statement is always `-23` and never a
 syntax error.
+
+The parser's state is the variables `l-min` (the minimum precedence the
+current expression accepts) and `l-bop` (the operator to emit when the
+expression ends). A table key and a unary operand are parsed with that state
+saved and put back around the call, because a key that changed `l-min` would
+change how the *outer* expression is parsed. `l-operand` is the helper that
+does this for a unary operand: it parses at precedence 7 and restores the
+state afterwards.
 
 `l-expr` and `l-stmt` are reached through the execution variables
 `l-expr-xt` and `l-stmt-xt`: `l-expr0` and `l-block` are defined before the
@@ -826,7 +906,7 @@ fit, and the UTF-8 bytes have to be masked to eight bits on the way out.
 
 ### Bytecode
 
-There are 26 opcodes. Column "operands" counts cells after the opcode; a cell
+There are 30 opcodes. Column "operands" counts cells after the opcode; a cell
 is 16 bits on the target.
 
 | # | opcode | operands | action |
@@ -857,6 +937,10 @@ is 16 bits on the target.
 | 23 | `POW` | 0 | pop two numbers, push the float power |
 | 24 | `IDIV` | 0 | pop two numbers, push the quotient |
 | 25 | `MOD` | 0 | pop two numbers, push the remainder |
+| 26 | `TNEW` | 0 | push a new empty table |
+| 27 | `TGET` | 0 | pop a key and a table, push the value |
+| 28 | `TSET` | 0 | pop a value, a key and a table, write the entry |
+| 29 | `LEN` | 0 | pop a string or a table, push its length or border |
 
 Every opcode except `PUSH` and `PUSHF` has at most one operand, and those two
 are the only ones that push a literal payload directly. Branches are absolute,
@@ -920,7 +1004,31 @@ range with `-25`.
 `v-falsy?` implements Lua truthiness: tag 0 is falsy, tag 2 is falsy when
 `value1` is zero, and the other tags are always truthy. `v-print` dispatches on
 the tag: tag 5 prints with `f.`, tag 1 with `0 d.r`, tag 3 with `type`, tag 2
-as `true`/`false`, and tag 0 as `nil`.
+as `true`/`false`, tag 4 as `<table>`, and tag 0 as `nil`.
+
+The table handlers are `op-tnew`, `op-tget`, `op-tset` and `op-len`. The
+runtime helpers behind them are:
+
+- `t-key?` answers whether a slot holds the key the caller is looking for.
+  The tags have to match first; a number matches by its 32-bit value, a
+  string by its bytes, a boolean by its flag, and anything else by its
+  payload.
+- `t-find` scans all eight slots of a table and answers whether the key is
+  there, leaving the slot in `l-ts`. Every slot is looked at, so a slot freed
+  by a delete does not hide the keys behind it.
+- `t-free` finds the first slot whose occupied flag is clear.
+- `t-setk` and `t-setv` write a key and a value into a slot; `t-setk` also
+  sets the occupied flag.
+- `t-border` walks the keys `1, 2, 3, ...` and stops at the first one that is
+  not there. The answer is the largest `n` for which `1..n` are all present.
+
+`op-tnew` takes the next block of eight slots out of `l-tslot`, clears it, and
+pushes the block's address with the table tag. A ninth table is `-32`.
+`op-tget` answers nil for a missing key. `op-tset` writes a new entry into
+the first free slot, updates an entry that is already there, or — when the
+value is nil — clears the occupied flag of the entry, which deletes it. A
+table with no free slot left is `-31`. A nil key is `-30` in both, and a value
+that is not a table is `-29`.
 
 `v-concat` copies both inputs into `l-rstr` as `[total length][bytes...]`,
 advances `l-rp` by the length plus the length cell, and pushes
@@ -992,6 +1100,13 @@ every `print` ends with a newline.
 | -24 | division by zero |
 | -25 | the quotient does not fit in a signed cell |
 | -26 | a non-numeric operand |
+| -27 | expected `}` after `{` |
+| -28 | expected `]` after the key |
+| -29 | the value is not a table |
+| -30 | the table index is nil |
+| -31 | the table is full |
+| -32 | too many tables |
+| -33 | `#` needs a string or a table |
 
 Several codes name the point where parsing stopped, not the construct itself.
 `print(1.)` reports `-20` because the `.` is an operator the expression
@@ -1008,6 +1123,13 @@ open, so it is `-5` rather than `-3`.
 The last three codes are run-time errors, thrown by the VM: `-24` by a
 division, `-25` by a quotient that is too large, and `-26` by an operator
 that gets a string, a boolean or nil where a number belongs.
+
+The table codes split between the parser and the VM. `-27` and `-28` are
+parse errors: the constructor's `}` and the index's `]` are missing. `-29`,
+`-30`, `-31`, `-32` and `-33` are run-time errors, thrown by the table
+handlers: the value is not a table, the key is nil, the table has no free
+slot, the session has no free table, and `#` got something that is neither a
+string nor a table.
 
 `-23` is the one code that is not a failure. It says the line ended where a
 statement was still open, so the session waits for the next line and tries
@@ -1031,6 +1153,8 @@ reports `-23` first, so the user learns why the session ended.
 | `\u` code point | `0xFFFF` | the profile has no surrogate pairs |
 | concatenation | 200 bytes, never reclaimed | `l-rstr` is 200 cells |
 | float quotient | a signed 16-bit cell | the kernel has no 32-bit division |
+| tables | 8 per session | `l-tslot` holds 8 blocks |
+| table entries | 8 per table | 8 slots of 7 cells per block |
 
 The compiler is intentionally fixed-size. There is no heap, no GC and no
 allocation during compilation: every array is reserved when the Forth file is
@@ -1038,12 +1162,18 @@ loaded, and the limits that matter — source length, token count, name count,
 name length and the two arenas — are checked before anything is written. The
 bytecode buffer is the one exception; it relies on the token cap to stay
 inside 1024 cells. That is what makes it possible to run the whole pipeline in
-a dictionary that already has about 23.5k cells free.
+a dictionary that already has about 22k cells free.
 
-The escape decoder is what the profile gave up the most room for. The
-compiler grew by 762 cells, from 8,519 to 9,281. The loader no longer holds
-the source text in the dictionary, so the load leaves 23,501 dictionary cells
-free.
+The escape decoder is what the profile gave up the most room for before the
+tables. The compiler grew by 762 cells, from 8,519 to 9,281. The loader no
+longer holds the source text in the dictionary, so the load left 23,501
+dictionary cells free.
+
+The tables are the next step up in size. The pool is 448 cells of slots and
+the code around it is about 1,000 cells, so the compiler grew from 9,281
+cells to 10,756, leaving 22,026 free. The pool is not reclaimed either: a
+table that has had eight entries stays full for the rest of the session, and
+a ninth table in the same session is refused.
 
 The name budget, the globals and the two string arenas are per *session*, not
 per line. That is what makes the state carry from one line to the next, and
@@ -1066,17 +1196,21 @@ reclaimed.
 5. runs the float cases and checks the kernel's `f.` output;
 6. runs the escape cases, including the UTF-8 ones as bytes, and checks the
    invalid escapes;
-7. runs every rejection case and checks its negative code;
-8. runs every unfinished-source case and checks that it reports `-23`;
-9. checks that the state carries from one line to the next, that a block can
-   be spread over several lines, and that a rejected line does not poison the
-   next one;
-10. checks that comment-only and empty sources compile to a halt.
+7. runs the table cases — the constructor, the reads and writes, the border,
+   the delete, a table in a table, a table in a global, a table in a block and
+   in a loop — and checks the eight-entry and eight-table limits;
+8. runs every rejection case and checks its negative code;
+9. runs every unfinished-source case and checks that it reports `-23`;
+10. checks that the state carries from one line to the next, that a block can
+    be spread over several lines, and that a rejected line does not poison the
+    next one;
+11. checks that comment-only and empty sources compile to a halt.
 
 To add a language case, add its lines to `program` and its expected lines to
 `expected` in the test, keeping them in `lua5.4` agreement. A float case does
 not fit that fixture, because the float output is the kernel's and not Lua's:
-add it to `floats` instead. To add a rejection, append `[name, source, code]`
+add it to `floats` instead. A table case fits the `tables` list, with its
+expected output as a string. To add a rejection, append `[name, source, code]`
 to `rejected`; to add a source that may be continued, append `[name, source]`
 to `unfinished` and expect `-23`. The test embeds the expected output, so it
 does not need Lua installed.
@@ -1086,8 +1220,9 @@ the native profile.
 
 `tests/native-lila-slice.test.js` is the device-faithful twin: it loads the
 same compiler from the config flash with `s" lila" need` instead of typing it
-in, then runs the same fixture and checks the same depth. The two tests share
-a boot harness in `tests/native-lila-harness.js`.
+in, then runs the same fixture and checks the same depth. It also checks the
+float profile and the table profile on the compiler that came out of the
+flash. The two tests share a boot harness in `tests/native-lila-harness.js`.
 
 ## Extending the profile
 
@@ -1105,10 +1240,13 @@ places:
 - **New type:** add a tag, extend `v-falsy?`, `v-print` and `v-take`, and
   decide what arithmetic and comparison mean for it. The value size is fixed
   at three cells.
-- **Locals, functions or tables:** these need more than a parser hook. They
-  need storage beyond the 16 global slots, a frame or heap layout, and a
-  calling convention. The host compiler already has designs for all three;
-  see `TYPEPLAN.md` and `lila/README.md`.
+- **Locals or functions:** these need more than a parser hook. They need
+  storage beyond the 16 global slots, a frame or heap layout, and a calling
+  convention. The host compiler already has designs for both; see
+  `TYPEPLAN.md` and `lila/README.md`.
+- **Bigger tables:** the pool in `l-tslot` is fixed at eight tables of eight
+  slots. Making it grow means either a heap (the profile has none) or a
+  larger fixed pool, and the pool's size is a hard limit on the dictionary.
 
 Some DeepForth-specific traps are worth remembering when editing the file:
 

@@ -67,6 +67,13 @@ core-language gaps are:
 - **Nested assignment remains unsupported.** `t["a"]["b"] = 1` is rejected;
   assign the inner table to a variable (or use `rawset`) instead. Nested reads
   such as `t["a"]["b"]` do work.
+- **The native profile's tables are small and fixed.** On the device
+  (`lila/native/lila-native.fth`) a table holds eight entries and a session
+  holds eight tables, and there is no growth: a ninth entry or a ninth table
+  is an error. The semantics are otherwise the same as the host's — a missing
+  key reads as nil, assigning nil deletes the key, `#` is the border, and a
+  nil key is rejected — and a table prints as `<table>` there instead of an
+  address.
 
 ## 3. Strings
 
@@ -150,9 +157,9 @@ core-language gaps are:
 - **A second implementation runs on the device.** `lila/native/lila-native.fth`
   compiles a deliberately smaller Lua subset directly to bytecode on Deep16 and
   runs it there. It supports globals, 32-bit integers, single-precision floats,
-  strings with the escape set of the host compiler, `+ - * / // % ^`,
-  relationals, `..`, `print`, `if`, `while` and `do`; functions, locals,
-  tables, bitwise operators, `and`/`or`/`not`, varargs and the libraries are
+  strings with the escape set of the host compiler, tables, `+ - * / // % ^`,
+  relationals, `..`, `#`, `print`, `if`, `while` and `do`; functions, locals,
+  bitwise operators, `and`/`or`/`not`, varargs and the libraries are
   rejected with negative codes. Its value ABI matches `TYPEPLAN.md`; its limits
   and codes are in `lila/native/README.md`.
 - The collector is a simple conservative mark-sweep, without Lua's
@@ -176,6 +183,13 @@ core-language gaps are:
 
 Completed work, newest first:
 
+- **Tables in the native profile:** `lila/native/lila-native.fth` now has
+  tables. `{}` builds an empty table, `t[key]` reads it, `t[key] = value`
+  writes it, assigning nil deletes the key, and `#` gives the border of a
+  table or the length of a string. A key is a whole tagged value — a number,
+  a string, a boolean, a table or a float — and a nil key is rejected. The
+  tables live in a fixed pool of eight tables of eight slots, so a ninth
+  entry or a ninth table is an error.
 - **String escapes in the native profile:** `lila/native/lila-native.fth` now
   decodes the escape set of the host compiler: `\a \b \f \n \r \t \v`, the
   identity escapes `\\ \" \'`, one to three decimal digits, two hexadecimal

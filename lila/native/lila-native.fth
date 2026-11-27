@@ -38,6 +38,10 @@
 23 constant OP-POW
 24 constant OP-IDIV
 25 constant OP-MOD
+26 constant OP-TNEW
+27 constant OP-TGET
+28 constant OP-TSET
+29 constant OP-LEN
 
 \ --- storage ---
 create l-src 768 allot
@@ -87,6 +91,27 @@ variable l-expr-xt drop
 variable l-stmt-xt drop
 variable l-save-nsym drop
 variable l-save-ap drop
+variable l-aslot drop
+
+\ --- tables ---
+\ A table is a block of slots.  The value's first cell is the address of
+\ the block; a slot is seven cells: the key (three cells), the value
+\ (three cells) and the occupied flag.  The block of table n starts at
+\ l-tslot + n*L-SMAX*7, so the table's address is all the value carries.
+8 constant L-TMAX
+8 constant L-SMAX
+create l-tslot 448 allot
+variable l-tn drop
+variable l-tb drop
+variable l-tz drop
+variable l-tt drop
+variable l-k1 drop
+variable l-k2 drop
+variable l-kt drop
+variable l-w1 drop
+variable l-w2 drop
+variable l-wt drop
+variable l-ts drop
 
 \ --- static text fragments ---
 create k-if    105 c, 102 c,
@@ -114,10 +139,16 @@ create p-cat   46 c, 46 c,
 create p-lp    40 c,
 create p-rp    41 c,
 create p-comma 44 c,
+create p-hash  35 c,
+create p-lb    91 c,
+create p-rb    93 c,
+create p-lc    123 c,
+create p-rc    125 c,
 create m-lerr  76 c, 69 c, 82 c, 82 c,
 create s-true  116 c, 114 c, 117 c, 101 c,
 create s-false 102 c, 97 c, 108 c, 115 c, 101 c,
 create s-nil   110 c, 105 c, 108 c,
+create s-table 60 c, 116 c, 97 c, 98 c, 108 c, 101 c, 62 c,
 
 \ --- helpers ---
 : l-err ( code -- ) m-lerr 4 type space . cr ;
@@ -448,7 +479,7 @@ create l-esct 7 c, 8 c, 0 c, 0 c, 0 c, 12 c, 0 c, 0 c, 0 c, 0 c, 0 c, 0 c, 0 c, 
 : l-expr0 ( -- ) 0 l-expr-xt @ execute ;
 
 \ A float literal goes through the kernel's own number scanner.
-: l-primary ( -- )
+: l-primary0 ( -- )
   l-eof? if -23 throw then
   l-kind@
   dup 1 = if drop
@@ -466,19 +497,49 @@ create l-esct 7 c, 8 c, 0 c, 0 c, 0 c, 12 c, 0 c, 0 c, 0 c, 0 c, 0 c, 0 c, 0 c, 
     l-pos @ l-tstart l-pos @ l-tlen l-slot
     OP-LOAD code2, 1 l-pos +! exit then
   drop
+  p-lc 1 l-op? if                \ the table constructor
+    1 l-pos +!
+    p-rc 1 -27 l-op!             \ -23 at the end, -27 for anything else
+    OP-TNEW code,
+    exit then
   p-lp 1 -9 l-op!                 \ -23 at the end, -9 for anything else
   l-expr0
   p-rp 1 -10 l-op! ;               \ -23 at the end, -10 for anything else
+
+\ A primary with the table index: t[key].  The key is a whole expression,
+\ so it is parsed with the parser's own state; that state is saved and
+\ put back, because the key would otherwise change the precedence the
+\ outer expression is parsed with.  The index may be chained: t[a][b].
+: l-primary ( -- )
+  l-primary0
+  begin
+    p-lb 1 l-op? 0= if exit then
+    1 l-pos +!
+    l-min @ >r l-bop @ >r
+    l-expr0
+    r> l-bop ! r> l-min !
+    p-rb 1 -28 l-op!             \ -23 at the end, -28 for anything else
+    OP-TGET code,
+  again ;
+
+\ The operand of a unary operator.  The power binds tighter than the
+\ unary operators, so -2^2 is -(2^2).
+: l-operand ( -- )
+  l-min @ >r l-bop @ >r
+  7 l-expr-xt @ execute
+  r> l-bop ! r> l-min ! ;
 
 \ Unary minus binds looser than the power: -2^2 is -(2^2).
 : l-unary ( -- )
   p-minus 1 l-op? if
     1 l-pos +!
-    l-min @ >r l-bop @ >r
-    7 l-expr-xt @ execute
-    r> l-bop ! r> l-min !
+    l-operand
     OP-NEG code,
-  else l-primary then ;
+  else p-hash 1 l-op? if         \ the length or the border
+    1 l-pos +!
+    l-operand
+    OP-LEN code,
+  else l-primary then then ;
 
 : l-setop ( prec op right -- prec ) l-bright? ! l-bop ! ;
 : l-binop ( -- prec )
@@ -519,11 +580,23 @@ create l-esct 7 c, 8 c, 0 c, 0 c, 0 c, 12 c, 0 c, 0 c, 0 c, 0 c, 0 c, 0 c, 0 c, 
 
 \ --- statements ---
 : l-assign ( -- )
-  l-pos @ l-tstart l-pos @ l-tlen l-slot
+  l-pos @ l-tstart l-pos @ l-tlen l-slot l-aslot !
   1 l-pos +!
-  p-set 1 -21 l-op!                \ -23 at the end, -21 for anything else
-  l-expr0
-  OP-STORE code2, ;
+  p-lb 1 l-op? if                \ a table slot: t[key] = value
+    l-aslot @ OP-LOAD code2,
+    1 l-pos +!
+    l-min @ >r l-bop @ >r
+    l-expr0
+    r> l-bop ! r> l-min !
+    p-rb 1 -28 l-op!             \ -23 at the end, -28 for anything else
+    p-set 1 -21 l-op!                \ -23 at the end, -21 for anything else
+    l-expr0
+    OP-TSET code,
+  else
+    p-set 1 -21 l-op!                \ -23 at the end, -21 for anything else
+    l-expr0
+    l-aslot @ OP-STORE code2,
+  then ;
 
 : l-print ( -- )
   1 l-pos +!
@@ -623,6 +696,7 @@ create l-esct 7 c, 8 c, 0 c, 0 c, 0 c, 12 c, 0 c, 0 c, 0 c, 0 c, 0 c, 0 c, 0 c, 
   dup 1 = if drop 0 d.r exit then
   dup 3 = if drop type exit then
   dup 2 = if drop drop if s-true 4 type else s-false 5 type then exit then
+  dup 4 = if drop 2drop s-table 7 type exit then
   drop 2drop s-nil 3 type ;
 : vpushs ( a -- a+1 len 3 ) dup @ swap 1+ swap 3 ;
 : v-concat ( a1 n1 t1 a2 n2 t2 -- a n 3 )
@@ -635,6 +709,71 @@ create l-esct 7 c, 8 c, 0 c, 0 c, 0 c, 12 c, 0 c, 0 c, 0 c, 0 c, 0 c, 0 c, 0 c, 
   c-a2 @ r@ 1+ c-n1 @ + c-n2 @ cmove
   l-rp @ c-tot @ 1+ + l-rp !
   r> 1+ c-tot @ 3 ;
+
+\ --- tables ---
+\ A key matches a slot when the tags are the same and the payloads are
+\ equal: a number by its 32-bit value, a string by its bytes, a boolean
+\ by its flag, and a table or a float by its payload, which gives
+\ identity semantics for tables.
+: t-key? ( slot -- f )
+  l-ts !
+  l-ts @ 2 + @ l-kt @ <> if false exit then
+  l-kt @ 1 = if
+    l-ts @ @ l-ts @ 1+ @ l-k1 @ l-k2 @ d= exit
+  then
+  l-kt @ 3 = if
+    l-ts @ @ l-ts @ 1+ @ l-k1 @ l-k2 @ compare 0= exit
+  then
+  l-kt @ 2 = if
+    l-ts @ @ l-k1 @ = exit
+  then
+  l-ts @ @ l-k1 @ = ;
+
+\ The slot with the key, or false.  Every slot is looked at, so a slot
+\ that was freed by a delete does not hide the keys behind it.  The slot
+\ is left in l-ts; only the flag comes back.
+: t-find ( base -- f )
+  l-tb !
+  L-SMAX 0 ?do
+    l-tb @ i 7 * + l-ts !
+    l-ts @ 6 + @ if
+      l-ts @ t-key? if unloop true exit then
+    then
+  loop
+  false ;
+
+\ The first free slot, or false.  The slot is left in l-ts.
+: t-free ( base -- f )
+  l-tb !
+  L-SMAX 0 ?do
+    l-tb @ i 7 * + l-ts !
+    l-ts @ 6 + @ 0= if unloop true exit then
+  loop
+  false ;
+
+\ A slot is seven cells: the key, the value and the occupied flag.
+: t-setk ( slot -- )
+  dup 0 + l-k1 @ swap !
+  dup 1 + l-k2 @ swap !
+  dup 2 + l-kt @ swap !
+  dup 6 + 1 swap !
+  drop ;
+
+: t-setv ( slot -- )
+  dup 3 + l-w1 @ swap !
+  dup 4 + l-w2 @ swap !
+  dup 5 + l-wt @ swap !
+  drop ;
+
+\ The border: the largest n such that the keys 1..n are all there.
+: t-border ( base -- n )
+  l-tz !
+  0 l-k1 !
+  begin
+    1 l-k1 +!
+    0 l-k2 ! 1 l-kt !
+    l-tz @ t-find 0= until
+  l-k1 @ 1- ;
 
 \ --- floats ---
 \ A float is a pair of cells, the low half of the IEEE single first.  The
@@ -776,12 +915,68 @@ create l-icmp ' d= , ' d< ,
   1 l-pc +! ;
 : op-halt ;
 
+\ --- the table opcodes ---
+\ A new table takes the next free block of slots; the block is cleared
+\ as it is handed out, so a new session starts with an empty pool.  The
+\ value of a table is (block 0 table).
+: op-tnew
+  l-tn @ L-TMAX u< 0= if -32 throw then
+  l-tslot l-tn @ L-SMAX 7 * * + l-tb !
+  l-tb @ L-SMAX 7 * 0 fill
+  1 l-tn +!
+  l-tb @ 0 4 1 l-pc +! ;
+
+\ t[key]: the table and the key are on the stack, the value comes back.
+: op-tget
+  l-kt ! l-k2 ! l-k1 !
+  l-tt ! l-tz ! l-tb !
+  l-tt @ 4 <> if -29 throw then
+  l-kt @ 0 = if -30 throw then
+  l-tb @ t-find if
+    l-ts @ 3 + @ l-w1 ! l-ts @ 4 + @ l-w2 ! l-ts @ 5 + @ l-wt !
+    l-w1 @ l-w2 @ l-wt @
+  else
+    0 0 0
+  then
+  1 l-pc +! ;
+
+\ t[key] = value: a nil value deletes the key, as in Lua.
+: op-tset
+  l-wt ! l-w2 ! l-w1 !
+  l-kt ! l-k2 ! l-k1 !
+  l-tt ! l-tz ! l-tb !
+  l-tt @ 4 <> if -29 throw then
+  l-kt @ 0 = if -30 throw then
+  l-wt @ 0 = if
+    l-tb @ t-find if 0 l-ts @ 6 + ! then
+  else
+    l-tb @ t-find if
+      l-ts @ t-setv
+    else
+      l-tb @ t-free if
+        l-ts @ t-setk
+        l-ts @ t-setv
+      else
+        -31 throw
+      then
+    then
+  then
+  1 l-pc +! ;
+
+\ #s is the length of a string, #t the border of a table.
+: op-len
+  dup 3 = if drop nip 0 1 1 l-pc +! exit then
+  dup 4 = if
+    drop drop t-border 0 1 1 l-pc +! exit
+  then
+  drop 2drop -33 throw ;
+
 create l-ops
 ' op-push , ' op-load , ' op-store , ' op-arith , ' op-arith , ' op-arith ,
 ' op-arith , ' op-cmp , ' op-cmp , ' op-cmp , ' op-cmp , ' op-cmp , ' op-cmp ,
 ' op-jmp , ' op-jz , ' op-print , ' op-tab , ' op-eol , ' op-pushs ,
 ' op-concat , ' op-halt , ' op-neg , ' op-pushf , ' op-pow , ' op-idiv ,
-' op-mod ,
+' op-mod , ' op-tnew , ' op-tget , ' op-tset , ' op-len ,
 
 \ The runtime string arena is not reset: a result in a global has to survive
 \ the next line of the session.
@@ -821,7 +1016,7 @@ create l-ops
 \ The session itself: the tables live as long as the session does.
 : l-session ( -- )
   decimal
-  0 l-nsym ! 0 l-ap ! 0 l-rp ! 0 l-src-n !
+  0 l-nsym ! 0 l-ap ! 0 l-rp ! 0 l-src-n ! 0 l-tn !
   l-vars 48 0 fill
   begin
     l-prompt

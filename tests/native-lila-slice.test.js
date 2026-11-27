@@ -51,6 +51,12 @@ test('the compiler loaded from the flash has the float profile', () => {
   assert.equal(h.runProgram(['print(7 // 2)', 'print(1 / 2)']), '3\n0.5000 ');
 });
 
+test('the compiler loaded from the flash has the table profile', () => {
+  assert.equal(h.runProgram(['t = {}', 't["x"] = 1', 'print(t["x"])']), '1');
+  assert.equal(h.runProgram(['t = {}', 't[1] = 1', 't[2] = 2', 'print(#t)']), '2');
+  assert.equal(h.runProgram(['t = {}', 'print(t["x"])']), 'nil');
+});
+
 test('the compiler loaded from the flash decodes the string escapes', () => {
   assert.equal(h.runProgram(['print("a\\nb")']), 'a\nb');
   assert.equal(h.runProgram(['print("\\x41")']), 'A');

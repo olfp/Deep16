@@ -57,9 +57,15 @@ the prompt, the way `tests/native-lila-slice.test.js` does in the simulator.
 `lila/native/README.md` lists the supported subset, bytecode, limits and error
 codes; `lila/LILANATIVE.md` explains the language and how the compiler works.
 In short: globals, 32-bit integers, single-precision floats, strings,
-`+ - * / // % ^`, relationals, `..`, `print`, `if`, `while` and `do`; functions,
-locals, tables and the libraries are rejected with codes. The float datatype
-needs the kernel's float words, so the compiler only loads on an FPU image.
+tables, `+ - * / // % ^`, relationals, `..`, `#`, `print`, `if`, `while` and
+`do`; functions, locals and the libraries are rejected with codes. The float
+datatype needs the kernel's float words, so the compiler only loads on an FPU
+image.
+
+The native profile's tables are small and fixed: eight tables per session and
+eight entries per table, with the same observable semantics as the host —
+a missing key reads as nil, assigning nil deletes the key, and `#` is the
+border. A table prints as `<table>` there, where the host prints an address.
 
 ## Values
 
@@ -96,6 +102,12 @@ for it, the host prototype does not implement it yet. A function value
 points at a GC-managed closure that records the code entry point and the
 lexical frame in which the function was created. A multi value (tag 7) is an
 internal GC-managed list of values used for multiple returns and varargs.
+
+The host compiler's table pointer addresses a GC-managed header; the native
+profile's addresses a fixed block of slots. The tag is the same in both, and
+the observable semantics of a table — the keys it accepts, the missing key
+that reads as nil, the delete on a nil value, and the border — are the same
+too.
 
 Because every value carries its tag, variables and table slots are dynamically
 typed. One variable or table slot can hold a number, then a string, then a
@@ -503,6 +515,10 @@ print(outer["inner"]["x"])     -- 4
 Tables grow automatically as needed. There is no fixed 64-key limit. A table
 alias copies the table pointer, so both names see the same slots and tags.
 
+The native profile has the same table semantics but a fixed pool: eight
+tables per session and eight entries per table, with no growth. A ninth entry
+in a table and a ninth table in a session are both errors there.
+
 A function can write a string into a table passed as a parameter:
 
 ```lisp
@@ -537,7 +553,8 @@ print(#t)                      -- 1
 Assigning `nil` to an existing key deletes that entry, matching Lua. The
 sequence operations (`#`, `next`, `pairs`, `ipairs`, and the `table` functions)
 therefore see the key as absent. Lua leaves `#` unspecified for tables with
-holes; LILA stops at the first hole.
+holes; LILA stops at the first hole. The native profile answers the same
+border, and answers the length of a string with the same `#`.
 
 ### Iteration
 
