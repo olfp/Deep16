@@ -91,9 +91,8 @@ variables; the source text is interpreted out of the buffer as it arrives.
 The packed loader's own buffer is taken from the dictionary the first time a
 packed slice is loaded, so a board that never loads one does not pay for it.
 That gives the data stack back the room the old `text-buf` took: in the
-D16SEG map the gap between the dictionary and the stack is 29,618 cells
-where the old loader left 9,178, and a D16D boot leaves 32,782 free
-dictionary cells instead of 10,302.
+D16SEG map the gap between the dictionary and the stack is 44,988 cells,
+where the old loader left 12,257 of them free and the new one leaves 34,772.
 
 The baked boot loader does `1 screen` (start), then `need essentials`
 and `need edit`, so `dir`, `find`, the editor and the start words are

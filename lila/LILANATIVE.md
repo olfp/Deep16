@@ -113,16 +113,15 @@ text never sits in the dictionary. A board that already carries an older boot
 loader needs `npm run flash:tile` for the new loader.
 
 That cost lands on the data stack. In the D16SEG map the dictionary grows up
-from `0x5800` and the data stack grows down from `0xFFF0` in the same
+from `0x3FC4` and the data stack grows down from `0xEF80` in the same
 region, so the dictionary and the stack share their cells. The old loader
 reserved a 22,528-cell `text-buf` for the source text and took that room out
 of the stack; the new loader keeps only the 2,048-cell `slice-buf` - and the
 packed loader's own buffer is taken from the dictionary only when a packed
-slice is actually loaded - so the gap between the two is 29,618 cells where
-the old loader left 9,178, and a D16D boot leaves 32,782 free dictionary
-cells instead of 10,302.
+slice is actually loaded - so the gap between the two is 44,988 cells, where
+the old loader left 12,257 of them free and the new one leaves 34,772.
 
-After the load the compiler has taken about 10.8k cells, leaving about 22.0k
+After the load the compiler has taken about 10.8k cells, leaving about 24.0k
 free in a D16D dictionary.
 
 **XMODEM over the serial line.** `xmodem` lives in the `edit` slice, which
@@ -578,10 +577,11 @@ lets a block span several lines, and it is why the pending source is kept in
 
 The rest are scalar variables for parser and VM state. The arrays account for
 most of the compiler's footprint. On the D16SEG image used by the test, the
-booted kernel has `here = 0x7fe2`: the boot loader keeps no copy of the
-source text in the dictionary, and 32,782 of the 65,520 cells below
-`limit = 0xfff0` are still free. Loading the compiler from the flash takes
-10,756 cells, leaving 22,026 free; typing it in takes the same 10,756 cells.
+booted kernel has `here = 0x67ac`: the boot loader keeps no copy of the
+source text in the dictionary, and 34,772 of the 44,988 cells between the
+dictionary base `0x3fc4` and the stack top `0xef80` are still free. Loading
+the compiler from the flash takes 10,756 cells, leaving 24,016 free; typing
+it in takes the same 10,756 cells.
 
 `l-tslot` is the whole table pool: eight tables, each with eight slots of
 seven cells. A table's value is the address of its own block of slots, so the
@@ -1162,18 +1162,18 @@ loaded, and the limits that matter — source length, token count, name count,
 name length and the two arenas — are checked before anything is written. The
 bytecode buffer is the one exception; it relies on the token cap to stay
 inside 1024 cells. That is what makes it possible to run the whole pipeline in
-a dictionary that already has about 22k cells free.
+a dictionary that already has about 24k cells free.
 
 The escape decoder is what the profile gave up the most room for before the
 tables. The compiler grew by 762 cells, from 8,519 to 9,281. The loader no
-longer holds the source text in the dictionary, so the load left 23,501
-dictionary cells free.
+longer holds the source text in the dictionary, so the whole gap between the
+dictionary base and the stack top is the compiler's to spend.
 
 The tables are the next step up in size. The pool is 448 cells of slots and
 the code around it is about 1,000 cells, so the compiler grew from 9,281
-cells to 10,756, leaving 22,026 free. The pool is not reclaimed either: a
-table that has had eight entries stays full for the rest of the session, and
-a ninth table in the same session is refused.
+cells to 10,756. The pool is not reclaimed either: a table that has had
+eight entries stays full for the rest of the session, and a ninth table in
+the same session is refused.
 
 The name budget, the globals and the two string arenas are per *session*, not
 per line. That is what makes the state carry from one line to the next, and

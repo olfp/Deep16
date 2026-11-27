@@ -46,7 +46,7 @@ It boots the segmented D16D image with the soft-float library, types the
 compiler in, runs the fixture program, compares the output with what
 `lua5.4` 5.4.8 prints, and asserts that the run leaves the data stack at
 depth 0. The compiler takes about 10.8k dictionary cells after the kernel
-boots, leaving about 22.0k free.
+boots, leaving about 24.0k free.
 
 ## On the device
 
@@ -77,11 +77,12 @@ The dictionary and the data stack share one region in the D16SEG map. The old
 loader reserved a 22,528-cell `text-buf` for the source text and took that
 room out of the stack; the new loader keeps only the 2,048-cell `slice-buf` -
 and the packed loader's own buffer is taken from the dictionary only when a
-packed slice is actually loaded - so the gap between the two is 29,618 cells
-where the old loader left 9,178, and a D16D boot leaves 32,782 free
-dictionary cells instead of 10,302. The stack still holds thousands of cells
-- far more than the LILA VM needs - and the cost is no longer paid by boards
-that never load the compiler.
+packed slice is actually loaded - so the gap between the dictionary and the
+stack is 44,988 cells, where the old loader left 12,257 of them free and the
+new one leaves 34,772. The old loader cannot load the compiler at all now:
+its `text-buf` holds 22,528 characters and the source is 27,482. The stack
+still holds thousands of cells - far more than the LILA VM needs - and the
+cost is no longer paid by boards that never load the compiler.
 
 `tests/native-lila-slice.test.js` runs that path in the simulator.
 

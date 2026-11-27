@@ -2,6 +2,8 @@
 
 Written at the tables batch (2026-11-27). It says where the work stands, what
 was measured, and what the next batch has to do. The tables batch is done.
+The figures are refreshed after the phase 5 memory rework, which moved the
+dictionary and the stacks in the D16SEG map.
 
 ## Where the work stands
 
@@ -11,7 +13,7 @@ was measured, and what the next batch has to do. The tables batch is done.
 | kernel glyph fix (`utx_glyph_space`) | done, pushed | `4d8160b` |
 | strings (escape decoder, `\n`, `\x41`, `\u{20ac}`) | done, pushed | `2aaea83` |
 | loader rewrite (no source buffer) | done, pushed | `7a22c8c` |
-| tables (tag 4, `{}`, `t[k]`, `t[k]=v`, `#t`) | done, pushed | this commit |
+| tables (tag 4, `{}`, `t[k]`, `t[k]=v`, `#t`) | done, pushed | `1574d80` |
 
 The loader rewrite was the blocker for the tables batch: the old loader kept
 the source text in a dictionary buffer, so the native profile could not grow
@@ -75,63 +77,75 @@ What changed:
   the D16D image stopped booting with `PC=0`. `read_line` is in the `0x0500`
   block, and there the fix fits.
 
-  It needed four words of room, and the `0x0500` block has none: it ends at
-  `0x18C2` in the segmented build, and the `.org 0x18C3` behind it - the
-  BDOS word trampolines - is assembled last, so it overwrites whatever is
-  there. The first attempt with the fix grew the block into that gap and
-  destroyed the tail of `es!`: the editor's cursor store walked into the
-  BDOS and the machine spun in a directory read, which is what the 41
-  failures in the segmented group were. `psw` is a leaf primitive that
-  nothing calls from the interpreter, so it moved to the ten free words
-  between the `0x0475` block and the `0x0500` one (`.org 0x04F6`). The
-  `0x0500` block now ends at `0x18C1`, with two words to spare, and the
-  same move keeps the D16D build (which had one word) inside its gap.
+  It needed four words of room, and the `0x0500` block had none: at the
+  loader-cut batch it ended at `0x18C2` in the segmented build, and the
+  `.org 0x18C3` behind it - the BDOS word trampolines - was assembled
+  last, so it overwrote whatever was there. The first attempt with the fix
+  grew the block into that gap and destroyed the tail of `es!`: the
+  editor's cursor store walked into the BDOS and the machine spun in a
+  directory read, which is what the 41 failures in the segmented group
+  were. `psw` is a leaf primitive that nothing calls from the interpreter,
+  so it moved to the ten free words between the `0x0475` block and the
+  `0x0500` one (`.org 0x04F6`). The `0x0500` block then ended at `0x18C1`,
+  with two words to spare, and the same move kept the D16D build (which
+  had one word) inside its gap. The phase 0 audit later moved the BDOS
+  trampolines out of that gap altogether (they sit at `0x1FC2` now), so
+  the fit is no longer tight.
 
 ## What was measured
 
-D16D image, FPU profile, the real slice image in the flash, measured with the
-same script on the old loader (HEAD) and on the new loader:
+D16D image, FPU profile, the real slice image in the flash. The phase 5
+memory rework moved the dictionary base from `0x5800` to `0x3fc4` and the
+stack top from `0xfff0` to `0xef80`, so the figures below are measured on
+the current layout: the old loader (the `forth/boot.fth` of the strings
+batch) and the new one, baked into the same kernel one after the other.
 
 | | old loader | new loader |
 |---|---|---|
-| boot to prompt | 5,495,556 steps | 7,926,839 steps |
-| dictionary after boot (`here`) | `0xd7b2` | `0x7fe2` |
-| free dictionary cells after boot | 10,302 | 32,782 |
-| free dictionary cells after `s" lila" need` | 1,021 | 23,501 |
-| cells the compiler itself takes | 9,281 | 9,281 |
-| data stack depth after the load | 0 | 0 |
+| boot to prompt | 5,481,895 steps | 7,759,262 steps |
+| dictionary after boot (`here`) | `0xbf9f` | `0x67ac` |
+| dictionary limit | `0xef80` | `0xef80` |
+| free dictionary cells after boot | 12,257 | 34,772 |
+| source text in the dictionary | 22,528 cells (`text-buf`) | none |
 
-So the loader costs about 44% more boot steps and gives back 22,480
-dictionary cells: the 22,528-cell `text-buf` is gone, the packed loader's
-own buffer costs 15 cells at boot instead of 2,040 (it is taken from the
-dictionary only when a packed slice is loaded), and the new loader's own
-words and variables take 33 of the rest.
+So the loader costs about 42% more boot steps and gives back 22,515
+dictionary cells: the 22,528-cell `text-buf` is gone, and the new loader's
+own words and variables cost 13 cells more than the old loader's. The
+packed loader's 2,040-cell buffer is not in this number: it is taken from
+the dictionary only when a packed slice is loaded, and a boot loads none.
 
-With the tables batch on top of that:
+The old loader cannot load the compiler at all now: its `text-buf` holds
+22,528 characters and the source is 27,482. With the compiler loaded from
+the flash, the new loader leaves 24,016 cells free.
+
+With the tables batch on top of the new loader:
 
 | | after the loader | after the tables |
 |---|---|---|
-| free dictionary cells after `s" lila" need` | 23,501 | 22,026 |
+| free dictionary cells after `s" lila" need` | 25,491 | 24,016 |
 | cells the compiler itself takes | 9,281 | 10,756 |
 | data stack depth after the load | 0 | 0 |
 | source | 22,226 chars | 27,482 chars |
 | source slices | 11 (48–58) | 14 (48–61) |
 | longest source line | 127 | 127 |
-| slice image | 59 slices / 236 KB | 62 slices / 248 KB |
 
-The boot is unchanged at 7,926,839 steps and `here` is still `0x7fe2` after
-the boot: the tables cost dictionary cells, not boot time.
+The first column is the loader-cut batch: the same boot with the smaller
+compiler. Its free-cell figure is the boot figure above minus that
+compiler, and its image size was measured before the phase 5 rework - the
+image is 62 slices / 248 KB now.
 
-In the D16SEG map the dictionary and the data stack share their cells, so
-the free cells are the gap: the segmented build's gap between the dictionary
-and the stack is 29,618 cells, against 9,178 cells with the old loader -
-measured at the same point of the segmented test, after the catalog, the
-tools slice and the graphics module are loaded.
+The boot is unchanged by the tables - they cost dictionary cells, not boot
+time.
 
-Tests: the whole suite is green at the tables batch (1011 tests, see the
-commit message). The segmented group has a test of its own for the failed
-load: a source slice with a bad word in the middle must run the line before
-it, report the error, leave the line after it unrun, and leave the console
+In the D16SEG map the dictionary and the data stack share their cells: the
+gap between the dictionary base `0x3fc4` and the stack top `0xef80` is
+44,988 cells, and the free cells measured above are what is left of that
+gap after the boot.
+
+Tests: the whole suite is green on this tree (1035 tests after the phase 5
+rework). The segmented group has a test of its own for the failed load: a
+source slice with a bad word in the middle must run the line before it,
+report the error, leave the line after it unrun, and leave the console
 usable.
 
 ## Known limits of the current loader
@@ -221,7 +235,7 @@ cover the same ground.
 - **A table is not equal to another table** by value; there is no `==` for
   tables, and comparisons are numeric only, as before.
 
-The budgets are still inside: 22,026 free cells after the load, the source
+The budgets are still inside: 24,016 free cells after the load, the source
 is 27,482 characters in 14 slices, and the longest line is 127 characters.
 
 ## The next batch
@@ -231,7 +245,7 @@ remaining language gaps - functions and `local`, the logical operators, the
 bitwise operators, `for` loops - and the library gaps, which are larger
 because the profile has no library at all. The table batch cost 1,475
 dictionary cells, so functions with their frames would cost more again, and
-the dictionary headroom is 22,026 cells.
+the dictionary headroom is 24,016 cells.
 
 Every batch keeps `lila/README.md`, `LUAPARITY.md`, `TYPEPLAN.md`,
 `lila/LILANATIVE.md` and `lila/native/README.md` in step with the code, and
