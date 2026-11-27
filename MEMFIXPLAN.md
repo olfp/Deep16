@@ -629,6 +629,35 @@ below the relocated headers. The PC-visible probe stays at DS `0x5800`.
   suite and both format boots pass; `1000 deep`, editor input, PS/2 layout,
   BDOS and FPU smoke tests run from the relocated cells.
 
+#### Phase 5b implementation notes — blocked on the remaining DS window
+
+A trial implementation of the sections above was reverted after the full suite
+showed three independent failures. The measurements correct the premise of
+Phase 5a:
+
+* The range `0x3FC4`–`0x57FF` holds more than the Forth headers and the three
+  high cells. The D16D showcase still lives at physical `0x4A00` (segment
+  `0x04A0`, sparse words `0x4D34`–`0x57FF`), and the ILL/SWI path still reads
+  the BIOS/ILL data window at DS `0x4A00`–`0x57DF`. Starting the dictionary at
+  `dict_free` overwrites both. `divtest` then fails because the SWI 14 return
+  path no longer finds its BIOS data; the sound IRQ and sample path fail for
+  the same reason.
+* The data stack is **DS-relative in the current core** (PSW.SR is zero even
+  though the boot writes `SS=0x2000`). With the stack top at `0xFFF0`, the
+  relocated headers at `0xFB80`–`0xFFB7` are only 56 pushes away, so the
+  existing `1000 deep` test corrupts the high header chain (`0xFD80` became a
+  stack value). A high-header layout needs either PSW stack selection or a
+  lower stack top (a trial used `0xF000` and a `0xEF80` ceiling).
+* `irq_audio_fill / 2; SL R0, 1` is parity-sensitive. A one-word code shift
+  moved the label to an odd address, so the handler re-entered the burst store
+  with stale registers. Any Phase 5 patch must keep that label even or replace
+  the halve-shift with an odd-safe load.
+
+Before Phase 5b can be committed, the showcase and the BIOS/ILL DS window must
+move out of `0x3FC4`–`0x57FF` (the showcase to a free segment or config-flash
+slice, the ILL data to the high/BIOS window), and the stack-top question must
+be settled. Only then can `dp_var`/`dict_base_var` point at `dict_free`.
+
 ### Phase 5c — remove the obsolete flat checks
 
 * Delete the old `BIOS_BASE`/`STACK_BASE` assertions from `checkImage` once
