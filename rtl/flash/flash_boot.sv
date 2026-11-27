@@ -1,18 +1,17 @@
 // flash_boot - copy the flat boot image from the config flash (1 MB) into PSRAM.
 //
 // The config flash holds the image at 1 MB: a 64-word header (magic, format,
-// image words, CRC16), then the flat 28,672-word image packed two words per
-// 32-bit flash word (and, with D16SEG, the copies that go to DS and to the BIOS
-// segment). It copies while computing the same CRC-16/CCITT-FALSE as the
-// generator, compares the result with the header, and hands the entry word to
-// the caller. boot_spi_read drives the shared SPI master for the source words.
+// word count, payload CRC, table count), then the flat 28,672-word image packed
+// two words per 32-bit flash word (and, with D16SEG, the copies that go to DS
+// and to the BIOS segment). Format 2 also carries the three-word chapter table;
+// format 1 is the legacy flat/BIOS path only.
 //
-// The CRC covers the flash read, which is the path that can fail (the PSRAM
-// write is checked by the cache's own write-through and by the machine running).
-// A read-back verify of PSRAM used to follow it; it cost 12 states (the CPU
-// read port that paid for it was removed again in phase 2a). A bad header or a
-// A bad header or CRC sets `err` and the machine stays in reset (the heartbeat
-// LED shows boot_err); rewrite the boot image at config-flash 0x100000.
+// It copies while computing the same CRC-16/CCITT-FALSE as the generator and
+// compares the result with the header. The header CRC field is generated for
+// software but is not checked here: the fitted GW1NR-9 has no room for the
+// second CRC datapath. A bad header or payload CRC sets `err` and the machine
+// stays in reset (the heartbeat LED shows boot_err); rewrite the boot image at
+// config-flash 0x100000. boot_spi_read drives the shared SPI master.
 module flash_boot (
   input  logic        clk,
   input  logic        rst,
@@ -44,97 +43,44 @@ module flash_boot (
   localparam int FLASH_WORDS = 14400;               // header + payload 32-bit words
   localparam int MAX_ENTRIES = 18;                  // (64 - 8) / 3
 
-`ifdef D16SEG
-  // Phase 4a: after the flat copy, carry the dense BDOS chapter from free
-  // flat-image runs into CS=0x4000. Each entry is {len[15:0], src[15:0],
-  // dst[15:0]}; the source ranges match Deep16D16DImage.stageChapters().
-  localparam int BDOS_WIN_COUNT = 9;
-  function automatic [47:0] bdos_win(input logic [3:0] i);
-    case (i)
-      4'd0: bdos_win = {16'd256,  16'h0000, 16'h0000};
-      4'd1: bdos_win = {16'd293,  16'h2E05, 16'h0100};
-      4'd2: bdos_win = {16'd149,  16'h40E8, 16'h0225};
-      4'd3: bdos_win = {16'd880,  16'h6C90, 16'h02BA};
-      4'd4: bdos_win = {16'd11,   16'h6A85, 16'h062A};
-      4'd5: bdos_win = {16'd117,  16'h688B, 16'h0635};
-      4'd6: bdos_win = {16'd43,   16'h67D5, 16'h06AA};
-      4'd7: bdos_win = {16'd29,   16'h5FE3, 16'h06D5};
-      default: bdos_win = {16'd64, 16'h2D49, 16'h06F2};
-    endcase
-  endfunction
 
-  // Phase 5a: the relocated Forth headers and the high DS cells, in the same
-  // {len, src, dst} form. The four header ranges are copied verbatim; their
-  // link fields were rewritten by the generator.
-  localparam int HD_WIN_COUNT = 7;
-  function automatic [47:0] hd_win(input logic [2:0] i);
-    case (i)
-      3'd0: hd_win = {16'h0182, 16'h417D, 16'hFB80};
-      3'd1: hd_win = {16'h029C, 16'h4440, 16'hFD02};
-      3'd2: hd_win = {16'h000A, 16'h4D2A, 16'hFF9E};
-      3'd3: hd_win = {16'h0010, 16'h5480, 16'hFFA8};
-      3'd4: hd_win = {16'h0001, 16'h4D20, 16'hFFC0};
-      3'd5: hd_win = {16'h0001, 16'h57DC, 16'hFFC1};
-      default: hd_win = {16'h0086, 16'h52C0, 16'hF000};
-    endcase
-  endfunction
-`endif
+  localparam logic [4:0]
+    S_IDLE = 5'd0,
+    S_HDR_REQ = 5'd1, S_HDR_WAIT = 5'd2,
+    S_CHK = 5'd3,
+    S_CP_REQ = 5'd4, S_CP_WAIT = 5'd5,
+    S_CRC_LOAD = 5'd6, S_CRC_BIT = 5'd7,
+    S_WR0 = 5'd8, S_WR0W = 5'd9, S_WR1 = 5'd10, S_WR1W = 5'd11,
+    S_CRC_CHK = 5'd12,
+    S_DONE = 5'd13, S_ERR = 5'd14,
+    S_WR_B0 = 5'd15, S_WR_B0W = 5'd16,
+    S_WR_B1 = 5'd17, S_WR_B1W = 5'd18,
+    S_WR_D0 = 5'd19, S_WR_D0W = 5'd20,
+    S_WR_D1 = 5'd21, S_WR_D1W = 5'd22,
+    S_ENT_REQ = 5'd23, S_ENT_WAIT = 5'd24,
+    S_ENT_CP_REQ = 5'd25, S_ENT_CP_WAIT = 5'd26,
+    S_ENT_CP_WR = 5'd27, S_ENT_CP_WRW = 5'd28;
 
-  localparam logic [5:0]
-    S_IDLE = 6'd0,
-    S_HDR_REQ = 6'd1, S_HDR_WAIT = 6'd2,
-    S_CHK = 6'd3,
-    S_CP_REQ = 6'd4, S_CP_WAIT = 6'd5,
-    S_CRC_LOAD = 6'd6, S_CRC_BIT = 6'd7,
-    S_WR0 = 6'd8, S_WR0W = 6'd9, S_WR1 = 6'd10, S_WR1W = 6'd11,
-    S_CRC_CHK = 6'd12,
-    S_DONE = 6'd19, S_ERR = 6'd20,
-    S_WR_B0 = 6'd21, S_WR_B0W = 6'd22,
-    S_WR_B1 = 6'd23, S_WR_B1W = 6'd24,
-    S_WR_D0 = 6'd29, S_WR_D0W = 6'd30,
-    S_WR_D1 = 6'd31, S_WR_D1W = 6'd32,
-    S_WIN_LOAD = 6'd33, S_WIN_REQ = 6'd34,
-    S_WIN_WAIT = 6'd35, S_WIN_WR = 6'd36, S_WIN_WRW = 6'd37,
-    S_HD_LOAD = 6'd49, S_HD_REQ = 6'd50, S_HD_WAIT = 6'd51,
-    S_HD_WR = 6'd52, S_HD_WRW = 6'd53,
-    S_HCRC_REQ = 6'd38, S_HCRC_WAIT = 6'd39,
-    S_HCRC_LOAD = 6'd40, S_HCRC_BIT = 6'd41, S_HCRC_CHK = 6'd42,
-    S_ENT_REQ = 6'd43, S_ENT_WAIT = 6'd44,
-    S_ENT_CP_REQ = 6'd45, S_ENT_CP_WAIT = 6'd46,
-    S_ENT_CP_WR = 6'd47, S_ENT_CP_WRW = 6'd48;
-
-  logic [5:0]  st;
+  logic [4:0]  st;
   logic [5:0]  hdr_i;
   logic [13:0] img_i;
   logic [31:0] img_word;
-  logic [31:0] hdr_magic, hdr_format, hdr_words, hdr_crc, hdr_hcrc;
-  logic [15:0] hdr_count;
+  logic [31:0] hdr_magic;
+  logic [1:0]  hdr_format;
+  logic [15:0] hdr_words, hdr_crc;
+  logic [4:0]  hdr_count;
   logic [15:0] crc;
   logic [1:0]  crc_byte;
   logic [2:0]  crc_bit;
   logic [7:0]  crc_b;
-  logic [15:0] hcrc;
-  logic [31:0] hcrc_word;
-  logic [1:0]  hcrc_byte;
-  logic [2:0]  hcrc_bit;
-  logic [7:0]  hcrc_b;
   logic [4:0]  entry_i;
   logic [1:0]  ent_word_i;
-  logic [15:0] ent_seg, ent_base, ent_src, ent_count, ent_flags;
-  logic [15:0] ent_pos, ent_word, ent_src_word;
+  logic [3:0]  ent_seg;
+  logic [15:0] ent_base, ent_src;
+  logic [11:0] ent_count, ent_pos;
+  logic        ent_flag;
+  logic [15:0] ent_word, ent_src_word;
   logic [19:0] ent_dst;
-`ifdef D16SEG
-  logic [3:0]  win_i;
-  logic [10:0] win_pos;
-  logic [15:0] win_word;
-  logic [47:0] win_desc;
-  logic [2:0]  hd_i;
-  logic [10:0] hd_pos;
-  logic [15:0] hd_word;
-  logic [47:0] hd_desc;
-`endif
-
-
   // flash controller
   logic [14:0] f_addr;
   logic        f_read, f_done, f_busy;
@@ -155,33 +101,22 @@ module flash_boot (
       2'd2: crc_b = img_word[23:16];
       default: crc_b = img_word[31:24];
     endcase
-    case (hcrc_byte)
-      2'd0: hcrc_b = hcrc_word[7:0];
-      2'd1: hcrc_b = hcrc_word[15:8];
-      2'd2: hcrc_b = hcrc_word[23:16];
-      default: hcrc_b = hcrc_word[31:24];
-    endcase
   end
 
   always_ff @(posedge clk) begin
     if (rst) begin
       st <= S_IDLE; done <= 1'b0; err <= 1'b0;
       hdr_i <= 6'd0; img_i <= 14'd0;
-      hdr_magic <= 32'd0; hdr_format <= 32'd0; hdr_words <= 32'd0; hdr_crc <= 32'd0; hdr_hcrc <= 32'd0;
-      hdr_count <= 16'd0;
+      hdr_magic <= 32'd0; hdr_format <= 2'd0; hdr_words <= 16'd0; hdr_crc <= 16'd0;
+      hdr_count <= 5'd0;
       crc <= 16'hFFFF; crc_byte <= 2'd0; crc_bit <= 3'd0;
-      hcrc <= 16'hFFFF; hcrc_word <= 32'd0; hcrc_byte <= 2'd0; hcrc_bit <= 3'd0;
       entry_i <= 5'd0; ent_word_i <= 2'd0;
-      ent_seg <= 16'd0; ent_base <= 16'd0; ent_src <= 16'd0;
-      ent_count <= 16'd0; ent_flags <= 16'd0; ent_pos <= 16'd0;
+      ent_seg <= 4'd0; ent_base <= 16'd0; ent_src <= 16'd0;
+      ent_count <= 12'd0; ent_flag <= 1'b0; ent_pos <= 12'd0;
       ent_word <= 16'd0; ent_src_word <= 16'd0; ent_dst <= 20'd0;
       entry_exp <= 16'd0;
       f_addr <= 15'd0; f_read <= 1'b0;
       breq <= 1'b0; bwe <= 1'b0; baddr <= 20'd0; bwdata <= 16'd0;
-`ifdef D16SEG
-      win_i <= 4'd0; win_pos <= 11'd0; win_word <= 16'd0; win_desc <= 48'd0;
-      hd_i <= 3'd0; hd_pos <= 11'd0; hd_word <= 16'd0; hd_desc <= 48'd0;
-`endif
     end else begin
       breq <= 1'b0;
       f_read <= 1'b0;
@@ -200,22 +135,21 @@ module flash_boot (
         S_HDR_WAIT: if (f_done) begin
           case (hdr_i)
             6'd0: hdr_magic  <= f_rdata;
-            6'd1: hdr_format <= f_rdata;
-            6'd2: hdr_words  <= f_rdata;
-            6'd3: hdr_crc    <= f_rdata;
-            6'd5: hdr_count  <= f_rdata[15:0];
-            6'd6: hdr_hcrc   <= f_rdata;
+            6'd1: hdr_format <= f_rdata[1:0];
+            6'd2: hdr_words  <= f_rdata[15:0];
+            6'd3: hdr_crc    <= f_rdata[15:0];
+            6'd5: hdr_count  <= f_rdata[4:0];
             default: ;
           endcase
           if (hdr_i == 6'd7) st <= S_CHK;
           else begin hdr_i <= hdr_i + 6'd1; st <= S_HDR_REQ; end
         end
         S_CHK: begin
-          if (hdr_magic != MAGIC || (hdr_format != FORMAT && hdr_format != FORMAT2)) begin
+          if (hdr_magic != MAGIC || (hdr_format != 2'd1 && hdr_format != 2'd2)) begin
             err <= 1'b1;
             st <= S_ERR;
           end else if (hdr_format == FORMAT) begin
-            if (hdr_words != 32'(IMG_WORDS)) begin
+            if (hdr_words != 16'(IMG_WORDS)) begin
               err <= 1'b1;
               st <= S_ERR;
             end else begin
@@ -224,51 +158,15 @@ module flash_boot (
               st <= S_CP_REQ;
             end
           end else begin
-            if (hdr_words != 32'(FLASH_WORDS) || hdr_count > MAX_ENTRIES) begin
+            if (hdr_words != 16'(FLASH_WORDS) || hdr_count > MAX_ENTRIES) begin
               err <= 1'b1;
               st <= S_ERR;
             end else begin
-              hdr_i <= 6'd0;
-              hcrc <= 16'hFFFF;
               img_i <= 14'd0;
               crc <= 16'hFFFF;
-              st <= S_HCRC_REQ;
+              st <= S_CP_REQ;
             end
           end
-        end
-
-        // ---- format-2 header CRC ----------------------------------------
-        // Word 6 is read as zero, so the CRC field cannot cover itself.
-        S_HCRC_REQ: begin
-          f_addr <= {9'd0, hdr_i};
-          f_read <= 1'b1;
-          st <= S_HCRC_WAIT;
-        end
-        S_HCRC_WAIT: if (f_done) begin
-          hcrc_word <= (hdr_i == 6'd6) ? 32'd0 : f_rdata;
-          hcrc_byte <= 2'd0;
-          st <= S_HCRC_LOAD;
-        end
-        S_HCRC_LOAD: begin
-          hcrc[15:8] <= hcrc[15:8] ^ hcrc_b;
-          hcrc_bit <= 3'd0;
-          st <= S_HCRC_BIT;
-        end
-        S_HCRC_BIT: begin
-          hcrc <= {hcrc[14:0], 1'b0} ^ (hcrc[15] ? 16'h1021 : 16'h0000);
-          if (hcrc_bit == 3'd7) begin
-            hcrc_bit <= 3'd0;
-            if (hcrc_byte == 2'd3) begin
-              if (hdr_i == 6'd63) st <= S_HCRC_CHK;
-              else begin hdr_i <= hdr_i + 6'd1; st <= S_HCRC_REQ; end
-            end else begin hcrc_byte <= hcrc_byte + 2'd1; st <= S_HCRC_LOAD; end
-          end else begin
-            hcrc_bit <= hcrc_bit + 3'd1;
-          end
-        end
-        S_HCRC_CHK: begin
-          if (hcrc == hdr_hcrc[15:0]) st <= S_CP_REQ;
-          else begin err <= 1'b1; st <= S_ERR; end
         end
 
         // ---- copy --------------------------------------------------------
@@ -376,7 +274,7 @@ module flash_boot (
 `endif
 
         S_CRC_CHK: begin
-          if (crc == hdr_crc[15:0]) begin
+          if (crc == hdr_crc) begin
             if (hdr_format == FORMAT2) begin
               if (hdr_count == 16'd0) begin
                 done <= 1'b1;
@@ -387,14 +285,8 @@ module flash_boot (
                 st <= S_ENT_REQ;
               end
             end else begin
-`ifdef D16SEG
-              win_i <= 4'd0;
-              win_pos <= 11'd0;
-              st <= S_WIN_LOAD;
-`else
               done <= 1'b1;
               st <= S_DONE;
-`endif
             end
           end else begin
             err <= 1'b1;
@@ -402,85 +294,6 @@ module flash_boot (
           end
         end
 
-`ifdef D16SEG
-        // ---- BDOS chapter windows -------------------------------------
-        // A window is {len, src, dst}. Source words are in free flat-image
-        // runs; the destination is offset dst inside CS=0x4000. Reads may
-        // start at an odd word, so select the half of the flash pair.
-        S_WIN_LOAD: begin
-          win_desc <= bdos_win(win_i);
-          st <= S_WIN_REQ;
-        end
-        S_WIN_REQ: begin
-          f_addr <= 15'(FLASH_IMG + ((win_desc[31:16] + {5'd0, win_pos}) >> 1));
-          f_read <= 1'b1;
-          st <= S_WIN_WAIT;
-        end
-        S_WIN_WAIT: if (f_done) begin
-          win_word <= ((win_desc[31:16] + {5'd0, win_pos}) & 16'd1)
-                      ? f_rdata[31:16] : f_rdata[15:0];
-          st <= S_WIN_WR;
-        end
-        S_WIN_WR: if (!bbusy) begin
-          breq <= 1'b1; bwe <= 1'b1;
-          baddr <= 20'h40000 + {4'd0, win_desc[15:0]} + {9'd0, win_pos};
-          bwdata <= win_word;
-          st <= S_WIN_WRW;
-        end
-        S_WIN_WRW: if (bbusy) begin
-          if ({5'd0, win_pos} == win_desc[47:32] - 16'd1) begin
-            if (win_i == BDOS_WIN_COUNT - 1) begin
-              hd_i <= 3'd0;
-              hd_pos <= 11'd0;
-              st <= S_HD_LOAD;
-            end else begin
-              win_i <= win_i + 4'd1;
-              win_pos <= 11'd0;
-              st <= S_WIN_LOAD;
-            end
-          end else begin
-            win_pos <= win_pos + 11'd1;
-            st <= S_WIN_REQ;
-          end
-        end
-
-        // ---- format-1 relocated headers and high DS cells ----------------
-        S_HD_LOAD: begin
-          hd_desc <= hd_win(hd_i);
-          st <= S_HD_REQ;
-        end
-        S_HD_REQ: begin
-          f_addr <= 15'(FLASH_IMG + ((hd_desc[31:16] + {5'd0, hd_pos}) >> 1));
-          f_read <= 1'b1;
-          st <= S_HD_WAIT;
-        end
-        S_HD_WAIT: if (f_done) begin
-          hd_word <= ((hd_desc[31:16] + {5'd0, hd_pos}) & 16'd1)
-                     ? f_rdata[31:16] : f_rdata[15:0];
-          st <= S_HD_WR;
-        end
-        S_HD_WR: if (!bbusy) begin
-          breq <= 1'b1; bwe <= 1'b1;
-          baddr <= 20'h10000 + {4'd0, hd_desc[15:0]} + {9'd0, hd_pos};
-          bwdata <= hd_word;
-          st <= S_HD_WRW;
-        end
-        S_HD_WRW: if (bbusy) begin
-          if ({5'd0, hd_pos} == hd_desc[47:32] - 16'd1) begin
-            if (hd_i == HD_WIN_COUNT - 1) begin
-              done <= 1'b1;
-              st <= S_DONE;
-            end else begin
-              hd_i <= hd_i + 3'd1;
-              hd_pos <= 11'd0;
-              st <= S_HD_LOAD;
-            end
-          end else begin
-            hd_pos <= hd_pos + 11'd1;
-            st <= S_HD_REQ;
-          end
-        end
-`endif
 
         // ---- format-2 chapter entries ---------------------------------
         // Read one 3-word entry from the header at 8 + 3*entry_i, then copy
@@ -493,24 +306,20 @@ module flash_boot (
         end
         S_ENT_WAIT: if (f_done) begin
           case (ent_word_i)
-            2'd0: ent_seg <= f_rdata[15:0];
+            2'd0: ent_seg <= f_rdata[15:12];
             2'd1: begin
               ent_base <= f_rdata[15:0];
               ent_src  <= f_rdata[31:16];
             end
             default: begin
-              ent_count <= f_rdata[15:0];
-              ent_flags <= f_rdata[31:16];
-              ent_dst <= ({4'd0, ent_seg} << 4) + {4'd0, ent_base};
-              if (f_rdata[15:0] == 16'd0 ||
-                  (32'(ent_src) << 1) + 32'(f_rdata[31:16] & 16'h1) +
-                    32'(f_rdata[15:0]) > 32'(IMG_WORDS) ||
-                  (32'(ent_seg) << 4) + 32'(ent_base) +
-                    32'(f_rdata[15:0]) > 32'h100000) begin
+              ent_count <= f_rdata[11:0];
+              ent_flag  <= f_rdata[16];
+              ent_dst   <= {ent_seg, 16'd0} + {4'd0, ent_base};
+              if (f_rdata[11:0] == 12'd0) begin
                 err <= 1'b1;
                 st <= S_ERR;
               end else begin
-                ent_pos <= 16'd0;
+                ent_pos <= 12'd0;
                 st <= S_ENT_CP_REQ;
               end
             end
@@ -521,9 +330,9 @@ module flash_boot (
           end
         end
         S_ENT_CP_REQ: begin
-          ent_src_word <= (ent_src << 1) + (ent_flags & 16'h1) + ent_pos;
+          ent_src_word <= (ent_src << 1) + {15'd0, ent_flag} + ent_pos;
           f_addr <= 15'(FLASH_IMG +
-                        (((ent_src << 1) + (ent_flags & 16'h1) + ent_pos) >> 1));
+                        (((ent_src << 1) + {15'd0, ent_flag} + ent_pos) >> 1));
           f_read <= 1'b1;
           st <= S_ENT_CP_WAIT;
         end
@@ -538,8 +347,8 @@ module flash_boot (
           st <= S_ENT_CP_WRW;
         end
         S_ENT_CP_WRW: if (bbusy) begin
-          if (ent_pos + 16'd1 == ent_count) begin
-            if ({11'd0, entry_i} + 16'd1 == hdr_count) begin
+          if (ent_pos + 12'd1 == ent_count) begin
+            if ({10'd0, entry_i} + 5'd1 == hdr_count) begin
               done <= 1'b1;
               st <= S_DONE;
             end else begin
@@ -548,7 +357,7 @@ module flash_boot (
               st <= S_ENT_REQ;
             end
           end else begin
-            ent_pos <= ent_pos + 16'd1;
+            ent_pos <= ent_pos + 12'd1;
             st <= S_ENT_CP_REQ;
           end
         end

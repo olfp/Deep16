@@ -66,6 +66,7 @@ module flash_boot_tb (
   localparam int WORDS = 14400;
   logic [31:0] flash32 [0:WORDS-1];
   initial $readmemh("image.flash.hex", flash32);
+  wire is_format2 = (flash32[1] & 32'hFFFF) == 32'd2;
 
   logic [23:0] hdr;
   logic [2:0]  bitcnt, bytecnt, dbit;
@@ -123,11 +124,10 @@ module flash_boot_tb (
   assign exp_bios4a00 = flash32[64 + 16'h2500] & 16'hFFFF;
   assign exp_bios5800 = flash32[64 + 16'h2C00] & 16'hFFFF;
   assign exp_bios6000 = flash32[64 + 16'h3000] & 16'hFFFF;
-  // Phase 4a: the dense BDOS chapter lands at CS=0x4000. Entry is word 0;
-  // the last window starts at chapter offset 0x06F2, sourced from flat 0x2D49
-  // (odd, so the high half of its flash pair).
-  assign exp_bdos_entry = flash32[64] & 16'hFFFF;
+  // Format 2 carries the dense BDOS chapter. Format 1 remains the legacy
+  // flat/BIOS image and does not stage chapters.
+  assign exp_bdos_entry = is_format2 ? (flash32[64] & 16'hFFFF) : 16'h0000;
   assign got_bdos_entry = psram[20'h40000];
-  assign exp_bdos_tail  = flash32[64 + 16'h16A4] >> 16;
+  assign exp_bdos_tail  = is_format2 ? (flash32[64 + 16'h16A4] >> 16) : 16'h0000;
   assign got_bdos_tail  = psram[20'h406F2];
 endmodule

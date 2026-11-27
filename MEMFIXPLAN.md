@@ -559,16 +559,19 @@ mirrors. Two hard-coded `-0x4000` address builders (`fw_restore`,
 
 ### Phase 4b — format 2 chapter table (done)
 
-* `flash_boot.sv` now reads the 64-word header with a 6-bit counter, validates
-  the header CRC over words 0..63 (word 6 as zero) and the payload CRC, then
-  parses three-word entries at words 8..: `{seg,id}`, `{base,srcPairStart}`,
-  `{wordCount,flags}`. One generic loop copies each entry to
-  `(seg << 4) + base`; entries may be unsorted and may repeat source ranges.
-  The source half is selected by `flags[0]`, so odd starts work. Bounds are
-  checked for source, destination and entry count.
-* Format 1 is untouched: word 2 is the image word count and the Phase 4a
-  windows run after the payload CRC. Format 2 word 2 is the total 32-bit flash
-  words (14,400); the header CRC adds 2 bits of flash-header protection.
+* `flash_boot.sv` now reads the 64-word header with a 6-bit counter, checks
+  magic/format/count and the payload CRC, then parses three-word entries at
+  words 8..: `{seg,id}`, `{base,srcPairStart}`, `{wordCount,flags}`. One
+  generic loop copies each entry to `(seg << 4) + base`; entries may be
+  unsorted and may repeat source ranges. The source half is selected by
+  `flags[0]`, so odd starts work. The generator enforces table capacity and
+  entry bounds; the fitted loader checks only a nonzero count.
+* Format 1 is legacy: word 2 is the image word count; it copies the flat image,
+  DS mirror and BIOS window but stages no chapters. Format 2 word 2 is the
+  total 32-bit flash words (14,400) and is the only format that carries BDOS,
+  relocated headers and the high DS cells. The header CRC field is generated
+  for software, but the fitted GW1NR-9 loader does not verify it; the payload
+  CRC still covers the image.
 * `flashImage()` emits format 2 for D16D images and still accepts
   `{ format: 1 }`; `chapterTable()` emits the DS mirror, system copy and nine
   BDOS entries. `Deep16D16DImage.chapterTable()`/`scatterD16SEG(..., {table})`
@@ -612,8 +615,11 @@ stays at DS `0x5800`.
 ### Phase 5b — loader, kernel and module integration
 
 * Format 2 adds four header entries and three high-data entries to the chapter
-  table (11 existing + 7 = 18, the header capacity); format 1 gains the same
-  seven hard-coded windows after its BDOS windows.
+  table (11 existing + 7 = 18, the header capacity); format 1 remains the
+  legacy flat/BIOS path and does not stage chapters. The first fitted attempt
+  with nine format-1 BDOS windows plus the seven high windows exceeded the
+  GW1NR-9 logic/CLS budget; the final tile build fits at 8513/8640 logic
+  (CLS 4320/4320).
 * The DS mirror ends at `dict_free-1`; the system copy is unchanged.
 * `asm/forth_nano.asm`: split `PSRAM_PROBE_HI` from the dictionary base, point
   `dp_var`/`dict_base_var` at `dict_free`, set the PSRAM limit to `0xEF80` and

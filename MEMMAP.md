@@ -644,7 +644,7 @@ the dictionary stays below the BIOS.
 |---|---|
 | Flash byte range | `0x100000`–`0x112FFF` (76 KB = 608 Kbit) |
 | Header | 8 × 32-bit words at image words 0..7 |
-| Header fields | magic `'D16F'` `0x44313646`, format 1, image length 24,576 words, CRC-16/CCITT-FALSE, build id, reserved |
+| Header fields | magic `'D16F'` `0x44313646`, format 2, total 14,400 32-bit words, payload CRC, 18 table entries, header CRC field, build id |
 | Flat image | image words 64..12,351; two 16-bit CPU words per 32-bit flash word |
 | Remainder | `0xFF` |
 | Transport | mode-0 SPI `0x03` reads through the shared SPI master at boot |
