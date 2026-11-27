@@ -82,8 +82,11 @@ into nine free runs and copied by nine windows in `flash_boot.sv`:
 | `0x5FE3`–`0x5FFF` | `0x06D5` | 29 |
 | `0x2D49`–`0x2D88` | `0x06F2` | 64 |
 
-The header stays format 1 and the installer stays at 14,400 words: everything
-stays inside the existing 28,672-word flat image.
+Phase 4b puts these destinations in the format-2 chapter table (DS mirror,
+system copy, nine BDOS windows) and the loader drives one generic copy loop.
+Format 1 remains accepted and still uses the hardcoded Phase 4a windows. The
+D16D image therefore uses format 2; the installer stays at 14,400 words and
+everything stays inside the existing 28,672-word flat image.
 
 ---
 

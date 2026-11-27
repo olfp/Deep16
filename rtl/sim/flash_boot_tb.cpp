@@ -33,8 +33,7 @@ int main(int argc, char** argv) {
 
   top->start = 1; tick(); top->start = 0;
   int cycles = 0;
-  while (!top->done && !top->err && cycles < 6000000) { tick(); cycles++; }
-
+  while (!top->done && !top->err && cycles < 30000000) { tick(); cycles++; }
   expect("loader finished without error", top->err, 0);
   expect("loader done", top->done, 1);
   expect("entry word 0x0100", top->entry_exp, top->exp_0100);

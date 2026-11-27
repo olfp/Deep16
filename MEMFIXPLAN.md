@@ -1,8 +1,7 @@
 # MEMFIXPLAN — clean up the memory map with chapters and a thin linker
 
-Status: **phases 0–4a implemented**, 2026-11-27; phase 4b (format 2)
-and phase 5 remain. Companion to `MEMLAYOUT.md` (audit) and
-`MEMMAP.md` (hardware/MMIO reference).
+Status: **phases 0–4b implemented**, 2026-11-27; phase 5 remains. Companion
+to `MEMLAYOUT.md` (audit) and `MEMMAP.md` (hardware/MMIO reference).
 
 ## 0. Goal, scope, non-goals
 
@@ -199,46 +198,45 @@ word 63 reserved / pad
 Word 6 must not cover itself: verify with word 6 treated as zero, or the check
 is circular. Cover every other header word (including `format` and the payload
 CRC field), so a corrupted `format` cannot slip past on its way to selecting a
-parser. "Word" here is one 16-bit CPU word packed under the existing
-two-per-32-bit-flash-word layout, not one 32-bit flash word.
+parser. Header words 0..63 are **32-bit flash words**; the payload after word
+64 still packs two 16-bit CPU words per flash word. The header CRC processes
+each 32-bit word's four little-endian bytes.
 
-A table entry names **one destination**, not one source. The current loader
+A format-2 entry is three 32-bit header words:
+
+```
+word 0  seg[15:0], id[23:16]
+word 1  base[15:0], srcPairStart[31:16]
+word 2  wordCount[15:0], flags[31:16]   (flags bit 0 = source starts high)
+```
+
+A table entry names **one destination**, not one source. The loader still
 writes the same source range to two destinations (flat `0x3000..0x57DC` →
 `DS=0x1000`; flat `0x4A00..` → `CS=0x3000`), and those source ranges overlap
-each other (`rtl/flash/flash_boot.sv:181-247`). Format 2 therefore must allow
-several entries to point at the same or overlapping source ranges — the DS
-mirror is simply a second entry with `seg=0x1000`, `base=<kernel-data offset>`
-and the same `srcPairStart`. The RTL loop must not assume entries are sorted or
-that source ranges are disjoint; it iterates entries and, for each, copies
-`wordCount` pairs from `srcPairStart`. Say this explicitly, because a
-monotonic-source assumption is the easy mistake in the generic loop.
+each other. Format 2 therefore allows several entries to point at the same or
+overlapping source ranges — the DS mirror is simply a second entry with
+`seg=0x1000`, `base=<kernel-data offset>` and the same `srcPairStart`. The RTL
+loop must not assume entries are sorted or that source ranges are disjoint; it
+iterates entries and, for each, copies `wordCount` words from `srcPairStart`.
+The flat image itself stays implicit: the canonical payload pass copies it and
+captures `entry_exp`.
 
 The payload CRC must also stay **per source pair, not per destination**: the
 DS mirror re-reads flash words the flat copy already streamed, and feeding them
-to the CRC twice changes the value the header was built with. Either keep one
-canonical pass over the payload and drive destinations from it (the current
-shape), or skip the CRC on duplicate source pairs. Same for `entry_exp`
-(`flash_boot.sv:147`), which is captured from the pair at image word `0x0100`:
-the kernel chapter must still be copied through the pass that sees it.
+to the CRC twice changes the value the header was built with. The current shape
+keeps one canonical pass over the payload and drives the table copies after it.
 
-`flash_boot.sv` reads the table (it currently reads 8 header words with a
-3-bit `hdr_i`: `rtl/flash/flash_boot.sv:109-135`), checks both CRCs and bounds,
-then uses **one generic copy loop** instead of the three hard-coded windows at
-`:168-239`. Destination is `(seg << 4) + base + index`; `baddr` is already 20
-bits. For format 1 it keeps the hardcoded-window path (retuned in Phase 4a), so
-old bitstreams/images and the installer still work.
+`flash_boot.sv` reads the 64-word header with a 6-bit counter, checks the
+header CRC and payload CRC, then uses **one generic copy loop**. Destination is
+`(seg << 4) + base + index`; `baddr` is already 20 bits. Format 1 still takes
+the hardcoded-window path from Phase 4a (DS mirror, system copy and the nine
+BDOS windows), so old bitstreams/images and the installer still work.
 
-This is an RTL change by nature, not a choice. The copy happens **before the
-CPU is released** (`done`/`entry_exp` gate the core), so no software can read
-the chapter table first: `flash_boot.sv` *is* the machine's only reader of
-config flash at that point. Its format, word count and window constants are
-`localparam`s compiled into the bitstream (`FORMAT = 32'd1`,
-`IMG_WORDS = 28672`, `IMG_PAIRS = 14336`), its header reader is a 3-bit counter
-over 8 words, and its three destinations are the literal constants
-`20'h10000`, `20'h2B600` and `{5'd0, img_i, 1'b0}`. A per-chapter
-`(seg, base, srcPairStart, wordCount)` cannot be expressed to that hardware
-without changing the header state machine and the copy FSM, which is exactly
-what Phase 4b does.
+The copy happens **before the CPU is released** (`done`/`entry_exp` gate the
+core), so no software can read the chapter table first: `flash_boot.sv` *is*
+the machine's only reader of config flash at that point. The header layout and
+payload start are `localparam`s compiled into the bitstream (`FLASH_WORDS =
+14400`, `IMG_WORDS = 28672`, `IMG_PAIRS = 14336`).
 
 ### 3.5 Constant pool (`LDC`) — addresses without `LDI` bit tricks
 
@@ -522,8 +520,9 @@ mirrors. Two hard-coded `-0x4000` address builders (`fw_restore`,
   `0x4330` gap is free and Pac-Man exists only as the config-flash slice.
   `tests/d16d-fpu.test.js` pins the scanner run, and
   `scripts/make_image.mjs` rejects an out-of-run scanner.
-* **Acceptance:** the library exists *only* in the system chapter, flat
-  `0x5800`–`0x6475` is FILL, and `s>f`, `f>s`, `f+`, `fexp` and float literals
+* **Acceptance:** the library exists *only* in the system chapter; the
+  un-staged flat `0x5800`–`0x6475` is FILL (Phase 4a later stages it for the
+  loader), and `s>f`, `f>s`, `f+`, `fexp` and float literals
   all run through the chapter (verified by `d16d-fpu`, `ps2-raw`,
   `native-lila` and the full suite). The `CS=0` ILL entry trampoline remains a
   far jump. The scanner no longer touches the PACMAN gap.
@@ -550,34 +549,36 @@ mirrors. Two hard-coded `-0x4000` address builders (`fw_restore`,
   directly, so simulator memory equals the board windows.
 * **Acceptance:** `scripts/build_flash_boot_sim.sh` passes, including
   the BDOS entry at `0x40000` and the last staged word at `0x406F2`; the full
-  `npm test` suite passes; the image is still format 1 and the installer is
-  unchanged. The dictionary reclaim remains Phase 5.
+  `npm test` suite passes; the image was still format 1 at this step and the
+  installer is unchanged. Phase 4b then adds the format-2 table. The dictionary
+  reclaim remains Phase 5.
 * **Files:** `rtl/flash/flash_boot.sv`, `rtl/sim/flash_boot_tb.*`,
   `asm/bdos_block.asm`, `asm/forth_nano.asm`, `asm/ill_block.asm`,
   `asm/forth_float.asm`, `js/deep16_d16d_image.js`, `scripts/make_image.mjs`,
   boot tests.
 
-### Phase 4b — format 2 chapter table in the loader and IDE
+### Phase 4b — format 2 chapter table (done)
 
-* Implement format-2 chapter parsing in `rtl/flash/flash_boot.sv` (keep
-  format 1). Read the table from header words 8.., validate both CRCs and the
-  bounds, and drive one generic copy loop from `(seg, base, srcPairStart,
-  wordCount)`. Do not assume entries are sorted or sources disjoint — the DS
-  mirror is a second entry over the same source range (§3.4).
-* Replace `scatterD16SEG()` in `js/deep16_d16d_image.js` with
-  `applyChapters()` driven by the same table, and mirror it into simulator
-  memory in `js/deep16_ui_core.js`.
-* Update flash/installer word counts only if the total grows past the existing
-  14,400 words / `0x13000` byte window; the table lives in already-reserved
-  header words, so it should not.
-* **Acceptance:** `rtl/sim/flash_boot_tb.sv/.cpp` checks both format-1 and
-  format-2 boots (`make -f ... build_flash_boot_sim`);
-  `tests/ui-d16d.test.js`, `tests/showcase-boot.test.js`,
-  `tests/segmented-showcase.test.js`, `tests/ps2-raw.test.js`,
-  `tests/ps2-bios.test.js`, `tests/spi-bios.test.js` boot from chaptered
-  memory; `tests/d16d-image.test.js` parity holds.
+* `flash_boot.sv` now reads the 64-word header with a 6-bit counter, validates
+  the header CRC over words 0..63 (word 6 as zero) and the payload CRC, then
+  parses three-word entries at words 8..: `{seg,id}`, `{base,srcPairStart}`,
+  `{wordCount,flags}`. One generic loop copies each entry to
+  `(seg << 4) + base`; entries may be unsorted and may repeat source ranges.
+  The source half is selected by `flags[0]`, so odd starts work. Bounds are
+  checked for source, destination and entry count.
+* Format 1 is untouched: word 2 is the image word count and the Phase 4a
+  windows run after the payload CRC. Format 2 word 2 is the total 32-bit flash
+  words (14,400); the header CRC adds 2 bits of flash-header protection.
+* `flashImage()` emits format 2 for D16D images and still accepts
+  `{ format: 1 }`; `chapterTable()` emits the DS mirror, system copy and nine
+  BDOS entries. `Deep16D16DImage.chapterTable()`/`scatterD16SEG(..., {table})`
+  mirror it in the browser and IDE, so simulator memory follows the same table.
+* **Acceptance:** `scripts/build_flash_boot_sim.sh` boots **both** formats and
+  checks the BDOS entry/tail; the full `npm test` suite passes; the image is
+  still within the 14,400-word installer window.
 * **Files:** `rtl/flash/flash_boot.sv`, `rtl/sim/flash_boot_tb.*`,
-  `js/deep16_d16d_image.js`, `js/deep16_ui_core.js`, above tests.
+  `scripts/make_image.mjs`, `scripts/build_flash_boot_sim.sh`,
+  `js/deep16_d16d_image.js`, `js/deep16_ui_core.js`, boot tests.
 
 ### Phase 5 — reclaim the dictionary and finish the cleanup
 

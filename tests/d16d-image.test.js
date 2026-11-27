@@ -13,7 +13,8 @@ import { layoutWords } from '../scripts/make_ps2map.mjs';
 process.env.D16NANO = '1';
 process.env.D16D = '1';
 process.env.D16SEG = '1';
-const { buildImage } = await import('../scripts/make_image.mjs');
+const { buildImage, flashImage, crc16FlashHeader, FLASH_FORMAT, FLASH_FORMAT_CHAPTERS } =
+  await import('../scripts/make_image.mjs');
 
 for (const f of ['js/deep16_assembler.js', 'js/deep16_linker.js', 'js/deep16_d16d_image.js']) {
   vm.runInThisContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), { filename: f });
@@ -149,4 +150,40 @@ test('the board loader stages both chapters in free flat words', () => {
                  `system stage 0x${offset.toString(16)}`);
   }
   assert.equal(image.words[0x4330], 0xFFFF, 'the PACMAN gap stays free');
+});
+
+
+test('the D16D flash header uses the format-2 chapter table', () => {
+  const image = buildImage();
+  const flash = flashImage(image);
+  assert.equal(flash.words[1], FLASH_FORMAT_CHAPTERS, 'format 2');
+  assert.equal(flash.words[2], flash.words.length, 'word 2 is the total 32-bit words');
+  assert.equal(flash.words[5], 11, 'DS, system and nine BDOS entries');
+  assert.equal(flash.words[6], crc16FlashHeader(flash.words), 'header CRC');
+  // First entry: the DS mirror at seg 0x1000, base/src pair 0x3000/0x1800.
+  assert.equal(flash.words[8] & 0xFFFF, 0x1000);
+  assert.equal(flash.words[8] >>> 16, 1);
+  assert.equal(flash.words[9] & 0xFFFF, 0x3000);
+  assert.equal(flash.words[9] >>> 16, 0x1800);
+  assert.equal(flash.words[10] & 0xFFFF, 0x27DD);
+  assert.equal(flash.words[10] >>> 16, 0);
+  // Third entry starts the BDOS windows at seg 0x4000, base 0.
+  assert.equal(flash.words[14] & 0xFFFF, 0x4000);
+  assert.equal(flash.words[15] & 0xFFFF, 0x0000);
+  assert.equal(flash.words[16] & 0xFFFF, 256);
+  const legacy = flashImage(image, { format: FLASH_FORMAT });
+  assert.equal(legacy.words[1], FLASH_FORMAT, 'format 1 still available');
+  assert.equal(legacy.words[2], image.words.length);
+  assert.equal(legacy.words[6], 0);
+});
+
+test('the format-2 table scatters the same chapters as the direct overlay', () => {
+  const image = Deep16D16DImage.build(sources);
+  const direct = [];
+  const table = [];
+  Deep16D16DImage.scatterD16SEG(image.words, { bdos: image.bdos, sys: image.sys, memory: direct });
+  Deep16D16DImage.scatterD16SEG(image.words, { table: image.chapterTable, memory: table });
+  for (const address of [0x13000, 0x30E00, 0x31600, 0x40000, 0x400F0, 0x406F2]) {
+    assert.equal(table[address], direct[address], `address 0x${address.toString(16)}`);
+  }
 });

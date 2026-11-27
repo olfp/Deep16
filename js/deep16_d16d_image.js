@@ -248,7 +248,21 @@ class Deep16D16DImage {
   //
   // Returns the writes as { address, value } records. If memory is supplied,
   // the writes are also applied to it.
-  static scatterD16SEG(words, { bootPtr = null, bdos = null, sys = null, memory = null } = {}) {
+  // Format-2 table entries: one destination each. The DS mirror and the
+  // system copy repeat source ranges intentionally; the flat image is copied
+  // by the canonical payload pass and is not listed.
+  static chapterTable(bdosWindows = [], imageWords = 0x7000) {
+    const entries = [
+      { id: 1, seg: 0x1000, base: 0x3000, src: 0x3000, count: 0x57DC - 0x3000 + 1 },
+      { id: 2, seg: 0x3000, base: 0x0000, src: 0x4A00, count: imageWords - 0x4A00 },
+    ];
+    for (const win of bdosWindows) {
+      entries.push({ id: 3, seg: 0x4000, base: win.dst, src: win.src, count: win.len });
+    }
+    return entries.map((e) => ({ ...e, srcPairStart: e.src >> 1, flags: e.src & 1 }));
+  }
+
+  static scatterD16SEG(words, { bootPtr = null, bdos = null, sys = null, table = null, memory = null } = {}) {
     if (!words || typeof words.length !== 'number') {
       throw new Error('D16SEG scatter needs an image word array');
     }
@@ -258,26 +272,36 @@ class Deep16D16DImage {
     const last = words.length - 1;
 
     for (let offset = 0; offset <= last; offset++) put(offset, words[offset]);
-    for (let offset = 0x3000; offset <= Math.min(0x57DC, last); offset++) {
-      put(0x10000 + offset, words[offset]);
-    }
-    for (let offset = 0x4A00; offset <= last; offset++) {
-      put(0x30000 + (offset - 0x4A00), words[offset]);
-    }
-
-    // Phase 3: the system chapter (ILL handler) is placed after the BIOS copy,
-    // which copied FILL over its old flat range. Its words are offsets.
-    if (sys && sys.words) {
-      for (let offset = 0; offset < sys.words.length; offset++) {
-        if (sys.words[offset] !== 0xFFFF) put(0x30000 + offset, sys.words[offset]);
+    if (table) {
+      // Phase 4b: the same table the flash loader reads. Source indices are
+      // flat image words; an odd source starts on the high half of its pair.
+      for (const entry of table) {
+        const src = (entry.srcPairStart << 1) + (entry.flags & 1);
+        const dst = (entry.seg << 4) + entry.base;
+        for (let i = 0; i < entry.count; i++) put(dst + i, words[src + i]);
       }
-    }
+    } else {
+      for (let offset = 0x3000; offset <= Math.min(0x57DC, last); offset++) {
+        put(0x10000 + offset, words[offset]);
+      }
+      for (let offset = 0x4A00; offset <= last; offset++) {
+        put(0x30000 + (offset - 0x4A00), words[offset]);
+      }
 
-    // Phase 2c: the BDOS chapter is its own segment. Its words are offsets, so
-    // the destination is 0x40000 + offset. FILL words are already erased memory.
-    if (bdos && bdos.words) {
-      for (let offset = 0; offset < bdos.words.length; offset++) {
-        if (bdos.words[offset] !== 0xFFFF) put(0x40000 + offset, bdos.words[offset]);
+      // Phase 3: the system chapter (ILL handler) is placed after the BIOS copy,
+      // which copied FILL over its old flat range. Its words are offsets.
+      if (sys && sys.words) {
+        for (let offset = 0; offset < sys.words.length; offset++) {
+          if (sys.words[offset] !== 0xFFFF) put(0x30000 + offset, sys.words[offset]);
+        }
+      }
+
+      // Phase 2c: the BDOS chapter is its own segment. Its words are offsets,
+      // so the destination is 0x40000 + offset. FILL words are already erased.
+      if (bdos && bdos.words) {
+        for (let offset = 0; offset < bdos.words.length; offset++) {
+          if (bdos.words[offset] !== 0xFFFF) put(0x40000 + offset, bdos.words[offset]);
+        }
       }
     }
 
@@ -395,6 +419,9 @@ class Deep16D16DImage {
       bdos: kernelImage.bdos,
       sys: kernelImage.sys,
       bdosWindows: staged.bdosWindows,
+      format: defines.D16SEG !== 0 ? 2 : 1,
+      chapterTable: defines.D16SEG !== 0
+        ? this.chapterTable(staged.bdosWindows, words.length) : null,
       collisions,
       dictFree: kres.symbols.dict_free,
       biosEntry: kres.symbols.bios_entry,

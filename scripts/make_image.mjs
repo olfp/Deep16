@@ -67,7 +67,8 @@ export const IMG_BLOCK_WORDS = 0x4000; // 16 BSRAM blocks: the packed-image budg
 export const BIOS_BASE  = process.env.D16NANO ? 0x4A00 : 0x5600;  // must match the kernel's .org
 export const STACK_BASE = 0x5800;  // RSTACK_TOP: the dictionary stays below it
 export const FLASH_MAGIC  = 0x44313646; // 'D16F', first 32-bit word of the flash header
-export const FLASH_FORMAT = 1;         // header format
+export const FLASH_FORMAT = 1;         // legacy hardcoded-window header
+export const FLASH_FORMAT_CHAPTERS = 2; // chapter-table header
 export const FLASH_HDR_WORDS = 64;     // 32-bit words reserved before the image
 export const ECHO_FLAG  = 0xF0064; // the kernel's echo cell: outside the window,
                                    // so the board neither backs nor decodes it
@@ -324,6 +325,7 @@ export function buildImage() {
     bdos: bdos ? { words: bdos.words, outOfWindow: bdos.outOfWindow } : null,
     sys: sys ? { words: sys.words, outOfWindow: sys.outOfWindow } : null,
     bdosWindows,
+    format: D16D ? FLASH_FORMAT_CHAPTERS : FLASH_FORMAT,
     layouts: layouts ? { base: PS2_LAYOUT_BASE, words: LAYOUT_WORDS,
                          count: LAYOUT_COUNT } : null,
   };
@@ -454,18 +456,65 @@ export function crc16(words) {
   return crc16Bytes(bytes);
 }
 
+// Format-2 chapter table. Each entry names one destination:
+//   word 0: seg[15:0], id[23:16]
+//   word 1: base[15:0], srcPairStart[31:16]
+//   word 2: wordCount[15:0], flags[31:16]  (bit 0 = source starts on the high half)
+// The flat image itself is copied by the canonical payload pass, so it is not
+// a table entry. The DS mirror and the system copy repeat source ranges on
+// purpose.
+export function chapterTable(img) {
+  const entries = [
+    { id: 1, seg: 0x1000, base: 0x3000, src: 0x3000, count: 0x57DC - 0x3000 + 1 },
+    { id: 2, seg: 0x3000, base: 0x0000, src: 0x4A00, count: img.words.length - 0x4A00 },
+  ];
+  for (const win of img.bdosWindows ?? []) {
+    entries.push({ id: 3, seg: 0x4000, base: win.dst, src: win.src, count: win.len });
+  }
+  return entries.map((e) => ({
+    ...e,
+    srcPairStart: e.src >> 1,
+    flags: e.src & 1,
+  }));
+}
+
+export function crc16FlashHeader(words) {
+  const bytes = [];
+  for (let i = 0; i < FLASH_HDR_WORDS; i++) {
+    const w = (i === 6 ? 0 : words[i]) >>> 0;
+    bytes.push(w & 0xFF, (w >>> 8) & 0xFF, (w >>> 16) & 0xFF, (w >>> 24) & 0xFF);
+  }
+  return crc16Bytes(bytes);
+}
+
 // The user-flash image: a 64-word header, then the flat 16-bit image packed
-// two words per 32-bit flash word. Header word 0 = magic, 1 = format,
-// 2 = image words, 3 = CRC16, 4 = build id (0), 5..7 = reserved.
-export function flashImage(img) {
+// two words per 32-bit flash word. Format 1 keeps the legacy hardcoded-window
+// header; format 2 adds the chapter table in header words 8.., word 5 = entry
+// count, word 6 = header CRC (computed with word 6 read as zero), and word 2 =
+// total 32-bit flash words. The payload CRC is unchanged.
+export function flashImage(img, { format = img.format ?? FLASH_FORMAT } = {}) {
   const crc = crc16(img.words);
   const words = new Uint32Array(FLASH_HDR_WORDS + img.words.length / 2);
   words[0] = FLASH_MAGIC;
-  words[1] = FLASH_FORMAT;
-  words[2] = img.words.length;
+  words[1] = format;
   words[3] = crc;
   words[4] = parseInt(img.build.slice(0, 8), 16) >>> 0;
-  words[5] = 0; words[6] = 0; words[7] = 0;
+  if (format === FLASH_FORMAT_CHAPTERS) {
+    const table = chapterTable(img);
+    if (8 + table.length * 3 > FLASH_HDR_WORDS) throw new Error('chapter table does not fit the flash header');
+    words[2] = words.length;
+    words[5] = table.length;
+    for (let i = 0; i < table.length; i++) {
+      const e = table[i], o = 8 + i * 3;
+      words[o] = ((e.id & 0xFF) << 16) | (e.seg & 0xFFFF);
+      words[o + 1] = ((e.srcPairStart & 0xFFFF) << 16) | (e.base & 0xFFFF);
+      words[o + 2] = ((e.flags & 0xFFFF) << 16) | (e.count & 0xFFFF);
+    }
+    words[6] = crc16FlashHeader(words);
+  } else {
+    words[2] = img.words.length;
+    words[5] = 0; words[6] = 0; words[7] = 0;
+  }
   for (let i = 0; i < img.words.length; i += 2) {
     words[FLASH_HDR_WORDS + i / 2] = (img.words[i] | (img.words[i + 1] << 16)) >>> 0;
   }
@@ -514,7 +563,11 @@ export function manifest(img) {
       ranges: pack.ranges.length,
     } : null,
     flash: {
-      format: '64-word header, then flat image, two 16-bit words per 32-bit word',
+      format: (img.format === FLASH_FORMAT_CHAPTERS
+        ? 'format 2: 64-word header with chapter table, then flat image'
+        : 'format 1: 64-word header, then flat image') +
+        ', two 16-bit words per 32-bit word',
+      format_id: img.format,
       image_words: img.words.length,
       words: flashImage(img).words.length,
       installer_words: INSTALLER_WORDS,

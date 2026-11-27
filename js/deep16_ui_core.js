@@ -436,6 +436,7 @@ class DeepWebUI {
           bootPtr: null,
           bdos: image.bdos,
           sys: image.sys,
+          table: image.chapterTable,
           memory: this.simulator.memory,
         });
         return {
@@ -485,6 +486,7 @@ class DeepWebUI {
           bootPtr: null,
           bdos: image.bdos,
           sys: image.sys,
+          table: image.chapterTable,
           memory: this.simulator.memory,
         });
         return {
