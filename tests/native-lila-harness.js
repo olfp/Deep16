@@ -81,7 +81,7 @@ export function bootNative() {
   const sim = new globalThis.Deep16Simulator();
   // The same three copies the RTL flash loader makes: the flat image, the
   // kernel data in DS=0x1000 and the BIOS code in CS=0x3000.
-  Deep16D16DImage.scatterD16SEG(image.words, { bdos: image.bdos, sys: image.sys, memory: sim.memory });
+  Deep16D16DImage.scatterD16SEG(image.words, { bdos: image.bdos, sys: image.sys, memory: sim.memory, headerRanges: image.headerRanges, dictFree: image.dictFree });
   sim.spiFlash.mem.set(slices.bytes, SCREEN_BASE);
   sim.d16nano = true;
   sim.segmentRegisters.CS = 0xffff;

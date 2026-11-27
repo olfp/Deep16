@@ -42,7 +42,7 @@ assert.notEqual(image.sys.words[0x1600], 0xFFFF, 'fexp32 is in the system chapte
 
 function boot() {
   const sim = new globalThis.Deep16Simulator();
-  Deep16D16DImage.scatterD16SEG(image.words, { bdos: image.bdos, sys: image.sys, memory: sim.memory });
+  Deep16D16DImage.scatterD16SEG(image.words, { bdos: image.bdos, sys: image.sys, memory: sim.memory, headerRanges: image.headerRanges, dictFree: image.dictFree });
   // The vector is installed by the kernel boot. Install the same value here;
   // this test starts below the boot so it can run in a few hundred steps.
   sim.memory[0] = sym.ill_trampoline;

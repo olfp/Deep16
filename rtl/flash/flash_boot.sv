@@ -62,6 +62,22 @@ module flash_boot (
       default: bdos_win = {16'd64, 16'h2D49, 16'h06F2};
     endcase
   endfunction
+
+  // Phase 5a: the relocated Forth headers and the high DS cells, in the same
+  // {len, src, dst} form. The four header ranges are copied verbatim; their
+  // link fields were rewritten by the generator.
+  localparam int HD_WIN_COUNT = 7;
+  function automatic [47:0] hd_win(input logic [2:0] i);
+    case (i)
+      3'd0: hd_win = {16'h0182, 16'h417D, 16'hFB80};
+      3'd1: hd_win = {16'h029C, 16'h4440, 16'hFD02};
+      3'd2: hd_win = {16'h000A, 16'h4D2A, 16'hFF9E};
+      3'd3: hd_win = {16'h0010, 16'h5480, 16'hFFA8};
+      3'd4: hd_win = {16'h0001, 16'h4D20, 16'hFFC0};
+      3'd5: hd_win = {16'h0001, 16'h57DC, 16'hFFC1};
+      default: hd_win = {16'h0086, 16'h52C0, 16'hF000};
+    endcase
+  endfunction
 `endif
 
   localparam logic [5:0]
@@ -79,6 +95,8 @@ module flash_boot (
     S_WR_D1 = 6'd31, S_WR_D1W = 6'd32,
     S_WIN_LOAD = 6'd33, S_WIN_REQ = 6'd34,
     S_WIN_WAIT = 6'd35, S_WIN_WR = 6'd36, S_WIN_WRW = 6'd37,
+    S_HD_LOAD = 6'd49, S_HD_REQ = 6'd50, S_HD_WAIT = 6'd51,
+    S_HD_WR = 6'd52, S_HD_WRW = 6'd53,
     S_HCRC_REQ = 6'd38, S_HCRC_WAIT = 6'd39,
     S_HCRC_LOAD = 6'd40, S_HCRC_BIT = 6'd41, S_HCRC_CHK = 6'd42,
     S_ENT_REQ = 6'd43, S_ENT_WAIT = 6'd44,
@@ -110,6 +128,10 @@ module flash_boot (
   logic [10:0] win_pos;
   logic [15:0] win_word;
   logic [47:0] win_desc;
+  logic [2:0]  hd_i;
+  logic [10:0] hd_pos;
+  logic [15:0] hd_word;
+  logic [47:0] hd_desc;
 `endif
 
 
@@ -158,6 +180,7 @@ module flash_boot (
       breq <= 1'b0; bwe <= 1'b0; baddr <= 20'd0; bwdata <= 16'd0;
 `ifdef D16SEG
       win_i <= 4'd0; win_pos <= 11'd0; win_word <= 16'd0; win_desc <= 48'd0;
+      hd_i <= 3'd0; hd_pos <= 11'd0; hd_word <= 16'd0; hd_desc <= 48'd0;
 `endif
     end else begin
       breq <= 1'b0;
@@ -295,7 +318,7 @@ module flash_boot (
         end
         S_WR1W: if (bbusy) begin
 `ifdef D16SEG
-          if (img_i >= 14'h1800 && img_i <= 14'h2BEE) st <= S_WR_D0;
+          if (img_i >= 14'h1800 && img_i <= 14'h1FE1) st <= S_WR_D0;
           else if (img_i >= 14'h2500 && img_i < 14'h3800) st <= S_WR_B0;
           else
 `endif
@@ -407,8 +430,9 @@ module flash_boot (
         S_WIN_WRW: if (bbusy) begin
           if ({5'd0, win_pos} == win_desc[47:32] - 16'd1) begin
             if (win_i == BDOS_WIN_COUNT - 1) begin
-              done <= 1'b1;
-              st <= S_DONE;
+              hd_i <= 3'd0;
+              hd_pos <= 11'd0;
+              st <= S_HD_LOAD;
             end else begin
               win_i <= win_i + 4'd1;
               win_pos <= 11'd0;
@@ -417,6 +441,43 @@ module flash_boot (
           end else begin
             win_pos <= win_pos + 11'd1;
             st <= S_WIN_REQ;
+          end
+        end
+
+        // ---- format-1 relocated headers and high DS cells ----------------
+        S_HD_LOAD: begin
+          hd_desc <= hd_win(hd_i);
+          st <= S_HD_REQ;
+        end
+        S_HD_REQ: begin
+          f_addr <= 15'(FLASH_IMG + ((hd_desc[31:16] + {5'd0, hd_pos}) >> 1));
+          f_read <= 1'b1;
+          st <= S_HD_WAIT;
+        end
+        S_HD_WAIT: if (f_done) begin
+          hd_word <= ((hd_desc[31:16] + {5'd0, hd_pos}) & 16'd1)
+                     ? f_rdata[31:16] : f_rdata[15:0];
+          st <= S_HD_WR;
+        end
+        S_HD_WR: if (!bbusy) begin
+          breq <= 1'b1; bwe <= 1'b1;
+          baddr <= 20'h10000 + {4'd0, hd_desc[15:0]} + {9'd0, hd_pos};
+          bwdata <= hd_word;
+          st <= S_HD_WRW;
+        end
+        S_HD_WRW: if (bbusy) begin
+          if ({5'd0, hd_pos} == hd_desc[47:32] - 16'd1) begin
+            if (hd_i == HD_WIN_COUNT - 1) begin
+              done <= 1'b1;
+              st <= S_DONE;
+            end else begin
+              hd_i <= hd_i + 3'd1;
+              hd_pos <= 11'd0;
+              st <= S_HD_LOAD;
+            end
+          end else begin
+            hd_pos <= hd_pos + 11'd1;
+            st <= S_HD_REQ;
           end
         end
 `endif

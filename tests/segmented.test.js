@@ -19,7 +19,8 @@ import path from 'node:path';
 import { assemble, loadBrowserScripts, MEM_WORDS, ROOT, placeBdos, placeSys, sysBlockImage } from './helpers.js';
 import { buildSlices, SCREEN_BASE, SLICE_WORDS } from '../scripts/make_slices.mjs';
 
-loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_simulator.js');
+loadBrowserScripts('js/deep16_assembler.js', 'js/deep16_linker.js',
+                   'js/deep16_d16d_image.js', 'js/deep16_simulator.js');
 
 const WINDOW = 0x7000;
 const DS_SEG = 0x1000;
@@ -33,20 +34,34 @@ const BIOS_HI = 0x6fff;        // FPU, the PS/2 decoder and the layout tables
 // reaches it, so it cannot be a segment of its own.
 const RSTACK_TOP = 0x2ff0;
 
-const kernel = assemble(fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8'),
+const kernelSource = fs.readFileSync(path.join(ROOT, 'asm', 'forth_nano.asm'), 'utf8');
+const kernel = assemble(kernelSource,
                         // D16D matches the board build; `text_attr` is the cell
                         // the catalog's ATTR words write (see the check below).
                         { defines: { CONSOLE_UART: 1, D16NANO: 1, D16SEG: 1, D16D: 1,
                                      CONSOLE_MIRROR: 1 } });
-const sym = kernel.symbols;
+// The board image, with the built-in headers and high DS cells relocated the
+// same way the loader and the Node builder do it.
+const relocated = globalThis.Deep16D16DImage.assembleNano({
+  kernel: kernelSource,
+  defines: { D16D: 1, CONSOLE_MIRROR: 1 },
+});
+const sym = relocated.result.symbols;
+const imageWords = relocated.words;
 
 function scattered() {
   const mem = new Array(MEM_WORDS).fill(0xffff);
-  for (const c of kernel.memoryChanges) {
-    if (c.address < WINDOW) mem[c.address] = c.value & 0xffff;
-  }
+  for (let a = 0; a < imageWords.length; a++) mem[a] = imageWords[a];
   const img = (a) => mem[a];
-  for (let w = DS_LO; w <= DS_HI; w++) mem[(DS_SEG << 4) + w] = img(w);
+  for (let w = DS_LO; w <= sym.dict_free - 1; w++) mem[(DS_SEG << 4) + w] = img(w);
+  for (const r of [
+    ...relocated.headerRanges,
+    { src: 0x4D20, len: 1, dst: 0xFFC0 },
+    { src: 0x57DC, len: 1, dst: 0xFFC1 },
+    { src: 0x52C0, len: 0x86, dst: 0xF000 },
+  ]) {
+    for (let i = 0; i < r.len; i++) mem[(DS_SEG << 4) + r.dst + i] = img(r.src + i);
+  }
   for (let w = BIOS_LO; w <= BIOS_HI; w++) mem[(BIOS_SEG << 4) + (w - BIOS_LO)] = img(w);
   placeBdos(mem);
   placeSys(mem);
@@ -117,13 +132,13 @@ test('the scattered image boots into the segmented map', () => {
   assert.equal(sim.segmentRegisters.SS, SS_SEG, 'SS');
   assert.equal(ds(sym.rp0_base), RSTACK_TOP, 'return stack top');
   assert.equal(ds(sym.rp_ptr), RSTACK_TOP, 'return stack pointer');
-  assert.equal(ds(sym.sp_top), 0xfff0, 'data stack top');
-  assert.equal(ds(sym.dict_base_var), 0x5800, 'dictionary base');
+  assert.equal(ds(sym.sp_top), 0xf000, 'data stack top');
+  assert.equal(ds(sym.dict_base_var), sym.dict_free, 'dictionary base is dict_free');
 });
 
 test('the dictionary is the PSRAM segment and reports its free count', () => {
   assert.ok(boot.includes(`${limit() - here()} free`), 'the summary prints free = limit - here');
-  assert.ok(here() >= 0x5800 && here() < limit(), 'here is inside the dictionary range');
+  assert.ok(here() >= sym.dict_free && here() < limit(), 'here is inside the dictionary range');
 });
 
 test('the config flash identifies and the directory is readable', () => {
@@ -651,23 +666,19 @@ test('catch and throw still unwind the return stack', () => {
 });
 
 test('the 64K data stack holds thousands of cells', () => {
-  // The data stack grows down from 0xFFF0 and the dictionary up from 0x5800.
-  // After the catalog, the tools slice (edit/serial/xmodem) and the graphics
-  // module the gap here is measured from here(), which is why the count is
-  // derived and not a constant: a fixed 10,000 used to fit, and the boot
-  // loader's source buffer took the room back.
-  //
-  // The boot loader does not keep the source text in the dictionary at all
-  // any more: it reads one slice into slice-buf and interprets it line by
-  // line, so the gap is 29,618 cells here, against 9,178 with the old
-  // loader's text-buf (see lila/LILANATIVE.md).  The packed screen test
-  // above has taken its own 2,040-cell buffer by now, so the gap measured
-  // here is that much smaller than it is at the prompt.
+  // The data stack grows down from sp_top (0xF000 on the board, below the
+  // relocated headers at 0xFB80) and the dictionary up from dict_free. After
+  // the catalog, the tools slice (edit/serial/xmodem) and the graphics module
+  // the gap here is measured from here(), which is why the count is derived
+  // and not a constant. The boot loader no longer keeps source text in the
+  // dictionary: it reads one slice into slice-buf and interprets it line by
+  // line, so the old text-buf is gone (see lila/LILANATIVE.md). The packed
+  // screen test above has taken its own 2,040-cell buffer by now.
   //
   // Push all but 400 cells: the stack must not reach the words this test
   // defines a moment later, or the loop body overwrites itself (that is how
   // the old fixed 10,000 died once text-buf grew).
-  const gap = 0xfff0 - here();
+  const gap = ds(sym.sp_top) - here();
   const n = gap - 400;
   assert.ok(n >= 8000, `only ${gap} cells between the dictionary and the stack`);
   line(': push-n ( n -- ) 0 ?do i loop ;');

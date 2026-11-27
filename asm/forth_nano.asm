@@ -86,12 +86,13 @@
 .equ DICT_LIMIT 0x4000   ; the screen build's ceiling, as it always was
 .endif
 
-; The PSRAM dictionary move. The segmented build keeps the BIOS/demo data at
-; DS 0x4A00..0x57DC and starts the dictionary at 0x5800.
+; The PSRAM dictionary move. The generic segmented build keeps the BIOS/demo
+; data at DS 0x4A00..0x57DC and starts the dictionary at 0x5800. The D16BOARD
+; build relocates headers/data and starts at dict_free instead.
 .ifdef D16SEG
-.equ PSRAM_BASE_HI 0x2C00   ; 0x5800: dictionary base in the segmented map
+.equ PSRAM_PROBE_HI 0x2C00  ; DS 0x5800: outside the 24K BSRAM window
 .else
-.equ PSRAM_BASE_HI 0x3000   ; 0x6000: the 24K window's edge
+.equ PSRAM_PROBE_HI 0x3000  ; 0x6000: the 24K window's edge
 .endif
 
 ; =============================================
@@ -570,16 +571,15 @@ clear_cursor:
     NOP
 after_print_text:
     ; ---- is there memory above the 24K window? -------------------------
-    ; The same image runs on the 24K BSRAM board and on the PSRAM board.
-    ; Probe word 0x6000: if it reads back what we write, the dictionary moves
-    ; up there and may grow to the top of segment 0 (the boot ROM starts at
-    ; 0xFFF0). Otherwise it stays below the BIOS, as it always did.
+    ; Probe a word outside the 24K window. On success the dictionary continues
+    ; at dict_free; the relocated built-in headers occupy 0xFB80.. and the
+    ; ceiling stops just below them. Otherwise it stays below the BIOS.
     ;
     ; The two NOPs are load-bearing: the BSRAM top's store-to-load bypass
     ; answers a load from a store that is still in WB, outside the window and
     ; all, so every board would look like it had PSRAM.
-    LDI PSRAM_BASE_HI
-    SL  R0, 1               ; 0x6000/0x8000: LDI's immediate is 15-bit signed
+    LDI PSRAM_PROBE_HI
+    SL  R0, 1               ; 0x5800/0x6000
     MOV R2, R0
     LDI 0x1234
     ST  R0, R2, 0
@@ -589,21 +589,38 @@ after_print_text:
     CMP R1, R0
     JNZ boot_no_psram
     NOP
+.ifdef D16BOARD
     LDI dp_var
     MOV R2, R0
-    LDI PSRAM_BASE_HI
-    SL  R0, 1
-    ST  R0, R2, 0           ; HERE = the PSRAM dictionary base
+    LDI dict_free
+    ST  R0, R2, 0           ; HERE = dict_free
     LDI dict_base_var
     MOV R2, R0
-    LDI PSRAM_BASE_HI
+    LDI dict_free
+    ST  R0, R2, 0           ; dictionary base = dict_free
+    LDI dict_limit_var
+    MOV R2, R0
+    LDI 0x37C0
+    OR  R0, 14
+    SL  R0, 1               ; 0xEF80: below the 0xF000 data stack top
+    ST  R0, R2, 0
+.else
+    LDI dp_var
+    MOV R2, R0
+    LDI PSRAM_PROBE_HI
     SL  R0, 1
-    ST  R0, R2, 0           ; dictionary base = the PSRAM base
+    ST  R0, R2, 0
+    LDI dict_base_var
+    MOV R2, R0
+    LDI PSRAM_PROBE_HI
+    SL  R0, 1
+    ST  R0, R2, 0
     LDI dict_limit_var
     MOV R2, R0
     LDI 0x7FF8
-    SL  R0, 1               ; 0xFFF0
+    SL  R0, 1
     ST  R0, R2, 0
+.endif
 boot_no_psram:
 
 .ifdef BOOT_DIAG
@@ -2349,9 +2366,20 @@ spi_r6:
 ; still boot after `flash:slices` wrote only the upper half. The archived
 ; D16MINI kernel sets the same magic beside its direct-register primitives.
 ; Keep the magic in step with essentials.fth.
+.ifdef D16BOARD
+.equ spi_caps, 0xFFC0
+.equ ps2_layout, 0xFFC1
+.else
 .org 0x4D20
 spi_caps:
     .word 0xD16C
+.endif
+
+.ifdef D16BOARD
+.org 0x4D20
+spi_caps_old:
+    .word 0xD16C
+.endif
 
 .org 0x2FB8
 bd_count:
@@ -2470,10 +2498,14 @@ rp0_base:
 ; sign-extend to 0xDFF0 - the same trap RSTACK_TOP documents. It lives in a cell
 ; and is loaded with LD, like rp0_base.
 sp_top:
+.ifdef D16BOARD
+    .word 0xF000             ; below the relocated headers at 0xFB80
+.else
 .ifdef D16SEG
     .word 0xFFF0
 .else
     .word 0x5FF0
+.endif
 .endif
 ; The console's output column. uart_tx counts it as it emits, wrap_if reads it
 ; to break `words`/`see` at a space before the terminal autowraps. The host owns
@@ -19280,13 +19312,20 @@ irq_keyboard:
     AND R1, R3
     JZ irq_none
     NOP
-    ; Ring: 0x52C0 head, 0x52C1 tail, 0x52C2..0x52E1 data. Build the base once.
+    ; Ring at DS 0xF000 on D16BOARD, above the 0xF000 data stack top.
+.ifdef D16BOARD
+    LDI 0x3800
+    OR R0, 14
+    SL R0, 1                 ; 0xF000
+    MOV R2, R0
+.else
     LDI 0x12C0
     MOV R2, R0
     LDI 0x1000
     SL R0, 1
     SL R0, 1
-    ADD R2, R0               ; R2 = 0x52C0
+    ADD R2, R0
+.endif
     LDI 0x62
     MOV R3, R0               ; KBD_DATA
 irq_kbd_loop:
@@ -19364,6 +19403,8 @@ irq_audio:
     MOV R2, R0
     LDI 32
     STS R0, DS, R2           ; burst = 32 source samples
+    NOP                      ; keep irq_audio_fill even for the /2 jump below
+    NOP
 irq_audio_fill:
     LDI 4
     MOV R2, R0
@@ -19449,8 +19490,6 @@ irq_audio_idle:
     MOV R2, R0
     LSI R0, 0
     STS R0, ES, R2           ; CTRL=0: disable and drop IRQ_EN
-    NOP
-    NOP                      ; let the FIFO-low level source fall
 irq_audio_ack:
     LDI 0xB0
     MOV R2, R0
@@ -19462,6 +19501,18 @@ irq_audio_ack:
 ; 32 entries is twice the hardware FIFO. head == tail means empty; the ISR
 ; overwrites the oldest slot only if a burst exceeds the ring between reads.
 ; The IRQ vector runs at CS=0, so both sides use the DS copy of this window.
+.ifdef D16BOARD
+.equ kbd_head, 0xF000
+.equ kbd_tail, 0xF001
+.equ kbd_ring, 0xF002
+.org 0x52C0
+kbd_source:
+    .word 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0
+.else
 .org 0x52C0
 kbd_head:
     .word 0
@@ -19472,12 +19523,15 @@ kbd_ring:
     .word 0, 0, 0, 0, 0, 0, 0, 0
     .word 0, 0, 0, 0, 0, 0, 0, 0
     .word 0, 0, 0, 0, 0, 0, 0, 0
+.endif
 
 ; ============================================================
 ; divtest: verify the ILL DIV trap against the software divide
 ; ============================================================
 .org 0x5300
 .code
+.equ divtest_ok_hi, 0xF06E
+.equ divtest_fail_hi, 0xF079
 word_divtest:
     LDI 100
     MOV R2, R0
@@ -19506,6 +19560,15 @@ word_divtest:
     CMP R2, R0
     JNZ divtest_fail
     NOP
+.ifdef D16BOARD
+    LDI print_text
+    MOV R3, R0
+    LDI 0x3837               ; divtest_ok_hi (0xF06E) >> 1
+    OR  R0, 14
+    SL  R0, 1
+    MOV R4, R0
+    MOV R0, R4
+.else
     LDI print_text
     MOV R3, R0
     MOV R0, PC
@@ -19514,6 +19577,7 @@ divtest_ok_lr:
     LDI divtest_ok_str - divtest_ok_lr
     ADD R4, R0
     MOV R0, R4
+.endif
     LINK
     JMP R3
     NOP
@@ -19521,6 +19585,15 @@ divtest_ok_lr:
     MOV PC, R0
     NOP
 divtest_fail:
+.ifdef D16BOARD
+    LDI print_text
+    MOV R3, R0
+    LDI 0x383C               ; divtest_fail_hi (0xF079) >> 1
+    OR  R0, 14
+    SL  R0, 1
+    MOV R4, R0
+    MOV R0, R4
+.else
     LDI print_text
     MOV R3, R0
     MOV R0, PC
@@ -19529,6 +19602,7 @@ divtest_fail_lr:
     LDI divtest_fail_str - divtest_fail_lr
     ADD R4, R0
     MOV R0, R4
+.endif
     LINK
     JMP R3
     NOP
@@ -22320,14 +22394,20 @@ sfx_pump_done:
 ; empty. The ring at 0x52C0 is filled by irq_keyboard from the hardware FIFO.
 bios_kbd_read:
 bios_kbd_read_again:
-    ; Ring in DS (0x1000): 0x52C0 head, 0x52C1 tail, data at 0x52C2. Build the
-    ; base as 0x12C0 + 0x4000 because the immediate is 15-bit and signed.
+    ; Ring at DS 0xF000 on D16BOARD, above the 0xF000 data stack top.
+.ifdef D16BOARD
+    LDI 0x3800
+    OR R0, 14
+    SL R0, 1                 ; 0xF000
+    MOV R2, R0
+.else
     LDI 0x12C0
     MOV R2, R0
     LDI 0x1000
     SL R0, 1
     SL R0, 1
-    ADD R2, R0               ; R2 = 0x52C0
+    ADD R2, R0
+.endif
     LDS R3, DS, R2           ; head
     MOV R1, R2
     ADD R1, 1
@@ -22392,9 +22472,15 @@ ill_pc_save_bios:
 ; The active layout is the last word of the BIOS data block. It is copied to
 ; DS, so a Forth word can write it with a plain `!`; the decoder switches to
 ; DS=0x1000 to read it. PS2LAYOUT.md §6.2.
+.ifndef D16BOARD
 .org 0x57DC
 ps2_layout:
     .word 0
+.else
+.org 0x57DC
+ps2_layout_old:
+    .word 0
+.endif
 ps2_save_r2:
     .word 0
 ps2_save_r9:
@@ -22504,16 +22590,24 @@ ps2_code_ok:
     NOP
 ps2_not_ext:
 
-    ; Read the active layout from DS 0x57DC, then restore DS.
+    ; Read the active layout from DS 0xFFC1 on the Phase 5 board, else 0x57DC.
     MVS R7, DS
     LDI 0x1000
     MVS DS, R0
+.ifdef D16BOARD
+    LDI 0x3FE0
+    OR R0, 14
+    SL R0, 1
+    ADD R0, 1                ; 0xFFC1
+    MOV R3, R0
+.else
     LDI 0x17DC
     MOV R3, R0
     LDI 0x1000
     SL R0, 1
     SL R0, 1
-    ADD R3, R0               ; R3 = 0x57DC
+    ADD R3, R0               ; 0x57DC
+.endif
     LDS R2, DS, R3
     MVS DS, R7
 

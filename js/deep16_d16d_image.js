@@ -108,6 +108,7 @@ class Deep16D16DImage {
       D16SEG: 1,
       ...defines,
     };
+    if (defs.D16D && defs.D16SEG) defs.D16BOARD = 1;
     const sources = [kernel];
     if (softfloat !== null) {
       defs.FPU_KERNEL = 1;
@@ -138,7 +139,7 @@ class Deep16D16DImage {
     }
 
     // The FPU image carries fexp32/flog32 at 0x6000, so it needs 0x7000 words.
-    const WINDOW = softfloat !== null ? 0x7000 : 0x6000;
+    const WINDOW = (softfloat !== null || defs.D16D) ? 0x7000 : 0x6000;
     const linked = new Deep16Linker(Deep16Assembler).link({
       chapters,
       defines: defs,
@@ -151,12 +152,19 @@ class Deep16D16DImage {
 
     const bdos = linked.chapters.find((c) => c.id === 'bdos') ?? null;
     const sys = linked.chapters.find((c) => c.id === 'sys') ?? null;
+    const relocated = defs.D16D
+      ? this.relocateHeaders(linked.flatView.words, result)
+      : { headerRanges: [], headerMap: {}, headerBase: 0, dictLimit: 0 };
     return {
       result,
       words: linked.flatView.words,
       outOfWindow: linked.flatView.outOfWindow,
       bdos: bdos ? { words: bdos.words, outOfWindow: bdos.outOfWindow } : null,
       sys: sys ? { words: sys.words, outOfWindow: sys.outOfWindow } : null,
+      headerRanges: relocated.headerRanges,
+      headerMap: relocated.headerMap,
+      headerBase: relocated.headerBase,
+      dictLimit: relocated.dictLimit,
     };
   }
 
@@ -229,6 +237,9 @@ class Deep16D16DImage {
       fpu: softfloat !== null,
       fpuWords: forthFloat !== null,
       symbols: result.symbols,
+      headerRanges: image.headerRanges,
+      headerMap: image.headerMap,
+      dictLimit: image.dictLimit,
     };
     this.checkImage(img);
     return img;
@@ -248,21 +259,93 @@ class Deep16D16DImage {
   //
   // Returns the writes as { address, value } records. If memory is supplied,
   // the writes are also applied to it.
+  // Phase 5a: move the built-in Forth headers and the DS-resident cells that
+  // live above dict_free into the top of DS. Links and the forth_wl cell are
+  // rewritten in the flat image; the flat sources stay for the loader and for
+  // modules that still address them directly.
+  static relocateHeaders(words, result) {
+    const sym = result.symbols;
+    const dictFree = sym.dict_free;
+    const forthWl = sym.forth_wl;
+    const headers = [];
+    const seen = new Set();
+    let h = words[forthWl];
+    while (h !== 0 && h !== 0xFFFF && !seen.has(h)) {
+      seen.add(h);
+      const len = words[h + 1] & 0xFF;
+      if (len === 0 || h + 3 + len >= words.length) {
+        throw new Error(`bad Forth header at 0x${h.toString(16)}`);
+      }
+      headers.push({ old: h, size: 4 + len });
+      h = words[h];
+    }
+    const above = headers.filter((x) => x.old >= dictFree).sort((a, b) => a.old - b.old);
+    const ranges = [];
+    let current = null;
+    for (const x of above) {
+      const end = x.old + x.size;
+      if (!current || x.old > current.end + 0x120) {
+        current = { src: x.old, end };
+        ranges.push(current);
+      } else {
+        current.end = Math.max(current.end, end);
+      }
+    }
+    const HEADER_BASE = 0xFB80;
+    let cursor = HEADER_BASE;
+    for (const r of ranges) {
+      r.len = r.end - r.src;
+      r.dst = cursor;
+      cursor += r.len;
+    }
+    if (cursor > 0xFFB8) throw new Error('relocated Forth headers overrun the data window');
+    const byOld = new Map();
+    for (const x of above) {
+      const r = ranges.find((y) => x.old >= y.src && x.old < y.end);
+      if (!r) throw new Error(`header 0x${x.old.toString(16)} is outside a relocation range`);
+      byOld.set(x.old, r.dst + (x.old - r.src));
+    }
+    for (const x of headers) {
+      const link = words[x.old];
+      if (byOld.has(link)) words[x.old] = byOld.get(link);
+    }
+    if (byOld.has(words[forthWl])) words[forthWl] = byOld.get(words[forthWl]);
+    const headerMap = {};
+    for (const [name, value] of Object.entries(sym)) {
+      if (name.startsWith('h_') && byOld.has(value)) headerMap[name] = byOld.get(value);
+    }
+    return {
+      headerRanges: ranges.map((r) => ({ src: r.src, len: r.len, dst: r.dst })),
+      headerMap,
+      headerBase: HEADER_BASE,
+      dictLimit: 0xEF80,
+    };
+  }
+
   // Format-2 table entries: one destination each. The DS mirror and the
   // system copy repeat source ranges intentionally; the flat image is copied
   // by the canonical payload pass and is not listed.
-  static chapterTable(bdosWindows = [], imageWords = 0x7000) {
+  static chapterTable(bdosWindows = [], imageWords = 0x7000, dictFree = 0x3FC4,
+                      headerRanges = []) {
     const entries = [
-      { id: 1, seg: 0x1000, base: 0x3000, src: 0x3000, count: 0x57DC - 0x3000 + 1 },
+      { id: 1, seg: 0x1000, base: 0x3000, src: 0x3000, count: dictFree - 0x3000 },
       { id: 2, seg: 0x3000, base: 0x0000, src: 0x4A00, count: imageWords - 0x4A00 },
     ];
     for (const win of bdosWindows) {
       entries.push({ id: 3, seg: 0x4000, base: win.dst, src: win.src, count: win.len });
     }
+    for (const r of headerRanges) {
+      entries.push({ id: 4, seg: 0x1000, base: r.dst, src: r.src, count: r.len });
+    }
+    // The high DS cells: spi_caps, ps2_layout and the keyboard ring. Their old
+    // flat cells remain as loader sources.
+    entries.push({ id: 5, seg: 0x1000, base: 0xFFC0, src: 0x4D20, count: 1 });
+    entries.push({ id: 5, seg: 0x1000, base: 0xFFC1, src: 0x57DC, count: 1 });
+    entries.push({ id: 5, seg: 0x1000, base: 0xF000, src: 0x52C0, count: 0x86 });
     return entries.map((e) => ({ ...e, srcPairStart: e.src >> 1, flags: e.src & 1 }));
   }
 
-  static scatterD16SEG(words, { bootPtr = null, bdos = null, sys = null, table = null, memory = null } = {}) {
+  static scatterD16SEG(words, { bootPtr = null, bdos = null, sys = null, table = null, memory = null, headerRanges = null, dictFree = null } = {}) {
     if (!words || typeof words.length !== 'number') {
       throw new Error('D16SEG scatter needs an image word array');
     }
@@ -279,6 +362,34 @@ class Deep16D16DImage {
         const src = (entry.srcPairStart << 1) + (entry.flags & 1);
         const dst = (entry.seg << 4) + entry.base;
         for (let i = 0; i < entry.count; i++) put(dst + i, words[src + i]);
+      }
+    } else if (headerRanges && headerRanges.length) {
+      const dsEnd = (dictFree ?? 0x3FC4) - 1;
+      for (let offset = 0x3000; offset <= Math.min(dsEnd, last); offset++) {
+        put(0x10000 + offset, words[offset]);
+      }
+      for (const r of headerRanges) {
+        for (let i = 0; i < r.len; i++) put(0x10000 + r.dst + i, words[r.src + i]);
+      }
+      for (const r of [
+        { src: 0x4D20, len: 0x001, dst: 0xFFC0 },
+        { src: 0x57DC, len: 0x001, dst: 0xFFC1 },
+        { src: 0x52C0, len: 0x086, dst: 0xF000 },
+      ]) {
+        for (let i = 0; i < r.len; i++) put(0x10000 + r.dst + i, words[r.src + i]);
+      }
+      for (let offset = 0x4A00; offset <= last; offset++) {
+        put(0x30000 + (offset - 0x4A00), words[offset]);
+      }
+      if (sys && sys.words) {
+        for (let offset = 0; offset < sys.words.length; offset++) {
+          if (sys.words[offset] !== 0xFFFF) put(0x30000 + offset, sys.words[offset]);
+        }
+      }
+      if (bdos && bdos.words) {
+        for (let offset = 0; offset < bdos.words.length; offset++) {
+          if (bdos.words[offset] !== 0xFFFF) put(0x40000 + offset, bdos.words[offset]);
+        }
       }
     } else {
       for (let offset = 0x3000; offset <= Math.min(0x57DC, last); offset++) {
@@ -419,9 +530,13 @@ class Deep16D16DImage {
       bdos: kernelImage.bdos,
       sys: kernelImage.sys,
       bdosWindows: staged.bdosWindows,
+      headerRanges: kernelImage.headerRanges,
+      headerMap: kernelImage.headerMap,
+      dictLimit: kernelImage.dictLimit,
       format: defines.D16SEG !== 0 ? 2 : 1,
       chapterTable: defines.D16SEG !== 0
-        ? this.chapterTable(staged.bdosWindows, words.length) : null,
+        ? this.chapterTable(staged.bdosWindows, words.length,
+                            kres.symbols.dict_free, kernelImage.headerRanges) : null,
       collisions,
       dictFree: kres.symbols.dict_free,
       biosEntry: kres.symbols.bios_entry,

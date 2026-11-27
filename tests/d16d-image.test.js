@@ -63,7 +63,7 @@ test('browser builder matches the Node D16D image word for word', () => {
   assert.equal(browser.sys.words[0x0E00], node.sys.words[0x0E00], 'library word matches');
   assert.equal(browser.symbols.h_fdot, 0x417D, 'the Forth header block starts at 0x417D');
   assert.equal(browser.symbols.h_fexp, 0x42EF, 'fexp/flog headers end the 0x417D block');
-  assert.equal(browser.words[browser.symbols.forth_wl], browser.symbols.h_fexp,
+  assert.equal(browser.words[browser.symbols.forth_wl], browser.headerMap.h_fexp,
                'forth_wl names the newest float header');
   assert.notEqual(node.words[0x417D], 0xFFFF, 'the Forth float headers are in the image');
   assert.equal(browser.words[browser.symbols.d16d_exit], browser.symbols.d16d_menu_boot,
@@ -112,7 +112,7 @@ test('the image is code plus the showcase, not graphics', () => {
 test('the BIOS scatter carries the FPU library to segment 0x3000', () => {
   const image = Deep16D16DImage.build(sources);
   const memory = [];
-  Deep16D16DImage.scatterD16SEG(image.words, { bdos: image.bdos, sys: image.sys, memory });
+  Deep16D16DImage.scatterD16SEG(image.words, { bdos: image.bdos, sys: image.sys, memory, headerRanges: image.headerRanges, dictFree: image.dictFree });
   assert.notEqual(image.bdos.words[0], 0xFFFF, 'the BDOS entry is in the chapter');
   assert.equal(memory[0x40000 + 0], image.bdos.words[0],
                'the scatter placed the BDOS chapter at 0x40000');
@@ -158,14 +158,14 @@ test('the D16D flash header uses the format-2 chapter table', () => {
   const flash = flashImage(image);
   assert.equal(flash.words[1], FLASH_FORMAT_CHAPTERS, 'format 2');
   assert.equal(flash.words[2], flash.words.length, 'word 2 is the total 32-bit words');
-  assert.equal(flash.words[5], 11, 'DS, system and nine BDOS entries');
+  assert.equal(flash.words[5], 18, 'DS, system, nine BDOS, four header and three data entries');
   assert.equal(flash.words[6], crc16FlashHeader(flash.words), 'header CRC');
   // First entry: the DS mirror at seg 0x1000, base/src pair 0x3000/0x1800.
   assert.equal(flash.words[8] & 0xFFFF, 0x1000);
   assert.equal(flash.words[8] >>> 16, 1);
   assert.equal(flash.words[9] & 0xFFFF, 0x3000);
   assert.equal(flash.words[9] >>> 16, 0x1800);
-  assert.equal(flash.words[10] & 0xFFFF, 0x27DD);
+  assert.equal(flash.words[10] & 0xFFFF, 0xFC4);
   assert.equal(flash.words[10] >>> 16, 0);
   // Third entry starts the BDOS windows at seg 0x4000, base 0.
   assert.equal(flash.words[14] & 0xFFFF, 0x4000);
@@ -181,7 +181,7 @@ test('the format-2 table scatters the same chapters as the direct overlay', () =
   const image = Deep16D16DImage.build(sources);
   const direct = [];
   const table = [];
-  Deep16D16DImage.scatterD16SEG(image.words, { bdos: image.bdos, sys: image.sys, memory: direct });
+  Deep16D16DImage.scatterD16SEG(image.words, { bdos: image.bdos, sys: image.sys, memory: direct, headerRanges: image.headerRanges, dictFree: image.dictFree });
   Deep16D16DImage.scatterD16SEG(image.words, { table: image.chapterTable, memory: table });
   for (const address of [0x13000, 0x30E00, 0x31600, 0x40000, 0x400F0, 0x406F2]) {
     assert.equal(table[address], direct[address], `address 0x${address.toString(16)}`);

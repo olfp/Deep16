@@ -24,7 +24,8 @@ the board still boots to the prompt with no keyboard attached.
   layout is data, not another pROM page. The first synthesis after the move
   still reports 26 SDPB (26/26); the pROM instance is gone, but the freed
   block has not shown up in the top-level count yet (see `PS2LAYOUT.md` §9).
-  `layout!` writes the active index at DS `0x57DC`.
+  `layout!` writes the active index at DS `0xFFC1` on the board (and the old
+  `0x57DC` cell on the generic/flat map).
 - **Host sender and init (BIOS):** `ps2_send` and `ps2_init` live in
   `asm/forth_nano.asm` at BIOS `0x5490` (segment offset `0xA90`), not in a
   flash slice. `ps2_send` takes the byte in `R1` and sends start + 8 data bits
@@ -295,13 +296,13 @@ in `d16tile_flash.sv`. The text and packed builds keep the old flat map.
   - `0x0000..0x1FFF` — SD block/sector buffers, still unused.
   - `0x2000..0x2FFF` — return stack, top `0x2FF0` down, 4,080 frames.
   - `0x3000..0x49F8` — kernel data and the boot script.
-  - `0x4A00..0x57DC` — BIOS/demo data copy.
-  - `0x5800..0xFFEF` — dictionary, about **42K words**.
-- **Data stack:** `SS=0x2000`, top `0xFFF0`, 64K words. The BIOS and ILL
+  - `0x4A00..0x57DC` — flat BIOS/showcase; the board DS mirror stops at `0x3FC3`.
+  - `0x3FC4..0xEF7F` — dictionary, with relocated headers at `0xFB80` and the keyboard/string block at `0xF000`.
+- **Data stack:** `SS=0x2000` offset top `0xF000` on the board, 64K word window. The BIOS and ILL
   handlers set their shadow `SS` to `0x2000` before using the caller's stack.
 - **Return stack:** a DS offset window at `0x2FF0` down. It cannot be a segment
   of its own: every return-stack access is `LD`/`ST` through DS, so it has to
-  stay a DS offset. It also has to stay *below* the dictionary (`0x5800`, grows
+  stay a DS offset. It also has to stay *below* the dictionary (`0x3FC4` on the board, grows
   up). The first segmented build kept it at `0x5FF0` with the dictionary
   starting at `0x5800`; that left only ~300 calls of headroom, so
   `1000 deep` overwrote the word it was running and froze the machine.

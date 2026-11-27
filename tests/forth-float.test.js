@@ -58,11 +58,11 @@ assert.ok(image.symbols.fpu_dot_end <= 0x7000, 'f. fits the image window');
 
 function boot() {
   const sim = new globalThis.Deep16Simulator();
-  Deep16D16DImage.scatterD16SEG(image.words, { bdos: image.bdos, sys: image.sys, memory: sim.memory });
+  Deep16D16DImage.scatterD16SEG(image.words, { bdos: image.bdos, sys: image.sys, memory: sim.memory, headerRanges: image.headerRanges, dictFree: image.dictFree });
   sim.d16nano = true;
   sim.running = true;
-  // The flat copy is the one holding the headers and code.
-  assert.equal(sim.memory[image.symbols.forth_wl], image.symbols.h_fexp,
+  // The flat copy still holds the relocated header chain pointer.
+  assert.equal(sim.memory[image.symbols.forth_wl], image.headerMap.h_fexp ?? image.symbols.h_fexp,
                'forth_wl names the newest float header');
 
   let out = '';

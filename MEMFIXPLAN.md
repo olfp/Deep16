@@ -595,7 +595,7 @@ The range `0x3FC4`–`0x57FF` is not empty: it holds 40 built-in Forth headers
 | `0xFFA8`–`0xFFB7` | relocated headers | flat `0x5480`–`0x548F` (16 words) |
 | `0xFFC0` | `spi_caps` | flat `0x4D20` (old cell kept) |
 | `0xFFC1` | `ps2_layout` | flat `0x57DC` (old cell kept) |
-| `0xFFC4`–`0xFFE5` | keyboard head/tail/ring | flat `0x52C0` (34 zero words) |
+| `0xF000`–`0xF085` | keyboard head/tail/ring and the two `divtest` strings | flat `0x52C0`–`0x5345` (134 words) |
 
 Header ranges keep their source-relative offsets, so code gaps are copied too;
 only the link fields are rewritten. `relocateHeaders()` traverses the
@@ -604,8 +604,10 @@ the high destinations, patches every link (including below-`dict_free` headers
 that point upward), and patches the `forth_wl` cell. The old flat headers and
 data cells remain as loader sources but are no longer in the DS mirror.
 
-Dictionary base becomes `dict_free` (`0x3FC4`) and the ceiling `0xFB80`, just
-below the relocated headers. The PC-visible probe stays at DS `0x5800`.
+Dictionary base becomes `dict_free` (`0x3FC4`) and the ceiling `0xEF80`.
+The keyboard/string block sits at `0xF000`, above the data stack top, so the
+stack cannot reach the relocated headers at `0xFB80`. The PC-visible probe
+stays at DS `0x5800`.
 
 ### Phase 5b — loader, kernel and module integration
 
@@ -614,9 +616,11 @@ below the relocated headers. The PC-visible probe stays at DS `0x5800`.
   seven hard-coded windows after its BDOS windows.
 * The DS mirror ends at `dict_free-1`; the system copy is unchanged.
 * `asm/forth_nano.asm`: split `PSRAM_PROBE_HI` from the dictionary base, point
-  `dp_var`/`dict_base_var` at `dict_free`, set the PSRAM limit to `0xFB80`;
-  give `spi_caps`, `ps2_layout` and `kbd` high labels under `D16SEG`; move the
-  IRQ/BIOS keyboard base and the PS/2 decoder to the high cells.
+  `dp_var`/`dict_base_var` at `dict_free`, set the PSRAM limit to `0xEF80` and
+  the data stack top to `0xF000`; give `spi_caps`, `ps2_layout` and `kbd` high
+  labels and the keyboard/string block a high base under `D16BOARD`; move the
+  IRQ/BIOS keyboard base and the PS/2 decoder to the high cells. The flat and
+  generic `D16SEG` builds keep the old low layout.
 * `screens/flash/essentials.fth` checks the high capability cell and the old
   `0x4D20`; `forth/start.fth` chooses `0xFFC1` on PSRAM and `0x57DC` on BSRAM.
 * `js/deep16_d16d_image.js` and `scripts/make_image.mjs` emit the relocation,
@@ -629,34 +633,26 @@ below the relocated headers. The PC-visible probe stays at DS `0x5800`.
   suite and both format boots pass; `1000 deep`, editor input, PS/2 layout,
   BDOS and FPU smoke tests run from the relocated cells.
 
-#### Phase 5b implementation notes — blocked on the remaining DS window
+#### Phase 5b implementation notes
 
-A trial implementation of the sections above was reverted after the full suite
-showed three independent failures. The measurements correct the premise of
-Phase 5a:
+The first trial failed because the range `0x3FC4`–`0x57FF` is not only headers
+and three cells. Flat code still needs the `divtest` strings at `0x532E`, and
+the core's data stack is DS-relative even though the boot writes `SS=0x2000`.
+The committed layout handles both without moving the showcase:
 
-* The range `0x3FC4`–`0x57FF` holds more than the Forth headers and the three
-  high cells. The D16D showcase still lives at physical `0x4A00` (segment
-  `0x04A0`, sparse words `0x4D34`–`0x57FF`), and the ILL/SWI path still reads
-  the BIOS/ILL data window at DS `0x4A00`–`0x57DF`. Starting the dictionary at
-  `dict_free` overwrites both. `divtest` then fails because the SWI 14 return
-  path no longer finds its BIOS data; the sound IRQ and sample path fail for
-  the same reason.
-* The data stack is **DS-relative in the current core** (PSW.SR is zero even
-  though the boot writes `SS=0x2000`). With the stack top at `0xFFF0`, the
-  relocated headers at `0xFB80`–`0xFFB7` are only 56 pushes away, so the
-  existing `1000 deep` test corrupts the high header chain (`0xFD80` became a
-  stack value). A high-header layout needs either PSW stack selection or a
-  lower stack top (a trial used `0xF000` and a `0xEF80` ceiling).
-* `irq_audio_fill / 2; SL R0, 1` is parity-sensitive. A one-word code shift
-  moved the label to an odd address, so the handler re-entered the burst store
-  with stale registers. Any Phase 5 patch must keep that label even or replace
-  the halve-shift with an odd-safe load.
-
-Before Phase 5b can be committed, the showcase and the BIOS/ILL DS window must
-move out of `0x3FC4`–`0x57FF` (the showcase to a free segment or config-flash
-slice, the ILL data to the high/BIOS window), and the stack-top question must
-be settled. Only then can `dp_var`/`dict_base_var` point at `dict_free`.
+* The keyboard ring and the two `divtest` strings are copied as one 134-word
+  block from flat `0x52C0`–`0x5345` to DS `0xF000`–`0xF085`. The strings are
+  reached through `divtest_ok_hi`/`divtest_fail_hi`, so `print_text` still reads
+  the live DS copy.
+* The data stack top is `0xF000` and the dictionary ceiling `0xEF80`; the
+  relocated headers at `0xFB80` are above the stack and cannot be reached by a
+  deep stack. The existing `1000 deep` test exercises this.
+* The D16D showcase stays at physical `0x4A00`/segment `0x04A0`; it is flat
+  memory, not a DS copy, so the DS dictionary does not touch it.
+* `irq_audio_fill` is kept at an even address (two NOPs before it, one timing
+  NOP removed later), because its loop-back uses `label / 2; SL`.
+* Generic nano and flat `D16D` builds use the old low layout; only the
+  `D16BOARD` build (`D16D && D16SEG`) relocates.
 
 ### Phase 5c — remove the obsolete flat checks
 

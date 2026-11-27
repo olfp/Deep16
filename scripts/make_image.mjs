@@ -119,6 +119,7 @@ export const DEFINES = { CONSOLE_UART: 1 };
 if (NANO) DEFINES.D16NANO = 1;                       // D16nano: software divide
 if (D16SEG) DEFINES.D16SEG = 1;                      // segmented data stack (tile build)
 if (D16D) DEFINES.D16D = 1;                          // gfx BIOS call + word
+if (D16D && D16SEG) DEFINES.D16BOARD = 1;              // Phase 5 DS relocation
 if (FPU) DEFINES.FPU_KERNEL = 1;                     // ILL FPU dispatch + library
 if (FPU) DEFINES.FPU_WORDS = 1;                      // f+ f- f* ... f@ f!
 if (process.env.BOOT_DIAG) DEFINES.BOOT_DIAG = 1;     // boot diagnostic build
@@ -177,6 +178,12 @@ export function buildImage() {
   const outOfWindow = new Set(linked.flatView.outOfWindow);
   const bdos = linked.chapters.find((c) => c.id === 'bdos') ?? null;
   const sys = linked.chapters.find((c) => c.id === 'sys') ?? null;
+
+  // Phase 5a: the board image carries the built-in headers and high DS cells
+  // at the top of DS. The flat sources stay for the loader and old modules.
+  const relocated = D16D
+    ? loadD16DImage().relocateHeaders(words, res)
+    : { headerRanges: [], headerMap: {}, headerBase: 0, dictLimit: 0 };
 
   const sym = res.symbols;
   if (FPU) {
@@ -321,6 +328,8 @@ export function buildImage() {
   return {
     words, outOfWindow: [...outOfWindow].sort((a, b) => a - b), collisions,
     dictFree: sym.dict_free, biosEntry: sym.bios_entry, biosWords, build,
+    headerRanges: relocated.headerRanges, headerMap: relocated.headerMap,
+    dictLimit: relocated.dictLimit,
     fpu: FPU, fpuWords: FPU, showcase, pacman,
     bdos: bdos ? { words: bdos.words, outOfWindow: bdos.outOfWindow } : null,
     sys: sys ? { words: sys.words, outOfWindow: sys.outOfWindow } : null,
@@ -465,12 +474,18 @@ export function crc16(words) {
 // purpose.
 export function chapterTable(img) {
   const entries = [
-    { id: 1, seg: 0x1000, base: 0x3000, src: 0x3000, count: 0x57DC - 0x3000 + 1 },
+    { id: 1, seg: 0x1000, base: 0x3000, src: 0x3000, count: img.dictFree - 0x3000 },
     { id: 2, seg: 0x3000, base: 0x0000, src: 0x4A00, count: img.words.length - 0x4A00 },
   ];
   for (const win of img.bdosWindows ?? []) {
     entries.push({ id: 3, seg: 0x4000, base: win.dst, src: win.src, count: win.len });
   }
+  for (const r of img.headerRanges ?? []) {
+    entries.push({ id: 4, seg: 0x1000, base: r.dst, src: r.src, count: r.len });
+  }
+  entries.push({ id: 5, seg: 0x1000, base: 0xFFC0, src: 0x4D20, count: 1 });
+  entries.push({ id: 5, seg: 0x1000, base: 0xFFC1, src: 0x57DC, count: 1 });
+  entries.push({ id: 5, seg: 0x1000, base: 0xF000, src: 0x52C0, count: 0x86 });
   return entries.map((e) => ({
     ...e,
     srcPairStart: e.src >> 1,

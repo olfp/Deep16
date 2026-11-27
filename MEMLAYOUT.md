@@ -20,7 +20,7 @@ script drift). The D16nano numbers below were measured by assembling
 |---|---|---|---|---|
 | Vectors ILL / IRQ / SWI | `0x0000` / `0x0001` / `0x0002` | same | same, written through `CS=0` (`STS R1,CS,R2`) | hardware |
 | Forth kernel code | `0x0100`–`0x2D49` | `0x0100`–`0x2F47` | `0x0100`–`0x2D49` (`swi_to_bios` `0x232`) | direct / threaded |
-| Forth static data, `dict_free` | `0x3000`–`0x3BFB`, ceiling `0x4000` | `0x3000`–`0x3F5E`, ceiling `0x5600` | DS=0x1000 `0x3000`–`0x3FC4`; dictionary from `DS:0x5800` to `0xFFEF` | DS-relative |
+| Forth static data, `dict_free` | `0x3000`–`0x3BFB`, ceiling `0x4000` | `0x3000`–`0x3F5E`, ceiling `0x5600` | DS=0x1000 `0x3000`–`0x3FC3`; dictionary `DS:0x3FC4`–`0xEF7F`; high headers `0xFB80`–`0xFFB7`; keyboard/strings `0xF000`–`0xF085` | DS-relative |
 | **BDOS** entry + jump table | `0x2D4A` / `0x2D59` | **none** (pre-split) | `0x0000` / `0x000F` in the dense `CS=0x4000` chapter | **far jump `JML R2`**, `R0`=fn, `R1`=arg, `R10:R11`=return CS:PC; 30 fns with D16NANO, 27 otherwise |
 | BDOS scattered handlers | `0x4400`–`0x49FB` | – | dense chapter `0x0000`–`0x0725`; fns 27–29 `0x0236`/`0x02DE`/`0x034E`, `bdos_ps2_init` `0x0501`; staged in free flat words and copied to `0x40000` | chapter-relative jump table (`LDS R2, CS, R3`) |
 | **BIOS** code | `0xF8000`–`0xF8156` (physical, `CS=0xF800`), 6 fns | `0x5600`–`0x576F`, 6 fns | image `0x4A00`–`0x6C8F`; **copied to `CS=0x3000:0x0000`** by `flash_boot`, SWI target `0x3000:0` | **SWI** vector 2 → `swi_to_bios`, shadow bank, `I=0` |
@@ -29,7 +29,7 @@ script drift). The D16nano numbers below were measured by assembling
 | **FloatLib / softfloat** | absent | absent | flat `0x5800`–`0x6475` is the **staged system copy**; **copied to `CS=0x3000:0x0E00` / `0x1600`** | from `ill_fpu` (system `0x151B`), PC-relative `LINK`/`JMP` |
 | Forth float word surface | absent | absent | words `0x417D`–`0x42EF`, transcendentals `0x42EF`–`0x430F`, scanner/probe `0x3FE9`–`0x40E7`, build `0x6724`–`0x67C7`, `f.` cells `0x67C8`–`0x67D4`, parse `0x6800`–`0x6862`, tables `0x6900`/`0x6950`, low trampolines `0x2D3F`–`0x2D49` | Forth threading + trap words `0xFFF8`–`0xFFFE` |
 | Return stack (down) | `0x6F00` | `0x5800` | DS `0x2FF0` → `0x2000` (4,080 frames) | `LD`/`ST` through DS |
-| Data stack (down) | `0x7FF0` | `0x5FF0` | SS `0xFFF0` (64 K words) | `SP` |
+| Data stack (down) | `0x7FF0` | `0x5FF0` | DS offset `0xF000` (64 K window; high headers above) | `SP` |
 | Boot ROM | `0xFFFF0`–`0xFFFFF` | same | same | reset `CS=0xFFFF:0` |
 
 Flat `D16NANO` without `D16SEG`/`D16D` is **not a built or flashed image**: no
@@ -99,7 +99,7 @@ everything stays inside the existing 28,672-word flat image.
 | Forth float words → FloatLib | trap word `0xFFF8`–`0xFFFE` → vector 0 → ILL decoder → `ill_fpu` | only needs the ILL handler to reach the library; register-only ABI (F0=R2:R3, F1=R4:R5, no stack, no DIV) |
 | `s>f` / `f>s` / literal builder / `f.` → FloatLib | **direct PC-relative `LDI i2f - here` / `f2i - here`, `LINK; JMP`** (`forth_float.asm:311,331,1114,1147,1201`) | the "only the ILL handler calls it" assumption is *almost* right: 5 direct call sites must get a far-call shim or be converted to trap words |
 | ILL → kernel | `ill_fpu` ends with a PC-relative jump back to `ill_restore_shared` (`softfloat.asm:2419`, `forth_nano.asm:19249`) | moving the library needs a far return trampoline back to the handler |
-| Boot loader → segments | `flash_boot.sv` copies flat `0x0000..last`, `DS=0x1000` copy of `0x3000..0x57DC`, `CS=0x3000` copy of `0x4A00..last` | **the same flat word address has a different meaning in each bank** — e.g. flat `0x5800` is FloatLib, `DS:0x5800` is dictionary base, `CS=0x3000:0x0E00` is the FloatLib copy |
+| Boot loader → segments | `flash_boot.sv` copies flat `0x0000..last`, `DS=0x1000` copy of `0x3000..0x3FC3` plus the header/ring windows, `CS=0x3000` copy of `0x4A00..last` | **the same flat word address has a different meaning in each bank** — e.g. flat `0x5800` is FloatLib, `DS:0x5800` is dictionary base, `CS=0x3000:0x0E00` is the FloatLib copy |
 
 ---
 
@@ -114,7 +114,7 @@ address. The build has guards, but they are pairwise and after-the-fact.
 |---|---|---|
 | 1 | **`.org` rewind = silent overwrite** | `tests/forth.test.js:33` ("silently overwrote `interpret_done` — the REPL hung"); `forth_nano.asm:4818` ("grew the interpreter by twenty words … silently overran it"); `forth_nano.asm:1405` (`0x0100` block vs `.org 0x0500`); `tests/segmented.test.js:960` (`gfx_back` ran into the ILL trampoline at `0x4CF4`) |
 | 2 | **The working tree is fixing exactly this** | `forth_float.asm:1635` puts the literal trampolines at `0x2D3F` because `waqr_scan` owns `0x2D2F`–`0x2D38`; `forth_nano.asm` moved `bdos_word_call` from `0x18C3` to `0x1FC2` so `word_esstore`'s tail is whole; `scan_number_entry` is pinned at `0x1FF9`. The Phase 0 layout pass also moved `fitdemo`, `sfx_table`, `bios_f14/15` and `ill_pc_save_bios` into free runs (`MEMFIXPLAN.md`, Phase 0). |
-| 3 | **Dictionary grows *up* into fixed blocks** | Static data ends at `dict_free=0x3FC4`; BDOS 27–29 occupy `0x3FCD`–`0x417C`, float scanner and words `0x3FE9`–`0x430F`, the free Pac-Man gap `0x4330`, BIOS `0x4A00`. `checkImage` rejects `dict_free >= 0x5800` and dictionary-into-BIOS. |
+| 3 | **Dictionary grows *up* into fixed blocks** | Static data ends at `dict_free=0x3FC4`; the dictionary now starts there. The high header/ring windows sit above the stack, and the flat showcase/BIOS remain outside DS. `checkImage` rejects `dict_free >= 0x5800` and dictionary-into-BIOS. |
 | 4 | **Return stack grows *down* into everything** | Flat nano puts RP at `0x5800`, only ~144 words above the nano BIOS end and 0 words above the FPU library start — hence `FPU && !D16SEG` is rejected ("the `0x5800` return stack would collide with the library", `make_image.mjs:118`). Historical segmented build had RP at `0x5FF0` with dictionary from `0x5800`: ~300 frames, `1000 deep` overwrote the running word and froze the board (`HARDWARE.md:302`). Both stacks share `0x5800`–`0x5FFF` in the flat map. |
 | 5 | **One flat address, three owners after the loader scatter** | Flat `0x4A00..0x5FFF` is BIOS/FloatLib in `CS=0`, the same words are BIOS/data in `DS=0x1000` and executable code in `CS=0x3000`. Adding a block at a flat address changes three physical maps at once. `MEMMAP.md:64` calls the flat stack/BIOS gap "a deeply nested line can overwrite the BIOS". |
 | 6 | **Sparse blocks planted over live words** | Showcase menu writes only into `0xFFFF` FILL gaps; `serial-read` once sat at `0x4E42` under the menu and xmodem died on the first SOH (`make_image.mjs:235`, `tests/d16d-image.test.js:71`). PS/2 layout table overwrites are rejected (`deep16_d16d_image.js:210`). |
@@ -177,7 +177,7 @@ three overlapping copy windows can become one copy per segment.
 |---|---|---|---|
 | `CS=0x0000` | `0x00000` | vectors `0..2`, Forth kernel code `0x0100`–`0x2D49`, short far trampolines | no overlap with data |
 | `DS=0x1000` | `0x10000` | `0x0000`–`0x1FFF` scratch, `0x2000`–`0x2FFF` return stack, `0x3000`–`dict_free` kernel data/boot script, dictionary `dict_free`–`0xFFEF` | BDOS 27–29, float words, BIOS data no longer reserve `0x3FCD`–`0x57FF`: ~6–9 K more dictionary words |
-| `SS=0x2000` | `0x20000` | data stack, top `0xFFF0` | full 64 K window |
+| `SS=0x2000` | `0x20000` | data stack, top `0xFFF0` (DS offset `0xF000` in the board build) | full 64 K window |
 | `CS=0x3000` | `0x30000` | BIOS + ILL handler + FloatLib + PS/2 tables + D16D showcase (~13 K words, far below the 64 K limit) | handler/library copies unified, no trampoline |
 | `CS=0x4000` | `0x40000` | BDOS entry, jump table, all 30 handlers, `bd_count`/scratch | far-called, never in Forth's DS space |
 | `ES=0xF000` | `0xF0000` | MMIO, echo cell `0xF0064`, boot ROM | unchanged |
