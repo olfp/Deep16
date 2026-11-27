@@ -165,7 +165,7 @@ test('the D16D flash header uses the format-2 chapter table', () => {
   assert.equal(flash.words[8] >>> 16, 1);
   assert.equal(flash.words[9] & 0xFFFF, 0x3000);
   assert.equal(flash.words[9] >>> 16, 0x1800);
-  assert.equal(flash.words[10] & 0xFFFF, 0xFC4);
+  assert.equal(flash.words[10] & 0xFFFF, image.dictFree - 0x3000);
   assert.equal(flash.words[10] >>> 16, 0);
   // Third entry starts the BDOS windows at seg 0x4000, base 0.
   assert.equal(flash.words[14] & 0xFFFF, 0x4000);

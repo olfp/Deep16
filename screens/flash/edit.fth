@@ -547,7 +547,7 @@ x-unp
 x-frame c@ x-pblk !
 x-frame 1+ c@ x-pnblk !
 x-pblk @ x-pnblk @ + 0xff <> if ." seq" cr x-nak exit then
-x-len @ 128 + x-max @ > if ." big" cr x-nak exit then
+x-len @ 128 + x-max @ u> if ." big" cr x-nak exit then
 x-frame 2 + 128 crc-block
 x-frame 130 + c@ 8 lshift x-frame 131 + c@ or x-pcrc !
 x-pcrc @ x-info ! 6 x-stage !
