@@ -585,7 +585,7 @@ mirrors. Two hard-coded `-0x4000` address builders (`fw_restore`,
 
 ### Phase 5a — relocate the built-in Forth surface
 
-The range `0x3FC4`–`0x57FF` is not empty: it holds 40 built-in Forth headers
+The range `0x3FBA`–`0x57FF` is not empty: it holds 40 built-in Forth headers
 (`h_bslice`, `h_spi_xfer`, `h_fexp`, …) plus the DS-resident `spi_caps`,
 `ps2_layout` and keyboard-ring cells. The dictionary can only start at
 `dict_free` after those data are moved to the top of DS:
@@ -607,7 +607,7 @@ the high destinations, patches every link (including below-`dict_free` headers
 that point upward), and patches the `forth_wl` cell. The old flat headers and
 data cells remain as loader sources but are no longer in the DS mirror.
 
-Dictionary base becomes `dict_free` (`0x3FC4`) and the ceiling `0xEF80`.
+Dictionary base becomes `dict_free` (`0x3FBA`) and the ceiling `0xEF80`.
 The keyboard/string block sits at `0xF000`, above the data stack top, so the
 stack cannot reach the relocated headers at `0xFB80`. The PC-visible probe
 stays at DS `0x5800`.
@@ -641,7 +641,7 @@ stays at DS `0x5800`.
 
 #### Phase 5b implementation notes
 
-The first trial failed because the range `0x3FC4`–`0x57FF` is not only headers
+The first trial failed because the range `0x3FBA`–`0x57FF` is not only headers
 and three cells. Flat code still needs the `divtest` strings at `0x532E`, and
 the core's data stack is DS-relative even though the boot writes `SS=0x2000`.
 The committed layout handles both without moving the showcase:

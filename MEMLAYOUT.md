@@ -20,7 +20,7 @@ script drift). The D16nano numbers below were measured by assembling
 |---|---|---|---|---|
 | Vectors ILL / IRQ / SWI | `0x0000` / `0x0001` / `0x0002` | same | same, written through `CS=0` (`STS R1,CS,R2`) | hardware |
 | Forth kernel code | `0x0100`–`0x2D49` | `0x0100`–`0x2F47` | `0x0100`–`0x2D49` (`swi_to_bios` `0x232`) | direct / threaded |
-| Forth static data, `dict_free` | `0x3000`–`0x3BFB`, ceiling `0x4000` | `0x3000`–`0x3F5E`, ceiling `0x5600` | DS=0x1000 `0x3000`–`0x3FC3`; dictionary `DS:0x3FC4`–`0xEF7F`; high headers `0xFB80`–`0xFFB7`; keyboard/strings `0xF000`–`0xF085` | DS-relative |
+| Forth static data, `dict_free` | `0x3000`–`0x3BFB`, ceiling `0x4000` | `0x3000`–`0x3F5E`, ceiling `0x5600` | DS=0x1000 `0x3000`–`0x3FB9`; dictionary `DS:0x3FBA`–`0xEF7F`; high headers `0xFB80`–`0xFFB7`; keyboard/strings `0xF000`–`0xF085` | DS-relative |
 | **BDOS** entry + jump table | `0x2D4A` / `0x2D59` | **none** (pre-split) | `0x0000` / `0x000F` in the dense `CS=0x4000` chapter | **far jump `JML R2`**, `R0`=fn, `R1`=arg, `R10:R11`=return CS:PC; 30 fns with D16NANO, 27 otherwise |
 | BDOS scattered handlers | `0x4400`–`0x49FB` | – | dense chapter `0x0000`–`0x0725`; fns 27–29 `0x0236`/`0x02DE`/`0x034E`, `bdos_ps2_init` `0x0501`; staged in free flat words and copied to `0x40000` | chapter-relative jump table (`LDS R2, CS, R3`) |
 | **BIOS** code | `0xF8000`–`0xF8156` (physical, `CS=0xF800`), 6 fns | `0x5600`–`0x576F`, 6 fns | image `0x4A00`–`0x6C8F`; **copied to `CS=0x3000:0x0000`** by `flash_boot`, SWI target `0x3000:0` | **SWI** vector 2 → `swi_to_bios`, shadow bank, `I=0` |
@@ -60,7 +60,7 @@ outside the image window).
 | `BDOS_JTABLE` | `0x000F` | `irq_handler` | `0x51A0` |
 | `sf_parse_tramp` | `0x2D3F` | `f_unpack` | `0x0E00` |
 | `fpu_lit_tramp_end` | `0x2D49` | `ill_fpu` | `0x151B` |
-| `dict_free` | `0x3FC4` | `fexp32` | `0x1600` |
+| `dict_free` | `0x3FBA` | `fexp32` | `0x1600` |
 | `fpu_words_base` / `end` | `0x417D` / `0x42EF` | `fpu_lib_end` | `0x6476` |
 | `fpu_trans_base` / `end` | `0x42EF` / `0x430F` | `ps2_decode` | `0x699C` |
 | `scan_float` / `scan_float_probe` | `0x3FE9` / `0x40B8` | `ps2_layout` | `0x57DC` |
@@ -114,7 +114,7 @@ address. The build has guards, but they are pairwise and after-the-fact.
 |---|---|---|
 | 1 | **`.org` rewind = silent overwrite** | `tests/forth.test.js:33` ("silently overwrote `interpret_done` — the REPL hung"); `forth_nano.asm:4818` ("grew the interpreter by twenty words … silently overran it"); `forth_nano.asm:1405` (`0x0100` block vs `.org 0x0500`); `tests/segmented.test.js:960` (`gfx_back` ran into the ILL trampoline at `0x4CF4`) |
 | 2 | **The working tree is fixing exactly this** | `forth_float.asm:1635` puts the literal trampolines at `0x2D3F` because `waqr_scan` owns `0x2D2F`–`0x2D38`; `forth_nano.asm` moved `bdos_word_call` from `0x18C3` to `0x1FC2` so `word_esstore`'s tail is whole; `scan_number_entry` is pinned at `0x1FF9`. The Phase 0 layout pass also moved `fitdemo`, `sfx_table`, `bios_f14/15` and `ill_pc_save_bios` into free runs (`MEMFIXPLAN.md`, Phase 0). |
-| 3 | **Dictionary grows *up* into fixed blocks** | Static data ends at `dict_free=0x3FC4`; the dictionary now starts there. The high header/ring windows sit above the stack, and the flat showcase/BIOS remain outside DS. `checkImage` rejects `dict_free >= 0x5800` and dictionary-into-BIOS. |
+| 3 | **Dictionary grows *up* into fixed blocks** | Static data ends at `dict_free=0x3FBA`; the dictionary now starts there. The high header/ring windows sit above the stack, and the flat showcase/BIOS remain outside DS. `checkImage` rejects `dict_free >= 0x5800` and dictionary-into-BIOS. |
 | 4 | **Return stack grows *down* into everything** | Flat nano puts RP at `0x5800`, only ~144 words above the nano BIOS end and 0 words above the FPU library start — hence `FPU && !D16SEG` is rejected ("the `0x5800` return stack would collide with the library", `make_image.mjs:118`). Historical segmented build had RP at `0x5FF0` with dictionary from `0x5800`: ~300 frames, `1000 deep` overwrote the running word and froze the board (`HARDWARE.md:302`). Both stacks share `0x5800`–`0x5FFF` in the flat map. |
 | 5 | **One flat address, three owners after the loader scatter** | Flat `0x4A00..0x5FFF` is BIOS/FloatLib in `CS=0`, the same words are BIOS/data in `DS=0x1000` and executable code in `CS=0x3000`. Adding a block at a flat address changes three physical maps at once. `MEMMAP.md:64` calls the flat stack/BIOS gap "a deeply nested line can overwrite the BIOS". |
 | 6 | **Sparse blocks planted over live words** | Showcase menu writes only into `0xFFFF` FILL gaps; `serial-read` once sat at `0x4E42` under the menu and xmodem died on the first SOH (`make_image.mjs:235`, `tests/d16d-image.test.js:71`). PS/2 layout table overwrites are rejected (`deep16_d16d_image.js:210`). |

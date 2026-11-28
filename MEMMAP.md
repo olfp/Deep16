@@ -179,7 +179,7 @@ loader. The dictionary then continues at `0x6000`.
 | `boot_script` | `0x3C14` | baked `forth/boot.fth` source |
 | `boot_ptr` | `0x3010` | next boot-script line |
 | `rp0_base` | `0x3001` | return-stack base cell (`0x5800` flat, `0x2FF0` D16SEG) |
-| `dict_free` | `0x3FC4` | board dictionary base (D16BOARD); generic nano keeps the old PSRAM base |
+| `dict_free` | `0x3FBA` | board dictionary base (D16BOARD); generic nano keeps the old PSRAM base |
 | `bd_next` | `0x2FC7` | `fcreate`'s descending slice allocator |
 | `bdos_fcreate` | `0x3FFC` | BDOS 27: allocate a slice and a directory entry |
 | `bdos_fdelete` | `0x40AA` | BDOS 28: clear a directory entry by name |
@@ -315,7 +315,7 @@ was dropped for the read port):
 | Segment | Physical | Contents |
 |---|---|---|
 | `CS=0x0000` | `0x00000` | kernel code `0x0100`–`0x2FFF`, zero page/vectors, ILL handler `0x5000`, IRQ handler `0x51A0`, `divtest` `0x5300` |
-| `DS=0x1000` | `0x10000` | kernel data and boot script `0x3000`–`0x3FC3`; dictionary `0x3FC4`–`0xEF7F`; high headers `0xFB80`–`0xFFB7`; keyboard/strings `0xF000`–`0xF085` |
+| `DS=0x1000` | `0x10000` | kernel data and boot script `0x3000`–`0x3FB9`; dictionary `0x3FBA`–`0xEF7F`; high headers `0xFB80`–`0xFFB7`; keyboard/strings `0xF000`–`0xF085` |
 | `SS=0x2000` | `0x20000` | data stack, DS offset top `0xF000` (64K word window) |
 | `CS=0x3000` | `0x30000` | BIOS code + D16D showcase, then the soft-float library, from image `0x4A00`–`0x5FFF` |
 | `ES=0xF000` | `0xF0000` | MMIO, boot ROM `0xFFFF0`–`0xFFFFF` |
@@ -330,7 +330,7 @@ Within `DS=0x1000`:
 | `0x3FCD`–`0x417C` | BDOS 27–29 (`fcreate`/`fdelete`/`fsize`) in D16NANO builds |
 | `0x417D`–`0x49FF` | free; the old Pac-Man gap. Pac-Man now lives in config flash and loads to segment `0x2000` |
 | `0x4A00`–`0x57DC` | flat BIOS and D16D showcase; not copied to the board DS |
-| `0x3FC4`–`0xEF7F` | dictionary, grows up; `0xFB80`–`0xFFB7` relocated headers |
+| `0x3FBA`–`0xEF7F` | dictionary, grows up; `0xFB80`–`0xFFB7` relocated headers |
 
 Notes:
 

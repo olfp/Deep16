@@ -296,13 +296,13 @@ in `d16tile_flash.sv`. The text and packed builds keep the old flat map.
   - `0x0000..0x1FFF` — SD block/sector buffers, still unused.
   - `0x2000..0x2FFF` — return stack, top `0x2FF0` down, 4,080 frames.
   - `0x3000..0x49F8` — kernel data and the boot script.
-  - `0x4A00..0x57DC` — flat BIOS/showcase; the board DS mirror stops at `0x3FC3`.
-  - `0x3FC4..0xEF7F` — dictionary, with relocated headers at `0xFB80` and the keyboard/string block at `0xF000`.
+  - `0x4A00..0x57DC` — flat BIOS/showcase; the board DS mirror stops at `0x3FB9`.
+  - `0x3FBA..0xEF7F` — dictionary, with relocated headers at `0xFB80` and the keyboard/string block at `0xF000`.
 - **Data stack:** `SS=0x2000` offset top `0xF000` on the board, 64K word window. The BIOS and ILL
   handlers set their shadow `SS` to `0x2000` before using the caller's stack.
 - **Return stack:** a DS offset window at `0x2FF0` down. It cannot be a segment
   of its own: every return-stack access is `LD`/`ST` through DS, so it has to
-  stay a DS offset. It also has to stay *below* the dictionary (`0x3FC4` on the board, grows
+  stay a DS offset. It also has to stay *below* the dictionary (`0x3FBA` on the board, grows
   up). The first segmented build kept it at `0x5FF0` with the dictionary
   starting at `0x5800`; that left only ~300 calls of headroom, so
   `1000 deep` overwrote the word it was running and froze the machine.
