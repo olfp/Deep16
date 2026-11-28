@@ -1,6 +1,7 @@
 # LUAHEAP — a heap for the native LILA profile
 
-*Status: a plan, not an implementation. Written 2026-11-28.*
+*Status: a plan, not an implementation. Written 2026-11-28; the decisions in
+§8 were taken the same day.*
 
 ## 1. The problem
 
@@ -49,10 +50,10 @@ ceiling, so the figures below are the board's:
 | `here` after `s" lila" need` | `0x91B0` |
 | free cells after the compiler is loaded | **24,016** |
 
-> The prose in `MEMLAYOUT.md:63,117` and `MEMFIXPLAN.md:610` still says
-> `dict_free = 0x3FC4`. The assembled value is `0x3FBA`, ten words lower (the
-> phase-5b relocation moved the keyboard block out of the way). This file uses
-> the assembled value.
+> The prose in `MEMLAYOUT.md`, `MEMMAP.md`, `HARDWARE.md` and `MEMFIXPLAN.md`
+> said `dict_free = 0x3FC4`. The assembled value is `0x3FBA`, ten words lower
+> (the phase-5b relocation moved the keyboard block out of the way); those
+> documents have been corrected. This file uses the assembled value.
 
 The data stack really is in the same segment as the dictionary: the kernel
 sets `DS = 0x1000` and `SS = 0x2000` (`asm/forth_nano.asm:136-139`), but the
@@ -91,17 +92,20 @@ Three consequences:
 
 ### 4.1 The heap
 
-A cell-granular allocator with a bump pointer and a free list:
-
-```
-create l-heap N allot        \ the block; N is the budget of §5
-```
+A cell-granular allocator with a bump pointer and a free list. The heap lives
+in **segment `0xB000`** — the whole segment, 65,536 cells (§5.4). Its
+metadata (the bump pointer, the free-list head) are ordinary Forth variables
+in DS; the *blocks* live in the segment.
 
 - `halloc ( cells -- addr )` — bump, or the first free block that fits;
 - `hfree ( addr -- )` — return a block to the free list;
 - `hget ( addr -- x )`, `hset ( x addr -- )` — the access path (§5.3);
 - `hmove ( src dst n -- )`, `hfill ( addr n char -- )` — bulk operations;
 - `hreset` — the session reset (`lila` restarts; `lila-native.fth:1019`).
+
+An address is the 16-bit offset inside the segment. The value ABI has no room
+for a segment number, so the segment is implicit: every access goes through
+the heap's own segment (§5.3).
 
 Every object carries the host's four-cell header, `[next][size][mark][type]`
 (`lila/gc.fs:9-12`), so the object list is already there and a collector can
@@ -182,9 +186,9 @@ but it is not free of consequences.
 
 | | A: in the DS gap | B: its own segment |
 |---|---|---|
-| size | ~23,000 cells (24,016 minus the stack's 1,000) | 65,536 words nominal (`0xB000`, physical `0xB0000`–`0xBFFFF`) |
+| size | ~23,000 cells (24,016 minus the stack's 1,000) | **65,536 cells — the whole of `0xB000`** (physical `0xB0000`–`0xBFFFF`) |
 | access | plain `@` / `!` — the fastest path there is | segment-relative: ES must point at the heap |
-| new kernel code | none | an access layer, and ES juggling around the I/O segment |
+| new kernel code | none | one primitive pair, `seg@` / `seg!` (§5.2) |
 | what it leaves to the dictionary | ~23,000 cells | the whole 44,998-cell gap minus the stack |
 | BSRAM-only builds | works | no RAM there — the heap must be optional |
 | loader, image, FPGA | untouched | untouched (see §5.2) |
@@ -197,13 +201,18 @@ but it is not free of consequences.
   packed image (`rtl/deep16_top.sv:115-121`). The CPU window is 1 Mi words
   (`MEMMAP.md:21-32`), so segment `0xB000` is ordinary writable PSRAM. **No
   RTL change.**
-- **The ISA is enough.** `seg-base! ( seg -- )` already sets ES
-  (`asm/forth_nano.asm:10796-10812`), `es@` and `es!` are primitives that
-  read and write through ES (`:10873-10913`), and `MVS` writes any segment
-  register. Explicit `LDS`/`STS` address a segment too. **No ISA change.**
-  (`LDI` cannot encode `0xB000` — its immediate is sign-extended 15 bits — but
-  a Forth literal is a full 16-bit word, so the Forth side does not care; the
-  kernel side uses a `.word` cell, as it already does for `bdos_seg_cell`,
+- **The ISA is enough, but a kernel word is not optional.** `MVS` writes any
+  segment register (`MVS ES, R1`) and reads one back (`MVS R7, ES`), and
+  `LDS`/`STS` address memory through a segment register — but their segment
+  field is **two bits** (`js/deep16_assembler.js:1166-1168`,
+  `book/anhang.md:158-159`): they reach only CS, DS, SS and ES, never an
+  arbitrary segment such as `0xB000`. The heap therefore needs one new
+  kernel primitive pair — `seg@ ( seg addr -- x )` and `seg! ( x seg addr
+  -- )` — that points ES at the segment, does the access and puts ES back.
+  **No ISA change; a small kernel change.** (`LDI` cannot encode `0xB000` —
+  its immediate is sign-extended 15 bits — but a Forth literal is a full
+  16-bit word, so the Forth side does not care; the kernel side uses a
+  `.word` cell, as it already does for `bdos_seg_cell`,
   `asm/forth_nano.asm:4414-4416`.)
 - **The loader does not need to know.** A heap that the allocator initializes
   at runtime needs no image content and no table entry. A heap that the
@@ -242,16 +251,18 @@ but it is not free of consequences.
 
 - **ES is the I/O segment.** The kernel sets `ES = 0xF000` at boot
   (`asm/forth_nano.asm:155-157`) and the console and the SD driver need it.
-  A heap in ES means saving and restoring ES around every heap access, or
-  giving the heap the segment for as long as it lives — and the console
-  breaks in the second case.
+  A heap access in ES means saving and restoring ES around every access. The
+  primitive does that: `MVS R7, ES` saves it, `MVS ES, R1` points it at the
+  heap, and `MVS ES, R7` puts it back — the console never sees the change.
+  (`seg-base!` (`:10796-10812`) sets ES without restoring it, so it must not
+  be used for the heap.)
 - **There is no ES-relative bulk move.** `move`, `cmove` and `fill` are
   DS-relative; copying a slot array or a string inside the heap needs a new
   word (`hmove` above).
 - **Every cell access becomes a call.** The LILA VM reads and writes slot
   cells with `@` and `!` today. With the heap elsewhere, each of those
-  becomes `hget`/`hset`. At ~30 steps per call and ~7 cells per slot, a
-  1,000-entry scan is ~200 k steps — still ~5 % of one line's 4 M-step cost
+  becomes `hget`/`hset`. At ~40 steps per access and ~7 cells per slot, a
+  1,000-entry scan is ~280 k steps — still ~7 % of one line's 4 M-step cost
   (§3), so it is affordable, but it is not free.
 - **A pointer is one 16-bit cell.** The value ABI has no room for a segment
   number, so the heap must live in one known segment and every access must go
@@ -262,31 +273,32 @@ but it is not free of consequences.
   (`rtl/deep16_top.sv:104-149,485-520`); the heap has to be refused or
   emulated there.
 
-### 5.4 The recommendation
+### 5.4 The decision
 
-**Put the heap behind the access layer of §4.1 from the start, and start it in
-the DS gap; move it to segment `0xB000` when the dictionary needs the room.**
+**The heap goes straight into segment `0xB000`, the whole segment: 65,536
+cells.** The access layer (`hget`, `hset`, `hmove`, `hfill`) and the kernel's
+`seg@`/`seg!` are its only interface, so the LILA VM never knows where the
+heap lives.
 
-- The access layer (`hget`, `hset`, `hmove`, `hfill`) costs little and is the
-  same work either way; with it in place, moving the backing store from DS
-  to a segment is a change in the layer, not in the LILA VM.
-- The DS gap is enough for the tables of §4.2 right now: ~23,000 cells is
-  ~3,000 table entries, or thirty tables of a hundred entries.
-- The segment is worth doing *when the dictionary needs it*. The dictionary is
-  the other thing that will grow — functions, closures, frames and a standard
-  library will take the compiler well past its present 10,756 cells — and it
-  can only grow inside the same 44,998 cells. With the heap in DS, the
-  dictionary and the heap split that gap; with the heap in a segment, the
-  dictionary keeps all of it.
-- Segment `0xB000` is the right one: `0x5000` (Flappy), `0x0600` (Frogger),
-  `0x7000` (Pole) and `0x8000` (the BDOS directory buffer) are taken
-  (`MEMFIXPLAN.md:20-22`), `0x9000` and `0xA000` are documented as the
+- **The dictionary keeps the whole gap.** With the heap out of DS, the
+  dictionary and the data stack no longer compete for the same 44,998 cells.
+  The dictionary is the other thing that will grow — functions, closures,
+  frames and a standard library will take the compiler well past its present
+  10,756 cells — and it can only grow inside that gap.
+- **The segment is free.** `0x2000` (Pac-Man), `0x5000` (Flappy), `0x0600`
+  (Frogger), `0x7000` (Pole) and `0x8000` (the BDOS directory buffer) are
+  taken (`MEMFIXPLAN.md:20-22`), `0x9000` and `0xA000` are documented as the
   candidates for moving ILL and FloatLib into segments of their own
   (`MEMFIXPLAN.md:94-96`), and `0xF000` is the I/O window the kernel points
   ES at. `0xB000`–`0xE000` are free.
-- If the dictionary roadmap turns out to need the room *now*, skip step A and
-  go straight to B: the hardware allows it with no RTL, ISA, loader or FPGA
-  change. The cost is the access layer and the ES juggling of §5.3.
+- **The cost is the access path.** Every cell access becomes a kernel call
+  (§5.3): ~280 k steps for a 1,000-entry scan, ~7 % of one line's 4 M-step
+  cost (§3). Affordable, and the reason a linear scan still beats hashing.
+- **A BSRAM-only build has no RAM at `0xB000`** (§5.3); the heap has to be
+  refused or emulated there. The native profile's target is the PSRAM
+  D16nano.
+- The heap is **not** in the image and **not** in the loader's chapter table:
+  the allocator initializes it at runtime (§5.2).
 
 ## 6. The stages
 
@@ -296,15 +308,16 @@ only by the documentation of the last stage.
 | stage | work | acceptance |
 |---|---|---|
 | **E0** | the measurements of §3, re-run and recorded | this file |
-| **E1** | the allocator and its access layer (DS first), plus `tests/native-lila-heap.test.js`: alloc, free, reuse, reset, exhaustion, a poisoned heap | the free list returns blocks; exhaustion is a clean error; the data stack is back at depth 0 |
+| **E1** | the kernel's `seg@` / `seg!` primitives, then the allocator and its access layer on segment `0xB000`, plus `tests/native-lila-heap.test.js`: alloc, free, reuse, reset, exhaustion, a poisoned segment | the free list returns blocks; exhaustion is a clean error; the data stack is back at depth 0; the console still works (ES is restored) |
 | **E2** | growing tables (§4.2): the header, growth at 75 %, delete and reinsert, identity semantics, the nested-read and nested-assignment rules unchanged | a 100-entry table and ten tables work; the 19 parity programs still match `lua5.4` 5.4.8; the `-31`/`-32` tests become out-of-memory tests |
 | **E3** | strings on the heap (§4.3) | `-7` and `-11` are gone; the string programs still match |
 | **E4** | the verdict and the documentation: `LILASTATUS`, `lila/LILANATIVE.md`, `lila/native/README.md`, `LUAPARITY`, and the budget figures re-measured | the numbers in the docs match the board |
 
 ## 7. Risks
 
-- **The dictionary and the heap want the same cells.** This is the reason to
-  keep the segment option open (§5.4).
+- **The heap and the dictionary no longer share cells** (§5.4) — the heap is
+  in `0xB000`, the dictionary in the DS gap. The price is the access path
+  (§5.3), not the room.
 - **A leak is a leak.** Dropped tables keep their four-cell header until the
   session ends. A session that creates thousands of tables exhausts the heap.
   The alternative is a collector (§4.4), not a cleverer free.
@@ -320,17 +333,16 @@ only by the documentation of the last stage.
   plan's problem, but it is what makes this plan affordable, and it is what
   will make a LILA program feel slow.
 
-## 8. The decisions to take
+## 8. The decisions taken
 
-1. **Heap size**: ~23,000 cells (the whole gap minus a 1,000-cell stack) or
-   ~12,000 (a 12,000-cell stack margin)? The recommendation is 20,000 — a
-   4,000-cell stack, 267× the measured peak.
-2. **Heap placement**: in the DS gap now (recommended), or straight into
-   segment `0xB000`?
-3. **Strings**: in the same batch as the tables, or a separate one (§4.3)?
-4. **Growth threshold**: 75 % (host parity, recommended) or 50 %?
-5. **Dropped tables may leak their header**: acceptable (recommended), or
-   should the collector come with the heap?
+1. **Heap size**: the whole segment — **65,536 cells** in `0xB000`.
+2. **Heap placement**: **straight to segment `0xB000`**, not the DS gap. The
+   dictionary keeps the whole 44,998-cell gap.
+3. **Strings**: a **separate batch** after the tables (§4.3).
+4. **Growth threshold**: **75 %**, host parity (`lila/hash.fs:173`).
+5. **Dropped tables may leak their header**: yes — the collector stays
+   optional (§4.4). A session that creates thousands of tables exhausts the
+   64 K heap; that is the price of no GC.
 
 ## 9. References
 
