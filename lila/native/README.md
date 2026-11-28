@@ -78,7 +78,7 @@ loader reserved a 22,528-cell `text-buf` for the source text and took that
 room out of the stack; the new loader keeps only the 2,048-cell `slice-buf` -
 and the packed loader's own buffer is taken from the dictionary only when a
 packed slice is actually loaded - so the gap between the dictionary and the
-stack is 44,988 cells, where the old loader left 12,257 of them free and the
+stack is 44,998 cells, where the old loader left 12,257 of them free and the
 new one leaves 34,772. The old loader cannot load the compiler at all now:
 its `text-buf` holds 22,528 characters and the source is 27,482. The stack
 still holds thousands of cells - far more than the LILA VM needs - and the

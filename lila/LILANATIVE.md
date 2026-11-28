@@ -113,12 +113,12 @@ text never sits in the dictionary. A board that already carries an older boot
 loader needs `npm run flash:tile` for the new loader.
 
 That cost lands on the data stack. In the D16SEG map the dictionary grows up
-from `0x3FC4` and the data stack grows down from `0xEF80` in the same
+from `0x3FBA` and the data stack grows down from `0xEF80` in the same
 region, so the dictionary and the stack share their cells. The old loader
 reserved a 22,528-cell `text-buf` for the source text and took that room out
 of the stack; the new loader keeps only the 2,048-cell `slice-buf` - and the
 packed loader's own buffer is taken from the dictionary only when a packed
-slice is actually loaded - so the gap between the two is 44,988 cells, where
+slice is actually loaded - so the gap between the two is 44,998 cells, where
 the old loader left 12,257 of them free and the new one leaves 34,772.
 
 After the load the compiler has taken about 10.8k cells, leaving about 24.0k
@@ -578,8 +578,8 @@ lets a block span several lines, and it is why the pending source is kept in
 The rest are scalar variables for parser and VM state. The arrays account for
 most of the compiler's footprint. On the D16SEG image used by the test, the
 booted kernel has `here = 0x67ac`: the boot loader keeps no copy of the
-source text in the dictionary, and 34,772 of the 44,988 cells between the
-dictionary base `0x3fc4` and the stack top `0xef80` are still free. Loading
+source text in the dictionary, and 34,772 of the 44,998 cells between the
+dictionary base `0x3fba` and the stack top `0xef80` are still free. Loading
 the compiler from the flash takes 10,756 cells, leaving 24,016 free; typing
 it in takes the same 10,756 cells.
 

@@ -95,7 +95,7 @@ What changed:
 ## What was measured
 
 D16D image, FPU profile, the real slice image in the flash. The phase 5
-memory rework moved the dictionary base from `0x5800` to `0x3fc4` and the
+memory rework moved the dictionary base from `0x5800` to `0x3fba` and the
 stack top from `0xfff0` to `0xef80`, so the figures below are measured on
 the current layout: the old loader (the `forth/boot.fth` of the strings
 batch) and the new one, baked into the same kernel one after the other.
@@ -138,8 +138,8 @@ The boot is unchanged by the tables - they cost dictionary cells, not boot
 time.
 
 In the D16SEG map the dictionary and the data stack share their cells: the
-gap between the dictionary base `0x3fc4` and the stack top `0xef80` is
-44,988 cells, and the free cells measured above are what is left of that
+gap between the dictionary base `0x3fba` and the stack top `0xef80` is
+44,998 cells, and the free cells measured above are what is left of that
 gap after the boot.
 
 Tests: the whole suite is green on this tree (1035 tests after the phase 5
